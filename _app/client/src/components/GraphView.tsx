@@ -76,6 +76,29 @@ export const GraphView: React.FC<GraphViewProps> = ({
     return neighbors;
   }, [hoverNode, graphData]);
 
+  // Identify mutual links to curve them
+  const mutualLinks = useMemo(() => {
+    const mutual = new Set<string>();
+    const linkSet = new Set<string>();
+    
+    graphData.links.forEach(link => {
+      const s = typeof link.source === 'object' ? link.source.id : link.source;
+      const t = typeof link.target === 'object' ? link.target.id : link.target;
+      linkSet.add(`${s}->${t}`);
+    });
+
+    graphData.links.forEach(link => {
+      const s = typeof link.source === 'object' ? link.source.id : link.source;
+      const t = typeof link.target === 'object' ? link.target.id : link.target;
+      if (linkSet.has(`${t}->${s}`)) {
+        mutual.add(`${s}->${t}`);
+      }
+    });
+
+    return mutual;
+  }, [graphData.links]);
+
+
   // Handle graph auto-zooming / fitting on load
   useEffect(() => {
     if (graphRef.current) {
@@ -142,26 +165,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
     ctx.fillText(label, node.x, node.y + radius + 2);
   };
 
-  // Custom link renderer (HTML5 Canvas)
-  const drawLink = (link: any, ctx: CanvasRenderingContext2D) => {
-    const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-    const targetId = typeof link.target === 'object' ? link.target.id : link.target;
 
-    const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
-
-    if (hoverNode && !isHovered) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-      ctx.lineWidth = 0.5;
-    } else {
-      ctx.strokeStyle = isHovered ? '#a78bfa' : 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = isHovered ? 1.5 : 0.8;
-    }
-
-    ctx.beginPath();
-    ctx.moveTo(link.source.x, link.source.y);
-    ctx.lineTo(link.target.x, link.target.y);
-    ctx.stroke();
-  };
 
   return (
     <div className="relative w-full h-full bg-background-panel rounded-xl border border-white/5 overflow-hidden flex flex-col">
@@ -214,7 +218,91 @@ export const GraphView: React.FC<GraphViewProps> = ({
             ref={graphRef}
             graphData={graphData}
             nodeCanvasObject={drawNode}
-            linkCanvasObject={drawLink}
+            linkColor={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
+
+              if (hoverNode) {
+                return isHovered ? '#a78bfa' : 'rgba(255, 255, 255, 0.02)';
+              }
+              if (activeNotePath) {
+                return isActive ? '#9d4edd' : 'rgba(255, 255, 255, 0.05)';
+              }
+              return 'rgba(255, 255, 255, 0.12)';
+            }}
+            linkWidth={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              return isHovered ? 1.8 : 0.8;
+            }}
+            linkCurvature={(link: any) => {
+              const s = typeof link.source === 'object' ? link.source.id : link.source;
+              const t = typeof link.target === 'object' ? link.target.id : link.target;
+              return mutualLinks.has(`${s}->${t}`) ? 0.25 : 0;
+            }}
+            
+            // Directional Arrows
+            linkDirectionalArrowLength={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              
+              if (hoverNode && !isHovered) return 0; // Hide arrows on dimmed links
+              return 3.5;
+            }}
+            linkDirectionalArrowColor={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
+
+              if (isHovered) return '#a78bfa';
+              if (isActive) return '#9d4edd';
+              return 'rgba(255, 255, 255, 0.25)';
+            }}
+            linkDirectionalArrowRelPos={0.95} // Position near target node edge
+            
+            // Glowing Flow Particles (Living Graph)
+            linkDirectionalParticles={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
+
+              if (hoverNode) {
+                return isHovered ? 3 : 0; // Flow only on hovered connections
+              }
+              if (activeNotePath) {
+                return isActive ? 2 : 0;
+              }
+              return 1; // Subtle background flow
+            }}
+            linkDirectionalParticleSpeed={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              return isHovered ? 0.008 : 0.003;
+            }}
+            linkDirectionalParticleWidth={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              return isHovered ? 2.5 : 1.5;
+            }}
+            linkDirectionalParticleColor={(link: any) => {
+              const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+              const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+              const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
+              const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
+
+              if (isHovered) return '#d8b4fe'; // Lavender glow
+              if (isActive) return '#a78bfa'; // Purple glow
+              return 'rgba(255, 255, 255, 0.4)';
+            }}
+
             onNodeClick={(node: any) => onNoteSelect(node.id)}
             onNodeHover={(node: any) => setHoverNode(node)}
             backgroundColor="#181818"
