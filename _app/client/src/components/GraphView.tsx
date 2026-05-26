@@ -30,8 +30,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
     setIsFullscreen(prev => !prev);
     // Let layout animate and resize, then reset zoom beautifully
     setTimeout(() => {
-      graphRef.current?.zoomToFit(400, isFullscreen ? 150 : 80);
-    }, 150);
+      graphRef.current?.zoomToFit(400, 90);
+    }, 200);
   };
 
   // Fetch complete note relations from server dynamically
@@ -214,7 +214,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() => graphRef.current?.zoomToFit(400, 150)}
+          onClick={() => graphRef.current?.zoomToFit(400, 90)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
           title="По размеру (Сбросить зум)"
         >
@@ -329,8 +329,6 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onNodeHover={(node: any) => setHoverNode(node)}
             backgroundColor="#181818"
             cooldownTicks={100}
-            maxZoom={2.0}
-            minZoom={0.5}
           />
         )}
       </div>
