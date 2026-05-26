@@ -113,10 +113,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
       graphRef.current.d3Force('charge').strength(-150);
       graphRef.current.d3Force('link').distance(60);
       setTimeout(() => {
-        graphRef.current.zoomToFit(400, 50);
+        graphRef.current?.zoomToFit(400, isFullscreen ? 80 : 115);
       }, 500);
     }
-  }, [graphData]);
+  }, [graphData, isFullscreen]);
 
   // Custom node renderer (HTML5 Canvas)
   const drawNode = (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
