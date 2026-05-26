@@ -65,14 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Normalize path helpers
   const normalizePath = (p: string) => p.replace(/\\/g, '/');
 
-  // Toggle folder expansion
-  const toggleFolder = (folderPath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExpandedFolders(prev => ({
-      ...prev,
-      [folderPath]: !prev[folderPath]
-    }));
-  };
+
 
   // Handle Note/Folder Creations
   const handleCreate = (isDir: boolean) => {
@@ -162,14 +155,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <li key={item.relative_path} className="group/dir">
                 <div
-                  onClick={() => setSelectedParentFolder(item.relative_path)}
+                  onClick={() => {
+                    setSelectedParentFolder(item.relative_path);
+                    setExpandedFolders(prev => ({
+                      ...prev,
+                      [item.relative_path]: !prev[item.relative_path]
+                    }));
+                  }}
                   className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                     isSelectedParent 
-                      ? 'bg-primary/20 text-white border border-primary/30' 
+                      ? 'bg-primary/20 text-white border border-primary/30 shadow-sm shadow-primary/10' 
                       : 'text-text-muted hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <div className="flex items-center space-x-1.5 truncate flex-1" onClick={(e) => toggleFolder(item.relative_path, e)}>
+                  <div className="flex items-center space-x-1.5 truncate flex-1">
                     {isExpanded ? (
                       <ChevronDown className="w-3.5 h-3.5 text-text-disabled shrink-0" />
                     ) : (
