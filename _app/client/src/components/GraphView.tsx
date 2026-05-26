@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Search, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Search, ZoomIn, ZoomOut, Maximize2, Minimize2, Focus } from 'lucide-react';
 
 interface Note {
   relative_path: string;
@@ -22,8 +22,17 @@ export const GraphView: React.FC<GraphViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const graphRef = useRef<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(prev => !prev);
+    // Let layout animate and resize, then reset zoom beautifully
+    setTimeout(() => {
+      graphRef.current?.zoomToFit(400, isFullscreen ? 150 : 80);
+    }, 150);
+  };
 
   // Fetch complete note relations from server dynamically
   useEffect(() => {
@@ -168,7 +177,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
 
   return (
-    <div className="relative w-full h-full bg-background-panel rounded-xl border border-white/5 overflow-hidden flex flex-col">
+    <div className={`
+      bg-background-panel border border-white/5 flex flex-col transition-all duration-300
+      ${isFullscreen 
+        ? 'fixed inset-0 z-50 p-6 bg-[#121212]' 
+        : 'relative w-full h-full rounded-xl overflow-hidden'
+      }
+    `}>
       {/* Controls Overlay */}
       <div className="absolute top-4 left-4 z-10 flex flex-col space-y-2">
         <div className="relative w-64">
@@ -199,11 +214,18 @@ export const GraphView: React.FC<GraphViewProps> = ({
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() => graphRef.current?.zoomToFit(400, 50)}
+          onClick={() => graphRef.current?.zoomToFit(400, 150)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
-          title="По размеру"
+          title="По размеру (Сбросить зум)"
         >
-          <Maximize2 className="w-4 h-4" />
+          <Focus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={toggleFullscreen}
+          className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer border-l border-white/10 pl-2 ml-1"
+          title={isFullscreen ? "Свернуть" : "Развернуть на весь экран"}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
       </div>
 
@@ -307,6 +329,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onNodeHover={(node: any) => setHoverNode(node)}
             backgroundColor="#181818"
             cooldownTicks={100}
+            maxZoom={2.0}
+            minZoom={0.5}
           />
         )}
       </div>
