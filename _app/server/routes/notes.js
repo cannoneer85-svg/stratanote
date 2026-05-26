@@ -136,7 +136,7 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
   }
 });
 
-// 5. Delete note or folder from disk
+// 5. Delete note or folder from disk and database (self-healing defensive sync)
 router.delete('/', authenticateJWT, canEdit, async (req, res) => {
   const relPath = req.query.relative_path;
   if (!relPath) return res.status(400).json({ error: 'relative_path is required' });
@@ -146,7 +146,10 @@ router.delete('/', authenticateJWT, canEdit, async (req, res) => {
 
   try {
     if (!fs.existsSync(absolutePath)) {
-      return res.status(404).json({ error: 'File or folder not found' });
+      // Self-heal: If folder is not on disk but remains in DB, clean it up
+      await run('DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?', [normPath, normPath + '/%']);
+      req.app.get('io').emit('file-delete', { relative_path: normPath });
+      return res.status(404).json({ error: 'Ресурс не найден на диске, но удален из базы данных' });
     }
 
     const stat = fs.statSync(absolutePath);
@@ -155,6 +158,12 @@ router.delete('/', authenticateJWT, canEdit, async (req, res) => {
     } else {
       fs.unlinkSync(absolutePath);
     }
+
+    // Synchronously update SQLite DB to ensure instant client sync without relying solely on Chokidar
+    await run('DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?', [normPath, normPath + '/%']);
+    
+    // Broadcast delete event instantly to all clients via WebSockets
+    req.app.get('io').emit('file-delete', { relative_path: normPath });
 
     res.json({ message: 'Deleted successfully' });
   } catch (err) {
