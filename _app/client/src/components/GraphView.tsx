@@ -27,11 +27,12 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
 
   const toggleFullscreen = () => {
-    setIsFullscreen(prev => !prev);
-    // Let layout animate and resize, then reset zoom beautifully
+    const nextFullscreen = !isFullscreen;
+    setIsFullscreen(nextFullscreen);
+    // Let CSS transition (300ms) complete fully, then center beautifully
     setTimeout(() => {
-      graphRef.current?.zoomToFit(400, 90);
-    }, 200);
+      graphRef.current?.zoomToFit(400, nextFullscreen ? 80 : 115);
+    }, 350);
   };
 
   // Fetch complete note relations from server dynamically
@@ -45,12 +46,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
         const data = await res.json();
         
         if (res.ok) {
-          // Calculate link degrees to size nodes by backlink count
+          // Calculate link degrees to size nodes by backlink count (incoming links only)
           const degrees: Record<string, number> = {};
           data.links.forEach((l: any) => {
-            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
             const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-            degrees[sourceId] = (degrees[sourceId] || 0) + 1;
             degrees[targetId] = (degrees[targetId] || 0) + 1;
           });
 
@@ -214,7 +213,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() => graphRef.current?.zoomToFit(400, 90)}
+          onClick={() => graphRef.current?.zoomToFit(400, isFullscreen ? 80 : 115)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
           title="По размеру (Сбросить зум)"
         >
