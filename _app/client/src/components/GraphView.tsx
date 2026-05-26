@@ -23,15 +23,28 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const graphRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [maxZoomLimit, setMaxZoomLimit] = useState<number | undefined>(undefined);
 
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+
+  // Safe zoom-to-fit that clamps the auto-zoom to prevent massive node scaling,
+  // then releases the limit so the user can zoom in manually as much as they want!
+  const triggerClampedFit = (padding: number) => {
+    setMaxZoomLimit(2.3); // Safe limit for auto-zoom (never lets nodes blow up)
+    graphRef.current?.zoomToFit(400, padding);
+    
+    // Release the constraint after transition animation completes
+    setTimeout(() => {
+      setMaxZoomLimit(50); // High limit for unlimited manual zoom
+    }, 450);
+  };
 
   const toggleFullscreen = () => {
     const nextFullscreen = !isFullscreen;
     setIsFullscreen(nextFullscreen);
     // Let CSS transition (300ms) complete fully, then center beautifully
     setTimeout(() => {
-      graphRef.current?.zoomToFit(400, nextFullscreen ? 80 : 115);
+      triggerClampedFit(nextFullscreen ? 80 : 115);
     }, 350);
   };
 
@@ -113,7 +126,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       graphRef.current.d3Force('charge').strength(-150);
       graphRef.current.d3Force('link').distance(60);
       setTimeout(() => {
-        graphRef.current?.zoomToFit(400, isFullscreen ? 80 : 115);
+        triggerClampedFit(isFullscreen ? 80 : 115);
       }, 500);
     }
   }, [graphData, isFullscreen]);
@@ -213,7 +226,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() => graphRef.current?.zoomToFit(400, isFullscreen ? 80 : 115)}
+          onClick={() => triggerClampedFit(isFullscreen ? 80 : 115)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
           title="По размеру (Сбросить зум)"
         >
@@ -328,6 +341,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onNodeHover={(node: any) => setHoverNode(node)}
             backgroundColor="#181818"
             cooldownTicks={100}
+            maxZoom={maxZoomLimit}
+            minZoom={0.1}
           />
         )}
       </div>
