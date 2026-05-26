@@ -86,6 +86,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!name || name.trim() === '') return;
 
     const trimmedName = name.trim();
+    
+    // Block illegal OS filesystem characters (\ / : * ? " < > |)
+    const illegalChars = /[\\/:*?"<>|]/;
+    if (illegalChars.test(trimmedName)) {
+      alert("Название не может содержать специальные символы файловой системы: \\ / : * ? \" < > |");
+      return;
+    }
+
     // Verify file name has .md extension
     let relativePath = selectedParentFolder 
       ? `${selectedParentFolder}/${trimmedName}` 
