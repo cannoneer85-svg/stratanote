@@ -30,7 +30,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Safe zoom-to-fit that clamps the auto-zoom to prevent massive node scaling,
   // then releases the limit so the user can zoom in manually as much as they want!
   const triggerClampedFit = (padding: number) => {
-    setMaxZoomLimit(2.3); // Safe limit for auto-zoom (never lets nodes blow up)
+    setMaxZoomLimit(1.5); // Optimal and safe limit for auto-zoom (prevent giant clipping)
     graphRef.current?.zoomToFit(400, padding);
     
     // Release the constraint after transition animation completes
@@ -123,8 +123,15 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Handle graph auto-zooming / fitting on load
   useEffect(() => {
     if (graphRef.current) {
-      graphRef.current.d3Force('charge').strength(-150);
-      graphRef.current.d3Force('link').distance(60);
+      const nodeCount = graphData.nodes.length;
+      // Dynamically space nodes to look beautiful and avoid clipping:
+      // Spreading few nodes far apart makes the bounding box naturally larger,
+      // which results in beautiful framing without having to zoom in too close!
+      const linkDistance = nodeCount <= 2 ? 140 : nodeCount <= 4 ? 90 : 60;
+      const chargeStrength = nodeCount <= 2 ? -250 : nodeCount <= 4 ? -180 : -150;
+
+      graphRef.current.d3Force('charge').strength(chargeStrength);
+      graphRef.current.d3Force('link').distance(linkDistance);
       setTimeout(() => {
         triggerClampedFit(isFullscreen ? 80 : 115);
       }, 500);

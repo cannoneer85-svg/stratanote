@@ -200,15 +200,17 @@ router.post('/upload-image', authenticateJWT, canEdit, async (req, res) => {
   }
 });
 
-// 6.5. Get Graph Data (Compute relationships on server)
+// 6.5. Get Graph Data (Compute relationships on server with active disk filtering & self-healing)
 router.get('/graph-data', authenticateJWT, async (req, res) => {
   try {
     const notesList = await all('SELECT relative_path, title, is_directory FROM notes WHERE is_directory = 0');
     const links = [];
+    const validNotes = [];
 
     for (const note of notesList) {
       const absolutePath = join(vaultPath, note.relative_path);
       if (fs.existsSync(absolutePath)) {
+        validNotes.push(note);
         const content = fs.readFileSync(absolutePath, 'utf8');
         const wikiLinkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
         let match;
@@ -222,18 +224,25 @@ router.get('/graph-data', authenticateJWT, async (req, res) => {
           if (!targetNote) {
             targetNote = notesList.find(n => n.title.toLowerCase() === targetPath.replace(/\.md$/, '').toLowerCase());
           }
+          // Verify both source and target physically exist on disk
           if (targetNote && targetNote.relative_path !== note.relative_path) {
-            links.push({
-              source: note.relative_path,
-              target: targetNote.relative_path
-            });
+            const targetAbsolutePath = join(vaultPath, targetNote.relative_path);
+            if (fs.existsSync(targetAbsolutePath)) {
+              links.push({
+                source: note.relative_path,
+                target: targetNote.relative_path
+              });
+            }
           }
         }
+      } else {
+        // Self-heal DB: If a note is in SQLite but missing from disk, delete it
+        await run('DELETE FROM notes WHERE relative_path = ?', [note.relative_path]);
       }
     }
 
     res.json({
-      nodes: notesList.map(n => ({ id: n.relative_path, name: n.title, val: 1 })),
+      nodes: validNotes.map(n => ({ id: n.relative_path, name: n.title, val: 1 })),
       links
     });
   } catch (err) {
