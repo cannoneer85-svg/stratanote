@@ -11,77 +11,55 @@ interface Note {
 
 interface GraphViewProps {
   notes: Note[];
-  noteContents: Record<string, string>; // relative_path -> content
   onNoteSelect: (path: string) => void;
   activeNotePath: string | null;
 }
 
 export const GraphView: React.FC<GraphViewProps> = ({
   notes,
-  noteContents,
   onNoteSelect,
   activeNotePath
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const graphRef = useRef<any>(null);
 
-  // Parse links and construct graph data
-  const graphData = useMemo(() => {
-    const noteFiles = notes.filter(n => !n.is_directory);
-    const nodes = noteFiles.map(note => ({
-      id: note.relative_path,
-      name: note.title,
-      val: 1, // Default size
-      isCurrent: note.relative_path === activeNotePath
-    }));
+  const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
 
-    const links: { source: string; target: string }[] = [];
-
-    noteFiles.forEach(note => {
-      const content = noteContents[note.relative_path] || '';
-      // Regex to find wiki-links like [[RelativePath]] or [[RelativePath|Custom Label]]
-      const wikiLinkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-      let match;
-
-      while ((match = wikiLinkRegex.exec(content)) !== null) {
-        let targetPath = match[1].trim();
-
-        // Standardize file extension (Obsidian usually doesn't write .md in wikilinks)
-        if (!targetPath.endsWith('.md')) {
-          targetPath += '.md';
-        }
-
-        // Handle absolute or relative linking
-        // First match exact path
-        let targetNote = notes.find(n => n.relative_path.toLowerCase() === targetPath.toLowerCase());
+  // Fetch complete note relations from server dynamically
+  useEffect(() => {
+    const fetchGraphData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/notes/graph-data', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
         
-        // If not found, try to match by basename (Obsidian matches loose notes if unique)
-        if (!targetNote) {
-          targetNote = notes.find(n => n.title.toLowerCase() === targetPath.replace(/\.md$/, '').toLowerCase());
-        }
-
-        if (targetNote && !targetNote.is_directory && targetNote.relative_path !== note.relative_path) {
-          links.push({
-            source: note.relative_path,
-            target: targetNote.relative_path
+        if (res.ok) {
+          // Calculate link degrees to size nodes by backlink count
+          const degrees: Record<string, number> = {};
+          data.links.forEach((l: any) => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            degrees[sourceId] = (degrees[sourceId] || 0) + 1;
+            degrees[targetId] = (degrees[targetId] || 0) + 1;
           });
+
+          const nodes = data.nodes.map((node: any) => ({
+            ...node,
+            val: 1 + (degrees[node.id] || 0) * 0.8,
+            isCurrent: node.id === activeNotePath
+          }));
+
+          setGraphData({ nodes, links: data.links });
         }
+      } catch (err) {
+        console.error('Error fetching graph data:', err);
       }
-    });
+    };
 
-    // Calculate link degrees to size nodes by backlink count
-    const degrees: Record<string, number> = {};
-    links.forEach(l => {
-      degrees[l.source] = (degrees[l.source] || 0) + 1;
-      degrees[l.target] = (degrees[l.target] || 0) + 1;
-    });
-
-    nodes.forEach(node => {
-      node.val = 1 + (degrees[node.id] || 0) * 0.8; // Node size scale based on link count
-    });
-
-    return { nodes, links };
-  }, [notes, noteContents, activeNotePath]);
+    fetchGraphData();
+  }, [notes, activeNotePath]);
 
   // Track hovered node and its neighbors
   const [hoverNode, setHoverNode] = useState<any>(null);

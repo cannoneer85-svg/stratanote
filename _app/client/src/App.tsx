@@ -484,7 +484,6 @@ export default function App() {
             ) : (
               <GraphView
                 notes={notes}
-                noteContents={noteContents}
                 onNoteSelect={openNote}
                 activeNotePath={activeNotePath}
               />

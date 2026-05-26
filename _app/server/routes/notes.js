@@ -188,6 +188,48 @@ router.post('/upload-image', authenticateJWT, canEdit, async (req, res) => {
   }
 });
 
+// 6.5. Get Graph Data (Compute relationships on server)
+router.get('/graph-data', authenticateJWT, async (req, res) => {
+  try {
+    const notesList = await all('SELECT relative_path, title, is_directory FROM notes WHERE is_directory = 0');
+    const links = [];
+
+    for (const note of notesList) {
+      const absolutePath = join(vaultPath, note.relative_path);
+      if (fs.existsSync(absolutePath)) {
+        const content = fs.readFileSync(absolutePath, 'utf8');
+        const wikiLinkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+        let match;
+        while ((match = wikiLinkRegex.exec(content)) !== null) {
+          let targetPath = match[1].trim();
+          if (!targetPath.endsWith('.md')) {
+            targetPath += '.md';
+          }
+          // Try to find matching note
+          let targetNote = notesList.find(n => n.relative_path.toLowerCase() === targetPath.toLowerCase());
+          if (!targetNote) {
+            targetNote = notesList.find(n => n.title.toLowerCase() === targetPath.replace(/\.md$/, '').toLowerCase());
+          }
+          if (targetNote && targetNote.relative_path !== note.relative_path) {
+            links.push({
+              source: note.relative_path,
+              target: targetNote.relative_path
+            });
+          }
+        }
+      }
+    }
+
+    res.json({
+      nodes: notesList.map(n => ({ id: n.relative_path, name: n.title, val: 1 })),
+      links
+    });
+  } catch (err) {
+    console.error('Failed to generate graph data:', err);
+    res.status(500).json({ error: 'Failed to generate graph data' });
+  }
+});
+
 // 7. Export Entire Vault as ZIP
 router.get('/export', authenticateJWT, (req, res) => {
   console.log('[Export] Generating vault ZIP archive...');
