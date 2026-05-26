@@ -25,6 +25,8 @@ const io = new Server(server, {
   }
 });
 
+app.set('io', io);
+
 // Middlewares
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Support larger base64 image uploads

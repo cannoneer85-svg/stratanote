@@ -126,6 +126,9 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
       [req.user.username, normPath]
     );
 
+    // Broadcast file update to all clients to trigger live tree and graph refresh
+    req.app.get('io').emit('file-update', { relative_path: normPath, content });
+
     res.json({ message: 'Note saved successfully' });
   } catch (err) {
     console.error(`Error saving note ${normPath}:`, err);
