@@ -1,0 +1,31 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Database & local data
+_app/server/database.sqlite
+_app/server/database.sqlite-journal
+assets/
+
+# Dependency directories
+node_modules/
+_app/node_modules/
+_app/client/node_modules/
+_app/server/node_modules/
+
+# Build outputs
+_app/client/dist/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Gemini system generated tasks and logs
+.system_generated/
+brain/
+scratch/
+task.md
+walkthrough.md
+implementation_plan.md

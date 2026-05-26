@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-text font-sans antialiased overflow-hidden selection:bg-primary/30 selection:text-white;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(24, 24, 24, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Glowing Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(157, 78, 221, 0.5);
+  }
+}
+
+.glow-active {
+  animation: pulse-glow 2s infinite ease-in-out;
+  border-color: rgba(157, 78, 221, 0.4);
+}
+
+/* CodeMirror Custom Styling to integrate with our Dark Glass theme */
+.cm-editor {
+  height: 100% !important;
+  background-color: transparent !important;
+}
+
+.cm-scroller {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+.cm-gutters {
+  background-color: transparent !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Custom visual markdown styles in Live Preview */
+.markdown-preview h1, .visual-h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview h2, .visual-h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f3f4f6;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-preview h3, .visual-h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-preview p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+.markdown-preview strong, .visual-bold {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.markdown-preview blockquote, .visual-blockquote {
+  border-left: 4px solid #9d4edd;
+  background: rgba(157, 78, 221, 0.05);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-radius: 0 4px 4px 0;
+}
