@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix _app run dev",
-    "install:all": "npm --prefix _app run install:all"
+    "postinstall": "npm run install:all",
+    "install:all": "npm --prefix _app run install:all",
+    "build": "npm --prefix _app run build",
+    "start": "npm --prefix _app run start",
+    "dev": "npm --prefix _app run dev"
   }
 }
