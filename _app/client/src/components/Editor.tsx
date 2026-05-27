@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { 
@@ -38,8 +38,21 @@ export const Editor: React.FC<EditorProps> = ({
   const [saving, setSaving] = useState(false);
   const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
   const [wikiSearch, setWikiSearch] = useState('');
+  const [wikiSelectedIndex, setWikiSelectedIndex] = useState(0);
   const [editorSelection, setEditorSelection] = useState<{ anchor: number; head: number } | null>(null);
   const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
+  
+  const filteredDropdownNotes = useMemo(() => {
+    return allNotes
+      .filter(n => !n.is_directory && n.relative_path !== notePath)
+      .filter(n => n.title.toLowerCase().includes(wikiSearch.toLowerCase()))
+      .slice(0, 8);
+  }, [allNotes, notePath, wikiSearch]);
+
+  // Reset selected index when search changes
+  useEffect(() => {
+    setWikiSelectedIndex(0);
+  }, [wikiSearch]);
   
   const editorRef = useRef<any>(null);
 
@@ -219,6 +232,7 @@ export const Editor: React.FC<EditorProps> = ({
     if (textBefore === '[[') {
       setWikiDropdownOpen(true);
       setWikiSearch('');
+      setWikiSelectedIndex(0);
       setEditorSelection({ anchor: pos, head: pos });
       
       // Get coordinates of cursor to display popup exactly there!
@@ -264,10 +278,15 @@ export const Editor: React.FC<EditorProps> = ({
     const pos = view.state.selection.main.from;
     const from = editorSelection.anchor; // Right after '[['
 
+    // Detect if closing brackets ']]' already exist right after the cursor
+    // (e.g. from auto-close settings or toolbar buttons)
+    const textAfter = view.state.sliceDoc(pos, pos + 2);
+    const hasClosingBrackets = textAfter === ']]';
+
     view.dispatch({
       changes: {
         from: from,
-        to: pos,
+        to: hasClosingBrackets ? pos + 2 : pos,
         insert: `${noteTitle}]]`
       },
       selection: { anchor: from + noteTitle.length + 2 }
@@ -275,6 +294,26 @@ export const Editor: React.FC<EditorProps> = ({
 
     setContent(view.state.doc.toString());
     setWikiDropdownOpen(false);
+  };
+
+  const handleWikiKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setWikiSelectedIndex(prev => (prev + 1) % Math.max(1, filteredDropdownNotes.length));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setWikiSelectedIndex(prev => (prev - 1 + filteredDropdownNotes.length) % Math.max(1, filteredDropdownNotes.length));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const selectedNote = filteredDropdownNotes[wikiSelectedIndex];
+      if (selectedNote) {
+        insertWikiLink(selectedNote.title);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setWikiDropdownOpen(false);
+      setDropdownCoords(null);
+    }
   };
 
   return (
@@ -440,24 +479,28 @@ export const Editor: React.FC<EditorProps> = ({
                 autoFocus
                 value={wikiSearch}
                 onChange={(e) => setWikiSearch(e.target.value)}
+                onKeyDown={handleWikiKeyDown}
                 className="w-full px-2.5 py-1.5 bg-black/40 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50"
               />
             </div>
             <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
-              {allNotes
-                .filter(n => !n.is_directory && n.relative_path !== notePath)
-                .filter(n => n.title.toLowerCase().includes(wikiSearch.toLowerCase()))
-                .slice(0, 8)
-                .map((note) => (
+              {filteredDropdownNotes.map((note, index) => {
+                const isSelected = index === wikiSelectedIndex;
+                return (
                   <button
                     key={note.relative_path}
                     onClick={() => insertWikiLink(note.title)}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-primary/20 hover:text-white transition-colors cursor-pointer truncate"
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer truncate ${
+                      isSelected 
+                        ? 'bg-primary text-white font-semibold shadow-sm' 
+                        : 'text-text-muted hover:bg-white/5 hover:text-white'
+                    }`}
                   >
                     [[{note.title}]]
                   </button>
-                ))}
-              {allNotes.filter(n => !n.is_directory && n.title.toLowerCase().includes(wikiSearch.toLowerCase())).length === 0 && (
+                );
+              })}
+              {filteredDropdownNotes.length === 0 && (
                 <div className="p-3 text-center text-xs text-text-disabled">
                   Ничего не найдено
                 </div>
