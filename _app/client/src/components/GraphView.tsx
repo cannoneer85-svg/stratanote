@@ -29,15 +29,33 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Safe zoom-to-fit that utilizes custom framing for small graphs and D3 fit for larger ones
   const triggerClampedFit = () => {
     if (!graphRef.current) return;
-    const nodeCount = graphData.nodes.length;
+    const nodes = graphData.nodes;
+    const nodeCount = nodes.length;
     if (nodeCount === 0) return;
 
-    if (nodeCount <= 2) {
-      graphRef.current.centerAt(0, 0, 400);
-      graphRef.current.zoom(1.2, 400);
-    } else if (nodeCount <= 5) {
-      graphRef.current.centerAt(0, 0, 400);
-      graphRef.current.zoom(1.0, 400);
+    // Filter nodes with valid coordinates calculated by physics engine
+    const validNodes = nodes.filter(n => n.x !== undefined && n.y !== undefined);
+    if (validNodes.length === 0) {
+      // Fallback if coordinates are not fully layouted yet
+      graphRef.current.zoomToFit(400, 30);
+      return;
+    }
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    validNodes.forEach(n => {
+      if (n.x < minX) minX = n.x;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.y > maxY) maxY = n.y;
+    });
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    if (nodeCount <= 5) {
+      // Center precisely on the cluster's true geometric center and zoom to 1.5
+      graphRef.current.centerAt(centerX, centerY, 400);
+      graphRef.current.zoom(1.5, 400);
     } else {
       graphRef.current.zoomToFit(400, 30);
     }
