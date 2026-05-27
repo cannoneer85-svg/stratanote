@@ -23,30 +23,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const graphRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [maxZoomLimit, setMaxZoomLimit] = useState<number | undefined>(undefined);
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
-  const [zoomTrigger, setZoomTrigger] = useState<{ padding: number } | null>(null);
   const hasInitialFit = useRef(false);
 
-  // Safe zoom-to-fit that clamps the auto-zoom to prevent massive node scaling,
-  // then releases the limit so the user can zoom in manually as much as they want!
+  // Safe zoom-to-fit that utilizes D3's native maxZoom limit constraint
   const triggerClampedFit = (padding: number) => {
-    setMaxZoomLimit(1.5); // Optimal and safe limit for auto-zoom (prevent giant clipping)
-    setZoomTrigger({ padding });
+    graphRef.current?.zoomToFit(400, padding);
   };
-
-  // Deterministic zoom-to-fit after maxZoomLimit state update has been applied in DOM
-  useEffect(() => {
-    if (zoomTrigger && maxZoomLimit === 1.5) {
-      graphRef.current?.zoomToFit(400, zoomTrigger.padding);
-      setZoomTrigger(null);
-      
-      const timer = setTimeout(() => {
-        setMaxZoomLimit(50); // High limit for unlimited manual zoom
-      }, 450);
-      return () => clearTimeout(timer);
-    }
-  }, [maxZoomLimit, zoomTrigger]);
 
   // Reset initial fit flag when graph data changes
   useEffect(() => {
@@ -372,7 +355,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onEngineStop={handleEngineStop}
             backgroundColor="#181818"
             cooldownTicks={100}
-            maxZoom={maxZoomLimit}
+            maxZoom={2.5}
             minZoom={0.1}
           />
         )}
