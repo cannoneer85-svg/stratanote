@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2 } from 'lucide-react';
 
 interface User {
   id: number;
   username: string;
   role: 'Admin' | 'Editor' | 'Viewer';
+  approved: number;
   created_at: string;
 }
 
@@ -40,6 +41,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'Admin' | 'Editor' | 'Viewer'>('Viewer');
   const [userStatus, setUserStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // User Inline Editing State
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editRole, setEditRole] = useState<'Admin' | 'Editor' | 'Viewer'>('Viewer');
+  const [editApproved, setEditApproved] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser.role === 'Admin') {
@@ -180,14 +188,49 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  // Handle Update Role
-  const handleUpdateRole = async (userId: number, username: string, role: 'Admin' | 'Editor' | 'Viewer') => {
-    const confirmed = confirm(`Вы действительно хотите изменить роль пользователя "${username}" на "${role}"?`);
-    if (!confirmed) {
-      fetchUsers(); // reset dropdown ui
-      return;
-    }
+  // Handle inline edit functions
+  const startEditing = (user: User) => {
+    setEditingUserId(user.id);
+    setEditUsername(user.username);
+    setEditPassword('');
+    setEditRole(user.role);
+    setEditApproved(!!user.approved);
+  };
 
+  const handleSaveEdit = async (userId: number) => {
+    try {
+      const payload: any = {
+        username: editUsername.trim(),
+        role: editRole,
+        approved: editApproved,
+      };
+      if (editPassword.trim()) {
+        payload.password = editPassword;
+      }
+
+      const res = await fetch(`/api/auth/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditingUserId(null);
+        fetchUsers();
+      } else {
+        alert(data.error || 'Ошибка при сохранении изменений');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка сети при сохранении изменений');
+    }
+  };
+
+  const handleApproveUser = async (userId: number) => {
     try {
       const res = await fetch(`/api/auth/users/${userId}`, {
         method: 'PUT',
@@ -195,20 +238,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ approved: true }),
       });
 
       const data = await res.json();
       if (res.ok) {
         fetchUsers();
       } else {
-        alert(data.error || 'Ошибка при обновлении роли');
-        fetchUsers();
+        alert(data.error || 'Ошибка при одобрении пользователя');
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка сети при обновлении роли');
-      fetchUsers();
+      alert('Ошибка сети при одобрении пользователя');
     }
   };
 
@@ -500,42 +541,131 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <tr className="border-b border-white/5 text-text-disabled bg-black/5">
                         <th className="px-5 py-3 font-semibold">Логин</th>
                         <th className="px-5 py-3 font-semibold">Роль в проекте</th>
-                        <th className="px-5 py-3 font-semibold">Дата создания</th>
+                        <th className="px-5 py-3 font-semibold">Дата / Пароль</th>
+                        <th className="px-5 py-3 font-semibold">Статус</th>
                         <th className="px-5 py-3 font-semibold text-right">Действия</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {users.map((user) => {
                         const isSelf = user.username === currentUser.username;
+                        const isEditing = editingUserId === user.id;
+
+                        if (isEditing) {
+                          return (
+                            <tr key={user.id} className="bg-white/[0.02] border-l-2 border-primary animate-fade-in">
+                              <td className="px-5 py-3">
+                                <input
+                                  type="text"
+                                  value={editUsername}
+                                  onChange={(e) => setEditUsername(e.target.value)}
+                                  disabled={isSelf}
+                                  className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white disabled:opacity-50"
+                                />
+                              </td>
+                              <td className="px-5 py-3">
+                                <select
+                                  value={editRole}
+                                  disabled={isSelf}
+                                  onChange={(e) => setEditRole(e.target.value as any)}
+                                  className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white disabled:opacity-50 cursor-pointer"
+                                >
+                                  <option value="Admin">Admin</option>
+                                  <option value="Editor">Editor</option>
+                                  <option value="Viewer">Viewer</option>
+                                </select>
+                              </td>
+                              <td className="px-5 py-3">
+                                <input
+                                  type="password"
+                                  placeholder="Новый пароль"
+                                  value={editPassword}
+                                  onChange={(e) => setEditPassword(e.target.value)}
+                                  className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white"
+                                />
+                              </td>
+                              <td className="px-5 py-3">
+                                <select
+                                  value={editApproved ? "true" : "false"}
+                                  disabled={isSelf}
+                                  onChange={(e) => setEditApproved(e.target.value === "true")}
+                                  className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white disabled:opacity-50 cursor-pointer"
+                                >
+                                  <option value="true">Активен</option>
+                                  <option value="false">Ожидает</option>
+                                </select>
+                              </td>
+                              <td className="px-5 py-3 text-right">
+                                <div className="flex items-center justify-end space-x-1.5">
+                                  <button
+                                    onClick={() => handleSaveEdit(user.id)}
+                                    className="p-1.5 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors cursor-pointer"
+                                    title="Сохранить"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingUserId(null)}
+                                    className="p-1.5 hover:bg-white/10 text-text-disabled hover:text-white rounded-lg transition-colors cursor-pointer"
+                                    title="Отмена"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
-                          <tr key={user.id} className="hover:bg-white/[0.01]">
-                            <td className="px-5 py-3 font-medium text-white">
+                          <tr key={user.id} className="hover:bg-white/[0.01] animate-fade-in">
+                            <td className="px-5 py-3 font-medium text-white truncate max-w-[120px]">
                               {user.username} {isSelf && <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full ml-1">Вы</span>}
                             </td>
-                            <td className="px-5 py-3">
-                              <select
-                                value={user.role}
-                                disabled={isSelf}
-                                onChange={(e) => handleUpdateRole(user.id, user.username, e.target.value as any)}
-                                className={`px-2 py-1 bg-black/40 border border-white/5 rounded focus:outline-none focus:border-primary/50 text-[11px] cursor-pointer text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-                              >
-                                <option value="Admin">Admin</option>
-                                <option value="Editor">Editor</option>
-                                <option value="Viewer">Viewer</option>
-                              </select>
-                            </td>
                             <td className="px-5 py-3 text-text-muted">
+                              {user.role}
+                            </td>
+                            <td className="px-5 py-3 text-[11px] text-text-muted">
                               {new Date(user.created_at).toLocaleString()}
                             </td>
+                            <td className="px-5 py-3">
+                              {user.approved ? (
+                                <span className="text-[10px] bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                                  Активен
+                                </span>
+                              ) : (
+                                <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">
+                                  Ожидает одобрения
+                                </span>
+                              )}
+                            </td>
                             <td className="px-5 py-3 text-right">
-                              <button
-                                onClick={() => handleDeleteUser(user.id, user.username)}
-                                disabled={isSelf}
-                                className="p-1.5 hover:bg-red-500/20 text-text-disabled hover:text-red-400 rounded-lg transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed ml-auto flex items-center"
-                                title={isSelf ? 'Вы не можете удалить свой собственный аккаунт' : 'Удалить пользователя'}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-end space-x-1.5">
+                                {!user.approved && (
+                                  <button
+                                    onClick={() => handleApproveUser(user.id)}
+                                    className="p-1.5 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors cursor-pointer"
+                                    title="Одобрить пользователя"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => startEditing(user)}
+                                  className="p-1.5 hover:bg-white/10 text-text-disabled hover:text-white rounded-lg transition-colors cursor-pointer"
+                                  title="Редактировать пользователя"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id, user.username)}
+                                  disabled={isSelf}
+                                  className="p-1.5 hover:bg-red-500/20 text-text-disabled hover:text-red-400 rounded-lg transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                                  title={isSelf ? 'Вы не можете удалить свой собственный аккаунт' : 'Удалить пользователя'}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

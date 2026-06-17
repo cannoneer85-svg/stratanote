@@ -51,9 +51,18 @@ export const initDb = async () => {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT CHECK(role IN ('Admin', 'Editor', 'Viewer')) NOT NULL,
+      approved INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try {
+    await run('ALTER TABLE users ADD COLUMN approved INTEGER DEFAULT 0');
+    await run('UPDATE users SET approved = 1');
+    console.log('[DB] Added approved column and set it to 1 for existing users');
+  } catch (err) {
+    // Column already exists, ignore
+  }
 
   // 2. Notes / Folders Table
   await run(`
@@ -96,33 +105,10 @@ export const initDb = async () => {
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash('admin', salt);
     await run(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      ['admin', hash, 'Admin']
+      'INSERT INTO users (username, password_hash, role, approved) VALUES (?, ?, ?, ?)',
+      ['admin', hash, 'Admin', 1]
     );
     console.log('[DB] Created default admin user (admin / admin)');
-  }
-
-  // Seed default editor and viewer for testing
-  const editorExists = await get('SELECT id FROM users WHERE username = ?', ['editor']);
-  if (!editorExists) {
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash('editor', salt);
-    await run(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      ['editor', hash, 'Editor']
-    );
-    console.log('[DB] Created default editor user (editor / editor)');
-  }
-
-  const viewerExists = await get('SELECT id FROM users WHERE username = ?', ['viewer']);
-  if (!viewerExists) {
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash('viewer', salt);
-    await run(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      ['viewer', hash, 'Viewer']
-    );
-    console.log('[DB] Created default viewer user (viewer / viewer)');
   }
 
   console.log('[DB] SQLite database initialized successfully.');

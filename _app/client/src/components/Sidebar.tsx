@@ -69,6 +69,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [activeNotePath]);
 
+  // Auto-expand folders when searching
+  useEffect(() => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matched = notes.filter(n => n.title.toLowerCase().includes(query));
+      setExpandedFolders(prev => {
+        const next = { ...prev };
+        matched.forEach(n => {
+          let parent = n.parent_path;
+          while (parent) {
+            next[parent] = true;
+            const parts = parent.split('/');
+            parts.pop();
+            parent = parts.join('/');
+          }
+        });
+        return next;
+      });
+    }
+  }, [searchQuery, notes]);
+
   // Normalize path helpers
   const normalizePath = (p: string) => p.replace(/\\/g, '/');
 
@@ -156,7 +177,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
   const filteredNotes = useMemo(() => {
     if (!searchQuery) return notes;
-    return notes.filter(n => n.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    const query = searchQuery.toLowerCase();
+    
+    // Find all notes/folders that match the query
+    const matched = notes.filter(n => n.title.toLowerCase().includes(query));
+    
+    // Collect all ancestor paths of the matched items
+    const ancestorPaths = new Set<string>();
+    matched.forEach(n => {
+      let parent = n.parent_path;
+      while (parent) {
+        ancestorPaths.add(parent);
+        // Go up one level
+        const parts = parent.split('/');
+        parts.pop();
+        parent = parts.join('/');
+      }
+    });
+
+    // Filter notes to include matched items AND their ancestor folders
+    return notes.filter(n => 
+      n.title.toLowerCase().includes(query) || 
+      (n.is_directory && ancestorPaths.has(n.relative_path))
+    );
   }, [notes, searchQuery]);
 
   // Recursively reconstruct and render folder tree
@@ -381,6 +424,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {notes.length === 0 ? (
           <div className="text-center text-text-disabled text-xs mt-8">
             Хранилище пусто. <br /> Создайте свой первый файл!
+          </div>
+        ) : filteredNotes.length === 0 ? (
+          <div className="text-center text-text-disabled text-xs mt-8 font-medium">
+            Ничего не найдено
           </div>
         ) : (
           renderTree('')

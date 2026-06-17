@@ -112,7 +112,6 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
               >
                 <option value="Editor">Редактор (Editor)</option>
                 <option value="Viewer">Читатель (Viewer)</option>
-                <option value="Admin">Администратор (Admin)</option>
               </select>
             </div>
           )}
@@ -150,11 +149,6 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
               </button>
             </p>
           )}
-        </div>
-
-        <div className="mt-4 text-xs text-text-disabled">
-          Быстрые аккаунты для тестов (логин / пароль): <br />
-          admin / admin | editor / editor | viewer / viewer
         </div>
       </div>
     </div>

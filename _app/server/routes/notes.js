@@ -347,7 +347,15 @@ router.get('/graph-data', authenticateJWT, async (req, res) => {
 router.get('/export', authenticateJWT, (req, res) => {
   console.log('[Export] Generating vault ZIP archive...');
 
-  res.attachment('obsidian-vault-export.zip');
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const filename = `obsidian-vault-export-${year}${month}${day}-${hours}${minutes}.zip`;
+
+  res.attachment(filename);
   const archive = archiver('zip', { zlib: { level: 9 } });
 
   archive.on('error', (err) => {

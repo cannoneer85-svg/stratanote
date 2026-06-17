@@ -39,6 +39,28 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'Invalid role. Must be Admin, Editor, or Viewer' });
   }
 
+  // Check if request is authorized by an Admin
+  let approved = 0;
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.role === 'Admin') {
+          approved = 1;
+        }
+      } catch (e) {
+        // Invalid token, treat as self-registration
+      }
+    }
+  }
+
+  // Prevent registering as Admin unless it's an Admin creating the user
+  if (role === 'Admin' && approved !== 1) {
+    return res.status(400).json({ error: 'Регистрация в роли Администратора запрещена' });
+  }
+
   try {
     const existingUser = await get('SELECT id FROM users WHERE username = ?', [username]);
     if (existingUser) {
@@ -49,8 +71,8 @@ router.post('/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const result = await run(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      [username, passwordHash, role]
+      'INSERT INTO users (username, password_hash, role, approved) VALUES (?, ?, ?, ?)',
+      [username, passwordHash, role, approved]
     );
 
     res.status(201).json({ message: 'User registered successfully', userId: result.id });
@@ -76,6 +98,10 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    if (!user.approved) {
+      return res.status(403).json({ error: 'Ваш аккаунт ожидает подтверждения администратором' });
     }
 
     const token = jwt.sign(
@@ -109,7 +135,7 @@ router.get('/users', authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Permission denied: Admins only' });
   }
   try {
-    const users = await all('SELECT id, username, role, created_at FROM users ORDER BY username ASC');
+    const users = await all('SELECT id, username, role, approved, created_at FROM users ORDER BY username ASC');
     res.json(users);
   } catch (err) {
     console.error(err);
@@ -117,28 +143,78 @@ router.get('/users', authenticateJWT, async (req, res) => {
   }
 });
 
-// Admin Route: Update user role
+// Admin Route: Update user (username, role, password, approved status)
 router.put('/users/:id', authenticateJWT, async (req, res) => {
   if (req.user.role !== 'Admin') {
     return res.status(403).json({ error: 'Permission denied: Admins only' });
   }
-  const { role } = req.body;
+  const { username, role, password, approved } = req.body;
   const userId = req.params.id;
 
-  if (!role || !['Admin', 'Editor', 'Viewer'].includes(role)) {
-    return res.status(400).json({ error: 'Valid role is required (Admin, Editor, Viewer)' });
-  }
-
-  if (parseInt(userId) === req.user.id) {
-    return res.status(400).json({ error: 'You cannot change your own role to prevent lockout' });
-  }
-
   try {
-    await run('UPDATE users SET role = ? WHERE id = ?', [role, userId]);
-    res.json({ message: 'User role updated successfully' });
+    // 1. Fetch current user state
+    const targetUser = await get('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isSelf = parseInt(userId) === req.user.id;
+
+    // 2. Validate role
+    let finalRole = targetUser.role;
+    if (role !== undefined) {
+      if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role. Must be Admin, Editor, or Viewer' });
+      }
+      if (isSelf && role !== targetUser.role) {
+        return res.status(400).json({ error: 'You cannot change your own role to prevent lockout' });
+      }
+      finalRole = role;
+    }
+
+    // 3. Validate username
+    let finalUsername = targetUser.username;
+    if (username !== undefined && username.trim() !== '') {
+      const trimmedUsername = username.trim();
+      if (isSelf && trimmedUsername !== targetUser.username) {
+        return res.status(400).json({ error: 'You cannot change your own username to prevent lockout' });
+      }
+      // Check duplicate username if changed
+      if (trimmedUsername !== targetUser.username) {
+        const duplicate = await get('SELECT id FROM users WHERE username = ?', [trimmedUsername]);
+        if (duplicate) {
+          return res.status(409).json({ error: 'Username already taken' });
+        }
+      }
+      finalUsername = trimmedUsername;
+    }
+
+    // 4. Validate approved
+    let finalApproved = targetUser.approved;
+    if (approved !== undefined) {
+      if (isSelf && !approved) {
+        return res.status(400).json({ error: 'You cannot deactivate your own account' });
+      }
+      finalApproved = approved ? 1 : 0;
+    }
+
+    // 5. Handle password update if provided
+    let finalPasswordHash = targetUser.password_hash;
+    if (password !== undefined && password.trim() !== '') {
+      const salt = await bcrypt.genSalt(10);
+      finalPasswordHash = await bcrypt.hash(password, salt);
+    }
+
+    // 6. Update database
+    await run(
+      'UPDATE users SET username = ?, role = ?, password_hash = ?, approved = ? WHERE id = ?',
+      [finalUsername, finalRole, finalPasswordHash, finalApproved, userId]
+    );
+
+    res.json({ message: 'User updated successfully' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to update user role' });
+    res.status(500).json({ error: 'Failed to update user' });
   }
 });
 
