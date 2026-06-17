@@ -202,11 +202,34 @@ export const Editor: React.FC<EditorProps> = ({
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       // Code blocks & Mermaid diagrams
       .replace(/```mermaid\s*([\s\S]*?)```/g, (_match, code) => {
-        const rawCode = code
+        let rawCode = code
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
           .replace(/&amp;/g, '&')
-          .replace(/<--->/g, '<-->');
+          .replace(/<--->/g, '<-->')
+          .replace(/--->/g, '-->')
+          .replace(/\bgraph\b/g, 'flowchart');
+
+        // Fix subgraph IDs with spaces
+        // 1. With labels: subgraph ID [Label] -> subgraph ID_with_underscores ["Label"]
+        rawCode = rawCode.replace(/subgraph\s+([^[\n]+?)\s*\[(.*?)\]/g, (_m: string, id: string, label: string) => {
+          const cleanId = id.trim().replace(/\s+/g, '_');
+          let cleanLabel = label.trim();
+          if ((cleanLabel.startsWith('"') && cleanLabel.endsWith('"')) || 
+              (cleanLabel.startsWith("'") && cleanLabel.endsWith("'"))) {
+            cleanLabel = cleanLabel.slice(1, -1);
+          }
+          return `subgraph ${cleanId} ["${cleanLabel}"]`;
+        });
+
+        // 2. Without labels: subgraph ID -> subgraph ID_with_underscores
+        rawCode = rawCode.replace(/subgraph\s+([^[\n]+)$/gm, (m: string, id: string) => {
+          const trimmedId = id.trim();
+          if (trimmedId.includes('"') || trimmedId.includes('[')) return m;
+          const cleanId = trimmedId.replace(/\s+/g, '_');
+          return `subgraph ${cleanId}`;
+        });
+
         return `<div class="mermaid">${rawCode}</div>`;
       })
       .replace(/```([\s\S]*?)```/g, '<pre class="bg-black/30 p-3 rounded-lg border border-white/5 font-mono text-xs overflow-x-auto my-2">$1</pre>')
