@@ -48,6 +48,15 @@ export const Editor: React.FC<EditorProps> = ({
 }) => {
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [prevNotePath, setPrevNotePath] = useState(notePath);
+  const [prevInitialContent, setPrevInitialContent] = useState(initialContent);
+
+  // Sync state with prop updates during render to avoid transient rendering of old content
+  if (notePath !== prevNotePath || initialContent !== prevInitialContent) {
+    setPrevNotePath(notePath);
+    setPrevInitialContent(initialContent);
+    setContent(initialContent);
+  }
   const [saving, setSaving] = useState(false);
   const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
   const [wikiSearch, setWikiSearch] = useState('');
@@ -69,11 +78,6 @@ export const Editor: React.FC<EditorProps> = ({
   
   const editorRef = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-
-  // Sync state with prop updates
-  useEffect(() => {
-    setContent(initialContent);
-  }, [initialContent, notePath]);
 
   // Request lock when entering edit mode
   useEffect(() => {
@@ -103,11 +107,14 @@ export const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (mode !== 'preview' || !previewRef.current) return;
 
+    let isMounted = true;
     let observer: MutationObserver | null = null;
     let isRunning = false;
+    let timeoutId: any = null;
 
     const renderMermaid = async () => {
-      if (isRunning) return;
+      console.log('[Mermaid Debug] renderMermaid called. isMounted:', isMounted, 'isRunning:', isRunning, 'notePath:', notePath);
+      if (!isMounted || isRunning) return;
       
       const allMermaid = previewRef.current?.querySelectorAll('.mermaid');
       const unrendered = Array.from(allMermaid || []).filter(el => {
@@ -116,6 +123,8 @@ export const Editor: React.FC<EditorProps> = ({
         if (el.closest('[data-processed="true"]')) return false;
         return true;
       });
+
+      console.log('[Mermaid Debug] Found .mermaid elements:', allMermaid?.length || 0, 'unrendered:', unrendered.length);
 
       if (unrendered.length > 0) {
         isRunning = true;
@@ -126,13 +135,33 @@ export const Editor: React.FC<EditorProps> = ({
         }
 
         try {
-          await mermaid.run({
-            querySelector: '.mermaid:not([data-processed="true"])',
-            suppressErrors: true
-          });
+          console.log('[Mermaid Debug] Running manual mermaid.render loop with', unrendered.length, 'elements.');
+          for (let i = 0; i < unrendered.length; i++) {
+            const el = unrendered[i] as HTMLElement;
+            const code = el.textContent || '';
+            const uniqueId = `mermaid-svg-${Math.random().toString(36).substring(2, 11)}`;
+            console.log('[Mermaid Debug] Processing element', i, 'id:', uniqueId, 'code length:', code.length);
+            
+            try {
+              const { svg } = await mermaid.render(uniqueId, code);
+              console.log('[Mermaid Debug] mermaid.render succeeded for', uniqueId);
+              el.innerHTML = svg;
+              el.setAttribute('data-processed', 'true');
+              console.log('[Mermaid Debug] HTML and data-processed set for', uniqueId, 'el has attribute:', el.getAttribute('data-processed'));
+            } catch (err: any) {
+              console.error('[Mermaid Debug] Individual mermaid.render error:', err);
+              el.setAttribute('data-processed', 'failed');
+            }
+          }
+          console.log('[Mermaid Debug] Manual mermaid.render completed.');
         } catch (err: any) {
-          console.error('mermaid.run error:', err);
+          console.error('[Mermaid Debug] General mermaid render loop error:', err);
         } finally {
+          if (!isMounted) {
+            console.log('[Mermaid Debug] renderMermaid finally exited because not mounted.');
+            return;
+          }
+
           // Safety fallback: mark any remaining unprocessed elements to avoid infinite loops
           unrendered.forEach(el => {
             if (!el.getAttribute('data-processed')) {
@@ -142,8 +171,9 @@ export const Editor: React.FC<EditorProps> = ({
           isRunning = false;
           
           // Reconnect observer after a small delay to let the DOM settle
-          setTimeout(() => {
-            if (previewRef.current && observer) {
+          timeoutId = setTimeout(() => {
+            if (isMounted && previewRef.current && observer) {
+              console.log('[Mermaid Debug] Re-connecting observer.');
               observer.observe(previewRef.current, {
                 childList: true,
                 subtree: true
@@ -156,7 +186,10 @@ export const Editor: React.FC<EditorProps> = ({
 
     // Set up observer
     observer = new MutationObserver(() => {
-      renderMermaid();
+      console.log('[Mermaid Debug] Observer mutation detected.');
+      if (isMounted) {
+        renderMermaid();
+      }
     });
 
     // Run initially
@@ -164,6 +197,7 @@ export const Editor: React.FC<EditorProps> = ({
 
     // Start observing
     if (previewRef.current) {
+      console.log('[Mermaid Debug] Initial observer start.');
       observer.observe(previewRef.current, {
         childList: true,
         subtree: true
@@ -171,11 +205,16 @@ export const Editor: React.FC<EditorProps> = ({
     }
 
     return () => {
+      console.log('[Mermaid Debug] useEffect cleanup called. notePath:', notePath);
+      isMounted = false;
       if (observer) {
         observer.disconnect();
       }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [mode, content]);
+  }, [mode, content, notePath]);
 
   const handleSave = async () => {
     if (isReadOnly || lockedBy || saving) return;
