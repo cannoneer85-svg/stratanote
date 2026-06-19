@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2 } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 
 interface User {
@@ -27,7 +27,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   token,
   onVaultReload,
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'users'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media'>('import');
   
   // ZIP / MD Upload State
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -50,11 +50,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [editRole, setEditRole] = useState<'Admin' | 'Editor' | 'Viewer'>('Viewer');
   const [editApproved, setEditApproved] = useState(false);
 
+  // Media Management State
+  const [mediaFiles, setMediaFiles] = useState<{ filename: string; size: number; updatedAt: string }[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const [mediaStatus, setMediaStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
   useEffect(() => {
     if (isOpen && currentUser.role === 'Admin') {
       fetchUsers();
+      fetchMediaFiles();
     }
   }, [isOpen, currentUser]);
+
+  useEffect(() => {
+    if (isOpen && currentUser.role === 'Admin') {
+      if (activeTab === 'users') {
+        fetchUsers();
+      } else if (activeTab === 'media') {
+        fetchMediaFiles();
+      }
+    }
+  }, [activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -69,6 +86,60 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       console.error('Failed to fetch users:', err);
     }
   };
+
+  const fetchMediaFiles = async () => {
+    setLoadingMedia(true);
+    try {
+      const res = await fetch('/api/notes/media', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMediaFiles(data);
+      } else {
+        setMediaStatus({ type: 'error', message: data.error || 'Ошибка при загрузке медиафайлов' });
+      }
+    } catch (err) {
+      console.error('Failed to fetch media files:', err);
+      setMediaStatus({ type: 'error', message: 'Ошибка сети при получении медиафайлов' });
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+
+  const handleDeleteMedia = async (filename: string) => {
+    const confirmed = confirm(`Вы уверены, что хотите удалить файл "${filename}"? Это действие необратимо и может сломать ссылки на этот файл в ваших заметках.`);
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/notes/media/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMediaStatus({ type: 'success', message: `Файл "${filename}" успешно удален` });
+        fetchMediaFiles();
+      } else {
+        setMediaStatus({ type: 'error', message: data.error || 'Не удалось удалить файл' });
+      }
+    } catch (err) {
+      console.error('Failed to delete media file:', err);
+      setMediaStatus({ type: 'error', message: 'Ошибка сети при удалении файла' });
+    }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const filteredMediaFiles = mediaFiles.filter((file) =>
+    file.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+  );
 
   if (!isOpen) return null;
 
@@ -320,6 +391,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <Users className="w-3.5 h-3.5" />
             <span>Пользователи и Роли</span>
           </button>
+          <button
+            onClick={() => setActiveTab('media')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+              activeTab === 'media' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+            }`}
+          >
+            <Image className="w-3.5 h-3.5" />
+            <span>Мультимедиа</span>
+          </button>
         </div>
 
         {/* Main Content Area */}
@@ -471,7 +551,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
 
             </div>
-          ) : (
+          ) : activeTab === 'users' ? (
             <div className="space-y-6 text-left">
               {userStatus && (
                 <div className={`p-4 rounded-xl text-xs flex items-start space-x-2.5 border ${
@@ -676,6 +756,111 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
               </div>
 
+            </div>
+          ) : (
+            <div className="space-y-6 text-left">
+              {mediaStatus && (
+                <div className={`p-4 rounded-xl text-xs flex items-start space-x-2.5 border ${
+                  mediaStatus.type === 'success' 
+                    ? 'bg-green-500/10 border-green-500/20 text-green-400' 
+                    : mediaStatus.type === 'error'
+                    ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                    : 'bg-primary/10 border-primary/20 text-primary'
+                }`}>
+                  {mediaStatus.type === 'success' ? <Check className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
+                  <span>{mediaStatus.message}</span>
+                </div>
+              )}
+
+              {/* Toolbar: Search input */}
+              <div className="flex items-center justify-between gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-disabled" />
+                  <input
+                    type="text"
+                    placeholder="Поиск файлов по названию..."
+                    value={mediaSearchQuery}
+                    onChange={(e) => setMediaSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 focus:border-primary/50 focus:outline-none rounded-lg text-xs text-white"
+                  />
+                </div>
+                <div className="text-xs text-text-muted">
+                  Всего файлов: <strong className="text-white">{filteredMediaFiles.length}</strong>
+                </div>
+              </div>
+
+              {/* Media Grid */}
+              {loadingMedia ? (
+                <div className="text-center py-12 text-text-muted text-xs">
+                  Загрузка списка медиафайлов...
+                </div>
+              ) : filteredMediaFiles.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl text-text-muted text-xs">
+                  {mediaSearchQuery ? 'Файлы не найдены' : 'В хранилище нет загруженных медиафайлов'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
+                  {filteredMediaFiles.map((file) => {
+                    const isVideo = /\.(mp4|webm|ogg|mov|m4v|3gp)$/i.test(file.filename);
+                    const fileUrl = `/api/raw/assets/${encodeURIComponent(file.filename)}?token=${token}`;
+                    return (
+                      <div 
+                        key={file.filename} 
+                        className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-primary/30 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.05)]"
+                      >
+                        {/* Thumbnail Container */}
+                        <div className="h-32 bg-black/40 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+                          {isVideo ? (
+                            <video 
+                              src={fileUrl} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                              preload="metadata"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img 
+                              src={fileUrl} 
+                              alt={file.filename}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              loading="lazy"
+                            />
+                          )}
+                          {/* Badges */}
+                          <div className="absolute top-2 left-2 flex gap-1">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${isVideo ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+                              {file.filename.split('.').pop() || 'file'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* File Details */}
+                        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                          <div className="space-y-1">
+                            <div 
+                              className="text-xs font-semibold text-white truncate" 
+                              title={file.filename}
+                            >
+                              {file.filename}
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-text-muted">
+                              <span>{formatSize(file.size)}</span>
+                              <span>{formatToMoscowTime(file.updatedAt)}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteMedia(file.filename)}
+                            className="w-full py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 rounded-lg text-[11px] font-medium flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Удалить файл</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -165,7 +165,16 @@ export const Editor: React.FC<EditorProps> = ({
   socket
 }) => {
   const [content, setContent] = useState(initialContent);
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [mode, setMode] = useState<'edit' | 'preview'>(() => {
+    const savedMode = localStorage.getItem('editor_mode');
+    return (savedMode === 'edit' || savedMode === 'preview') ? savedMode : 'edit';
+  });
+
+  // Persist mode changes
+  useEffect(() => {
+    localStorage.setItem('editor_mode', mode);
+  }, [mode]);
+
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [prevNotePath, setPrevNotePath] = useState(notePath);
   const [prevInitialContent, setPrevInitialContent] = useState(initialContent);
@@ -746,7 +755,7 @@ export const Editor: React.FC<EditorProps> = ({
       .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, path, label) => {
         const cleanPath = path.trim();
         const displayLabel = label ? label.trim() : cleanPath.replace(/\.md$/, '');
-        return `<a href="#" data-wikilink="${cleanPath}" class="text-primary hover:underline border-b border-primary/20">[[${displayLabel}]]</a>`;
+        return `<a href="#" data-wikilink="${cleanPath}" class="text-primary hover:underline border-b border-primary/20">${displayLabel}</a>`;
       })
       // Paragraph line breaks
       .replace(/\n\n/g, '</p><p>');

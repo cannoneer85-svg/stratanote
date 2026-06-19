@@ -306,6 +306,69 @@ const uploadMediaHandler = async (req, res) => {
 router.post('/upload-media', authenticateJWT, canEdit, uploadMediaHandler);
 router.post('/upload-image', authenticateJWT, canEdit, uploadMediaHandler);
 
+// 6.2. List Media Files
+router.get('/media', authenticateJWT, async (req, res) => {
+  try {
+    const assetsDir = join(vaultPath, 'assets');
+    if (!fs.existsSync(assetsDir)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(assetsDir);
+    const mediaFiles = [];
+    for (const file of files) {
+      const filePath = join(assetsDir, file);
+      const stats = fs.statSync(filePath);
+      if (stats.isFile()) {
+        const ext = extname(file).toLowerCase();
+        const isMedia = /\.(gif|jpe?g|png|svg|webp|bmp|ico|mp4|webm|ogg|mov|m4v|3gp)$/i.test(ext);
+        if (isMedia) {
+          mediaFiles.push({
+            filename: file,
+            size: stats.size,
+            updatedAt: stats.mtime
+          });
+        }
+      }
+    }
+    res.json(mediaFiles);
+  } catch (err) {
+    console.error('Error fetching media files:', err);
+    res.status(500).json({ error: 'Failed to fetch media files' });
+  }
+});
+
+// 6.3. Delete Media File
+router.delete('/media/:filename', authenticateJWT, canEdit, async (req, res) => {
+  const { filename } = req.params;
+  if (!filename) {
+    return res.status(400).json({ error: 'Filename is required' });
+  }
+
+  const cleanedFilename = basename(filename);
+  const assetsDir = join(vaultPath, 'assets');
+  const filePath = join(assetsDir, cleanedFilename);
+
+  const resolvedVaultPath = resolve(vaultPath);
+  const resolvedAssetsPath = resolve(assetsDir);
+  const resolvedFilePath = resolve(filePath);
+
+  if (!resolvedFilePath.startsWith(resolvedAssetsPath) || !resolvedFilePath.startsWith(resolvedVaultPath)) {
+    return res.status(403).json({ error: 'Access denied: Out of assets boundary' });
+  }
+
+  try {
+    if (!fs.existsSync(resolvedFilePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    fs.unlinkSync(resolvedFilePath);
+    res.json({ message: 'File deleted successfully', filename: cleanedFilename });
+  } catch (err) {
+    console.error('Error deleting media file:', err);
+    res.status(500).json({ error: 'Failed to delete media file' });
+  }
+});
+
+
 
 // 6.5. Get Graph Data (Compute relationships on server with active disk filtering & self-healing)
 router.get('/graph-data', authenticateJWT, async (req, res) => {

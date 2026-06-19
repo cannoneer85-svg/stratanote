@@ -106,15 +106,67 @@ async function runTests() {
     }
     console.log('✓ Path traversal request successfully rejected.');
 
-    // Cleanup: Delete uploaded test files from assets folder
-    console.log('\nCleaning up test files...');
-    const vaultPath = '.'; // default vault location (root of workspace)
-    const file1Path = join(vaultPath, 'assets', data1.filename);
-    const file2Path = join(vaultPath, 'assets', data2.filename);
-    
-    if (existsSync(file1Path)) rmSync(file1Path);
-    if (existsSync(file2Path)) rmSync(file2Path);
-    console.log('✓ Cleanup completed.');
+    // 7. Test listing media files
+    console.log('\n7. Testing GET /api/notes/media...');
+    const listRes = await fetch(`${BASE_URL}/api/notes/media`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!listRes.ok) {
+      throw new Error(`Failed to list media files: ${listRes.status}`);
+    }
+    const mediaList = await listRes.json();
+    console.log(`✓ Media files listed: ${mediaList.length} files found.`);
+    const hasImage1 = mediaList.some(f => f.filename === data1.filename);
+    const hasImage2 = mediaList.some(f => f.filename === data2.filename);
+    if (!hasImage1 || !hasImage2) {
+      throw new Error('Listed media files did not contain the uploaded test files!');
+    }
+    console.log('✓ Uploaded test files found in media list.');
+
+    // 8. Test deleting media files via API
+    console.log('\n8. Deleting media files via DELETE /api/notes/media/:filename...');
+    const delete1Res = await fetch(`${BASE_URL}/api/notes/media/${encodeURIComponent(data1.filename)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!delete1Res.ok) {
+      throw new Error(`Failed to delete file 1: ${delete1Res.status}`);
+    }
+    console.log(`✓ File 1 (${data1.filename}) deleted successfully via API.`);
+
+    const delete2Res = await fetch(`${BASE_URL}/api/notes/media/${encodeURIComponent(data2.filename)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!delete2Res.ok) {
+      throw new Error(`Failed to delete file 2: ${delete2Res.status}`);
+    }
+    console.log(`✓ File 2 (${data2.filename}) deleted successfully via API.`);
+
+    // 9. Test path traversal on DELETE (should be rejected)
+    console.log('\n9. Testing path traversal protection on DELETE...');
+    const traversalDeleteRes = await fetch(`${BASE_URL}/api/notes/media/..%2F..%2F..%2Fwin.ini`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    console.log(`Response status: ${traversalDeleteRes.status}`);
+    if (traversalDeleteRes.status !== 403 && traversalDeleteRes.status !== 404) {
+      throw new Error(`Expected 403 Forbidden or 404 Not Found, got ${traversalDeleteRes.status}`);
+    }
+    console.log('✓ Path traversal DELETE request successfully rejected (403 or 404).');
+
+    // 10. Verify deletion from list
+    console.log('\n10. Verifying deletion from GET /api/notes/media...');
+    const listResAfter = await fetch(`${BASE_URL}/api/notes/media`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const mediaListAfter = await listResAfter.json();
+    const hasImage1After = mediaListAfter.some(f => f.filename === data1.filename);
+    const hasImage2After = mediaListAfter.some(f => f.filename === data2.filename);
+    if (hasImage1After || hasImage2After) {
+      throw new Error('Test files are still present in media list after deletion!');
+    }
+    console.log('✓ Verified: test files no longer in media list.');
 
     console.log('\n=== ALL TESTS PASSED SUCCESSFULLY ===');
   } catch (err) {
