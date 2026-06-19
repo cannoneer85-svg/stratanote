@@ -805,6 +805,8 @@ export const Editor: React.FC<EditorProps> = ({
 
     // 3. Apply standard markdown replacements on the remaining text
     html = html
+      // Horizontal Rules
+      .replace(/^\s*([-*_])\s*(?:\1\s*){2,}$/gm, '<hr class="border-t border-white/10 my-6" />')
       // Headers
       .replace(/^# (.*?)$/gm, '<h1 class="visual-h1">$1</h1>')
       .replace(/^## (.*?)$/gm, '<h2 class="visual-h2">$1</h2>')
