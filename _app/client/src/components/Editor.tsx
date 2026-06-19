@@ -80,6 +80,137 @@ export const Editor: React.FC<EditorProps> = ({
   const editorRef = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Keep refs of props to avoid stale closures in CodeMirror extensions
+  const isReadOnlyRef = useRef(isReadOnly);
+  const lockedByRef = useRef(lockedBy);
+  const contentRef = useRef(content);
+  useEffect(() => {
+    isReadOnlyRef.current = isReadOnly;
+    lockedByRef.current = lockedBy;
+    contentRef.current = content;
+  }, [isReadOnly, lockedBy, content]);
+
+  // Handle Drag-and-Drop and Copy-Paste for media files inside CodeMirror
+  const mediaEvents = useMemo(() => {
+    return EditorView.domEventHandlers({
+      drop: (e: DragEvent, view: EditorView) => {
+        if (isReadOnlyRef.current || lockedByRef.current) return;
+        const files = e.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+
+        const file = files[0];
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        if (!isImage && !isVideo) return;
+
+        e.preventDefault();
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64Data = (reader.result as string).split(',')[1];
+          try {
+            const res = await fetch('/api/notes/upload-media', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({ filename: file.name, base64Data })
+            });
+            let data;
+            try {
+              data = await res.json();
+            } catch (jsonErr) {
+              data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
+            }
+            if (res.ok) {
+              const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+              const insertPos = pos !== null ? pos : view.state.selection.main.head;
+              
+              view.focus();
+              const linkText = `![${file.name}](${data.url})`;
+              view.dispatch({
+                changes: { from: insertPos, to: insertPos, insert: linkText },
+                selection: { anchor: insertPos + linkText.length }
+              });
+              setContent(view.state.doc.toString());
+            } else {
+              alert('Не удалось загрузить медиафайл: ' + data.error);
+            }
+          } catch (err) {
+            console.error(err);
+            alert('Ошибка сети при загрузке медиафайла');
+          }
+        };
+        reader.readAsDataURL(file);
+        return true;
+      },
+      paste: (e: ClipboardEvent, view: EditorView) => {
+        if (isReadOnlyRef.current || lockedByRef.current) return;
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
+            const file = item.getAsFile();
+            if (!file) continue;
+
+            e.preventDefault();
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hour = String(now.getHours()).padStart(2, '0');
+            const minute = String(now.getMinutes()).padStart(2, '0');
+            const second = String(now.getSeconds()).padStart(2, '0');
+            const extension = file.type.startsWith('image/') ? 'png' : 'mp4';
+            const filename = `Pasted image ${year}${month}${day}${hour}${minute}${second}.${extension}`;
+
+            const reader = new FileReader();
+            reader.onload = async () => {
+              const base64Data = (reader.result as string).split(',')[1];
+              try {
+                const res = await fetch('/api/notes/upload-media', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  },
+                  body: JSON.stringify({ filename, base64Data })
+                });
+                let data;
+                try {
+                  data = await res.json();
+                } catch (jsonErr) {
+                  data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
+                }
+                if (res.ok) {
+                  view.focus();
+                  const insertPos = view.state.selection.main.head;
+                  const linkText = `![${filename}](${data.url})`;
+                  view.dispatch({
+                    changes: { from: insertPos, to: insertPos, insert: linkText },
+                    selection: { anchor: insertPos + linkText.length }
+                  });
+                  setContent(view.state.doc.toString());
+                } else {
+                  alert('Не удалось загрузить медиафайл: ' + data.error);
+                }
+              } catch (err) {
+                console.error(err);
+                alert('Ошибка сети при загрузке медиафайла');
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+      }
+    });
+  }, []);
+
   // Request lock when entering edit mode
   useEffect(() => {
     if (socket && notePath && !isReadOnly && !lockedBy) {
@@ -254,11 +385,11 @@ export const Editor: React.FC<EditorProps> = ({
     setContent(view.state.doc.toString());
   };
 
-  // Format image tags
-  const handleImageUpload = () => {
+  // Format image/video media tags
+  const handleMediaUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
+    input.accept = 'image/*,video/*';
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -267,7 +398,7 @@ export const Editor: React.FC<EditorProps> = ({
       reader.onload = async () => {
         const base64Data = (reader.result as string).split(',')[1];
         try {
-          const res = await fetch('/api/notes/upload-image', {
+          const res = await fetch('/api/notes/upload-media', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -275,15 +406,20 @@ export const Editor: React.FC<EditorProps> = ({
             },
             body: JSON.stringify({ filename: file.name, base64Data })
           });
-          const data = await res.json();
+          let data;
+          try {
+            data = await res.json();
+          } catch (jsonErr) {
+            data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
+          }
           if (res.ok) {
             insertText(`![${file.name}](${data.url})`);
           } else {
-            alert('Не удалось загрузить изображение: ' + data.error);
+            alert('Не удалось загрузить медиафайл: ' + data.error);
           }
         } catch (err) {
           console.error(err);
-          alert('Ошибка сети при загрузке изображения');
+          alert('Ошибка сети при загрузке медиафайла');
         }
       };
       reader.readAsDataURL(file);
@@ -292,6 +428,65 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const parseMarkdown = (md: string) => {
+    const renderMediaHtml = (path: string, alt: string, options: string[]) => {
+      const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
+      const lowercasePath = path.toLowerCase();
+      const isVideo = videoExtensions.some(ext => lowercasePath.endsWith(ext));
+
+      let mediaUrl = path;
+      if (!/^https?:\/\//i.test(path)) {
+        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+        const token = localStorage.getItem('token') || '';
+        mediaUrl = `/api/raw/${cleanPath}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      }
+
+      if (isVideo) {
+        const hasAutoplay = options.includes('autoplay');
+        const hasLoop = options.includes('loop');
+        const hasMuted = options.includes('muted') || hasAutoplay;
+
+        const videoAttrs = [
+          'controls',
+          'preload="metadata"',
+          'class="max-w-full max-h-96 rounded-lg border border-white/10 shadow-lg object-contain"',
+          hasAutoplay ? 'autoplay' : '',
+          hasLoop ? 'loop' : '',
+          hasMuted ? 'muted' : ''
+        ].filter(Boolean).join(' ');
+
+        return `<div class="my-3"><video src="${mediaUrl}" ${videoAttrs}></video></div>`;
+      } else {
+        let width = '';
+        let height = '';
+        for (const option of options) {
+          if (/^\d+$/.test(option)) {
+            width = `${option}px`;
+          } else if (/^\d+x\d+$/.test(option)) {
+            const [w, h] = option.split('x');
+            width = `${w}px`;
+            height = `${h}px`;
+          }
+        }
+
+        let altText = alt || '';
+        if (options.length > 0) {
+          const nonSizeOptions = options.filter((opt: string) => !/^\d+(x\d+)?$/.test(opt) && opt !== 'autoplay' && opt !== 'loop' && opt !== 'muted');
+          if (nonSizeOptions.length > 0) {
+            altText = nonSizeOptions[0];
+          }
+        }
+
+        const imgStyle = [
+          width ? `width: ${width};` : '',
+          height ? `height: ${height};` : ''
+        ].filter(Boolean).join(' ');
+
+        const styleAttr = imgStyle ? ` style="${imgStyle}"` : '';
+
+        return `<div class="my-3"><img src="${mediaUrl}" alt="${altText}"${styleAttr} class="max-w-full max-h-96 rounded-lg border border-white/10 shadow-lg object-contain" />${altText ? `<span class="text-[10px] text-text-disabled italic block mt-1">${altText}</span>` : ''}</div>`;
+      }
+    };
+
     // 1. Escaping HTML to prevent XSS
     let html = md
       .replace(/&/g, '&amp;')
@@ -416,8 +611,16 @@ export const Editor: React.FC<EditorProps> = ({
       // Bold & Italic
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Standard Images
-      .replace(/!\[(.*?)\]\((.*?)\)/g, '<div class="my-3"><img src="/$2" alt="$1" class="max-w-full max-h-96 rounded-lg border border-white/10 shadow-lg object-contain" /><span class="text-[10px] text-text-disabled italic">$1</span></div>')
+      // Standard Images (or video)
+      .replace(/!\[(.*?)\]\((.*?)\)/g, (_match, alt, path) => renderMediaHtml(path, alt, []))
+      // WikiLink Embeds ![[media]] (must run before standard wiki-links!)
+      .replace(/!\[\[([^\]]+)\]\]/g, (_match, content) => {
+        const parts = content.split('|');
+        const filename = parts[0].trim();
+        const options = parts.slice(1).map((opt: string) => opt.trim());
+        const relativePath = `assets/${filename}`;
+        return renderMediaHtml(relativePath, filename, options);
+      })
       // Standard links
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-primary hover:underline">$1</a>')
       // Obsidian WikiLinks [[RelativePath]] or [[RelativePath|Label]]
@@ -642,10 +845,10 @@ export const Editor: React.FC<EditorProps> = ({
             <LinkIcon className="w-4 h-4" />
           </button>
           <button
-            onClick={handleImageUpload}
+            onClick={handleMediaUpload}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
             className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
-            title="Загрузить изображение"
+            title="Загрузить медиафайл (Изображение или Видео)"
           >
             <ImageIcon className="w-4 h-4" />
           </button>
@@ -758,7 +961,7 @@ export const Editor: React.FC<EditorProps> = ({
               ref={editorRef}
               value={content}
               height="100%"
-              extensions={[markdown({ base: markdownLanguage }), EditorView.lineWrapping]}
+              extensions={[markdown({ base: markdownLanguage }), EditorView.lineWrapping, mediaEvents]}
               theme="dark" // UIW standard dark theme
               editable={!isReadOnly && !lockedBy}
               onChange={handleEditorChange}

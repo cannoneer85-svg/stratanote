@@ -9,8 +9,8 @@ import { fileURLToPath } from 'url';
 import { initDb, run, get, all } from './db.js';
 import { initWatcher, vaultPath } from './watcher.js';
 
-import authRouter from './routes/auth.js';
-import notesRouter from './routes/notes.js';
+import authRouter, { authenticateJWT } from './routes/auth.js';
+import notesRouter, { rawHandler } from './routes/notes.js';
 import historyRouter from './routes/history.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,11 +39,12 @@ if (!fs.existsSync(assetsDir)) {
   fs.mkdirSync(assetsDir, { recursive: true });
 }
 
-// Serve attachments statically
-app.use('/assets', express.static(assetsDir));
+// Serve attachments statically (disabled for secure JWT-authenticated routing)
+// app.use('/assets', express.static(assetsDir));
 
 // API Routers
 app.use('/api/auth', authRouter);
+app.get('/api/raw/*', authenticateJWT, rawHandler);
 app.use('/api/notes', notesRouter);
 app.use('/api/history', historyRouter);
 

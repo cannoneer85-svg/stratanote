@@ -1,6 +1,6 @@
 import express from 'express';
 import fs from 'fs';
-import { join, dirname, basename, relative } from 'path';
+import { join, dirname, basename, relative, resolve, extname } from 'path';
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import { run, get, all } from '../db.js';
@@ -264,8 +264,8 @@ router.post('/rename', authenticateJWT, canEdit, async (req, res) => {
   }
 });
 
-// 6. Upload Image Attachment (via base64)
-router.post('/upload-image', authenticateJWT, canEdit, async (req, res) => {
+// 6. Upload Media/Image Attachment (via base64) with conflict-indexed filename suffix
+const uploadMediaHandler = async (req, res) => {
   const { filename, base64Data } = req.body;
   if (!filename || !base64Data) {
     return res.status(400).json({ error: 'filename and base64Data are required' });
@@ -277,8 +277,19 @@ router.post('/upload-image', authenticateJWT, canEdit, async (req, res) => {
     fs.mkdirSync(assetsDir, { recursive: true });
   }
 
-  const safeFilename = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
-  const filePath = join(assetsDir, safeFilename);
+  const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_');
+  const ext = extname(cleanedFilename);
+  const base = basename(cleanedFilename, ext);
+
+  let counter = 0;
+  let safeFilename = cleanedFilename;
+  let filePath = join(assetsDir, safeFilename);
+
+  while (fs.existsSync(filePath)) {
+    counter++;
+    safeFilename = `${base} (${counter})${ext}`;
+    filePath = join(assetsDir, safeFilename);
+  }
 
   try {
     const buffer = Buffer.from(base64Data, 'base64');
@@ -287,10 +298,14 @@ router.post('/upload-image', authenticateJWT, canEdit, async (req, res) => {
     const relativeUrl = `assets/${safeFilename}`;
     res.json({ url: relativeUrl, filename: safeFilename });
   } catch (err) {
-    console.error('Image upload failed:', err);
-    res.status(500).json({ error: 'Failed to save image file' });
+    console.error('Media upload failed:', err);
+    res.status(500).json({ error: 'Failed to save media file' });
   }
-});
+};
+
+router.post('/upload-media', authenticateJWT, canEdit, uploadMediaHandler);
+router.post('/upload-image', authenticateJWT, canEdit, uploadMediaHandler);
+
 
 // 6.5. Get Graph Data (Compute relationships on server with active disk filtering & self-healing)
 router.get('/graph-data', authenticateJWT, async (req, res) => {
@@ -565,5 +580,36 @@ router.post('/upload-md', authenticateJWT, canEdit, async (req, res) => {
     res.status(500).json({ error: 'Failed to upload md file' });
   }
 });
+
+export const rawHandler = async (req, res) => {
+  const relPath = req.params[0];
+  if (!relPath) return res.status(400).json({ error: 'relative_path is required' });
+
+  const normPath = normalizePath(relPath);
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(normPath);
+  } catch (err) {
+    decodedPath = normPath;
+  }
+
+  const absolutePath = join(vaultPath, decodedPath);
+  const resolvedVaultPath = resolve(vaultPath);
+  const resolvedSafePath = resolve(absolutePath);
+
+  if (!resolvedSafePath.startsWith(resolvedVaultPath)) {
+    return res.status(403).json({ error: 'Access denied: Out of vault boundary' });
+  }
+
+  try {
+    if (!fs.existsSync(resolvedSafePath) || fs.statSync(resolvedSafePath).isDirectory()) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.sendFile(resolvedSafePath);
+  } catch (err) {
+    console.error(`Error sending raw file ${decodedPath}:`, err);
+    res.status(500).json({ error: 'Failed to send file' });
+  }
+};
 
 export default router;
