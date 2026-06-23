@@ -163,7 +163,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setUploadStatus({ type: 'info', message: 'Подготовка к загрузке архива...' });
 
     try {
-      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+      const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks
       const totalSize = zipFile.size;
       const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
       const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
