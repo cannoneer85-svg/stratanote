@@ -22,14 +22,16 @@ _app/client/dist/
 Thumbs.db
 desktop.ini
 
-# Exclude all markdown files and user note directories from Git
-*.md
-!_app/**/*.md
-/ERP + CRM/
-/IoT/
-/PXE/
-/Shell/
-/Ideas/
+# Exclude all top-level note folders and untracked files, keeping only application code
+/*
+!/_app/
+!/.gitignore
+!/package.json
+!/start-app.js
+!/start.bat
+!/Общая архитектура проекта.md
+!/Business Requirements Document.md
+!/test_media_features.js
 
 # Gemini system generated tasks and logs
 .system_generated/
