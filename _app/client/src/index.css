@@ -120,6 +120,96 @@
   border-left: 4px solid #9d4edd;
   background: rgba(157, 78, 221, 0.05);
   padding: 0.75rem 1rem;
-  margin: 1rem 0;
-  border-radius: 0 4px 4px 0;
+  margin: 1.25rem 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Callouts / Alerts styling */
+.visual-callout {
+  border-left: 4px solid #4b5563;
+  background: rgba(156, 163, 175, 0.04);
+  padding: 0.85rem 1.15rem;
+  margin: 1.25rem 0;
+  border-radius: 0.5rem;
+}
+
+.visual-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.visual-callout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.visual-callout-content {
+  font-size: 0.925rem;
+  line-height: 1.6;
+  color: #d1d5db;
+}
+
+.visual-callout-content p {
+  margin-bottom: 0.75rem;
+}
+
+.visual-callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Callout variations */
+.visual-callout-info {
+  border-color: #3b82f6; /* Blue */
+  background: rgba(59, 130, 246, 0.05);
+}
+.visual-callout-info .visual-callout-header {
+  color: #60a5fa;
+}
+
+.visual-callout-success {
+  border-color: #10b981; /* Green */
+  background: rgba(16, 185, 129, 0.05);
+}
+.visual-callout-success .visual-callout-header {
+  color: #34d399;
+}
+
+.visual-callout-important {
+  border-color: #a78bfa; /* Purple/Violet */
+  background: rgba(167, 139, 250, 0.05);
+}
+.visual-callout-important .visual-callout-header {
+  color: #c084fc;
+}
+
+.visual-callout-warning {
+  border-color: #f59e0b; /* Amber */
+  background: rgba(245, 158, 11, 0.05);
+}
+.visual-callout-warning .visual-callout-header {
+  color: #fbbf24;
+}
+
+.visual-callout-danger {
+  border-color: #ef4444; /* Red */
+  background: rgba(239, 68, 68, 0.05);
+}
+.visual-callout-danger .visual-callout-header {
+  color: #f87171;
+}
+
+.visual-callout-quote {
+  border-color: #9ca3af; /* Gray */
+  background: rgba(156, 163, 175, 0.04);
+}
+.visual-callout-quote .visual-callout-header {
+  color: #d1d5db;
 }

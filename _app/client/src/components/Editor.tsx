@@ -556,6 +556,7 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const parseMarkdown = (md: string) => {
+    const placeholders: string[] = [];
     const renderMediaHtml = (path: string, alt: string, options: string[]) => {
       const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
       const lowercasePath = path.toLowerCase();
@@ -693,81 +694,230 @@ export const Editor: React.FC<EditorProps> = ({
       return result.join('\n');
     };
 
+    const unescapeHtml = (str: string) => {
+      return str
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+    };
+
+    const getCalloutConfig = (type: string) => {
+      const t = type.toLowerCase();
+      let colorClass = 'info';
+      let iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+      
+      if (t === 'note' || t === 'info' || t === 'todo') {
+        colorClass = 'info';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+      } else if (t === 'tip' || t === 'success' || t === 'check' || t === 'done') {
+        colorClass = 'success';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+      } else if (t === 'important' || t === 'example') {
+        colorClass = 'important';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+      } else if (t === 'warning' || t === 'question' || t === 'help' || t === 'faq') {
+        colorClass = 'warning';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+      } else if (t === 'caution' || t === 'danger' || t === 'error' || t === 'failure' || t === 'fail' || t === 'bug') {
+        colorClass = 'danger';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><octagon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+      } else if (t === 'quote' || t === 'cite') {
+        colorClass = 'quote';
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1zm11 0c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/></svg>`;
+      }
+      return { colorClass, iconSvg };
+    };
+
+    const renderBlockquote = (lines: string[]): string => {
+      if (lines.length === 0) return '';
+
+      const firstLine = lines[0].trim();
+      const calloutMatch = firstLine.match(/^\[!(IMPORTANT|NOTE|WARNING|TIP|CAUTION|INFO|TODO|ALERT|DANGER|ERROR|SUCCESS|QUESTION|HELP|FAILURE|BUG|EXAMPLE|QUOTE|CITE)\](?:\s+(.*))?$/i);
+
+      let isCallout = false;
+      let calloutType = '';
+      let calloutTitle = '';
+      let contentLines = lines;
+
+      if (calloutMatch) {
+        isCallout = true;
+        calloutType = calloutMatch[1].toLowerCase();
+        calloutTitle = calloutMatch[2] ? calloutMatch[2].trim() : calloutMatch[1].toUpperCase();
+        contentLines = lines.slice(1);
+      }
+
+      // Join content lines, unescape HTML, and parse them recursively
+      const innerMd = unescapeHtml(contentLines.join('\n'));
+      const innerHtml = parseMarkdown(innerMd);
+
+      if (isCallout) {
+        const { colorClass, iconSvg } = getCalloutConfig(calloutType);
+        return `<div class="visual-callout visual-callout-${colorClass}">
+          <div class="visual-callout-header">
+            <span class="visual-callout-icon">${iconSvg}</span>
+            <span>${calloutTitle}</span>
+          </div>
+          <div class="visual-callout-content">
+            ${innerHtml}
+          </div>
+        </div>`;
+      } else {
+        return `<blockquote class="visual-blockquote">
+          ${innerHtml}
+        </blockquote>`;
+      }
+    };
+
+    const parseBlockquotes = (text: string): string => {
+      const lines = text.split('\n');
+      const result: string[] = [];
+      let inBlockquote = false;
+      let blockquoteLines: string[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Note: HTML escaping runs before this, so > has become &gt;
+        const match = line.match(/^(\s*)&gt;\s?(.*)$/);
+
+        if (match) {
+          inBlockquote = true;
+          blockquoteLines.push(match[2]);
+        } else {
+          if (inBlockquote) {
+            const placeholder = `<!--PLACEHOLDER_${placeholders.length}-->`;
+            placeholders.push(renderBlockquote(blockquoteLines));
+            blockquoteLines = [];
+            inBlockquote = false;
+            result.push(placeholder);
+          }
+          result.push(line);
+        }
+      }
+
+      if (inBlockquote) {
+        const placeholder = `<!--PLACEHOLDER_${placeholders.length}-->`;
+        placeholders.push(renderBlockquote(blockquoteLines));
+        result.push(placeholder);
+      }
+
+      return result.join('\n');
+    };
+
     // 1. Escaping HTML to prevent XSS
     let html = md
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
+    // Parse blockquotes and callouts
+    html = parseBlockquotes(html);
+
     // 2. Extract code blocks and mermaid diagrams into placeholders
-    const placeholders: string[] = [];
     
     // Extract mermaid first
-    html = html.replace(/```mermaid\s*([\s\S]*?)```/g, (_match, code) => {
+    html = html.replace(/```\s*mermaid\s*([\s\S]*?)```/g, (_match, code) => {
       let rawCode = code
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
         .replace(/&amp;/g, '&')
+        // Unescape only specific Mermaid syntax arrows and HTML line breaks
+        .replace(/&lt;br\s*\/?&gt;/gi, '<br/>')
+        .replace(/&lt;--&gt;/g, '<-->')
+        .replace(/&lt;==&gt;/g, '<==>')
+        .replace(/&lt;--/g, '<--')
+        .replace(/&lt;==/g, '<==')
+        .replace(/--&gt;/g, '-->')
+        .replace(/==&gt;/g, '==>')
+        .replace(/-\.-&gt;/g, '-.->')
+        .replace(/-&gt;/g, '->')
         // Normalize bidirectional arrows (handles em-dash, en-dash, minus, hyphens, and spaces)
         .replace(/<\s*[\u2014\u2013\u2212-]+\s*>/g, '<-->')
         // Normalize right-pointing arrows (excluding dotted links)
         .replace(/(?<!\.)[\u2014\u2013\u2212-]+\s*>/g, '-->')
         .replace(/\bgraph\b/g, 'flowchart');
 
-      // Fix subgraph IDs with spaces
-      // 1. With labels: subgraph ID [Label] -> subgraph ID_with_underscores ["Label"]
-      rawCode = rawCode.replace(/subgraph\s+([^[\n]+?)\s*\[(.*?)\]/g, (_m: string, id: string, label: string) => {
-        const cleanId = id.trim().replace(/\s+/g, '_');
-        let cleanLabel = label.trim();
-        if ((cleanLabel.startsWith('"') && cleanLabel.endsWith('"')) || 
-            (cleanLabel.startsWith("'") && cleanLabel.endsWith("'"))) {
-          cleanLabel = cleanLabel.slice(1, -1);
-        }
-        return `subgraph ${cleanId} ["${cleanLabel}"]`;
-      });
-
-      // 2. Without labels: subgraph ID -> subgraph ID_with_underscores
-      rawCode = rawCode.replace(/subgraph\s+([^[\n]+)$/gm, (m: string, id: string) => {
-        const trimmedId = id.trim();
-        if (trimmedId.includes('"') || trimmedId.includes('[')) return m;
-        const cleanId = trimmedId.replace(/\s+/g, '_');
-        return `subgraph ${cleanId}`;
-      });
-
-      // 3. Wrap node labels in quotes to support slashes and special characters
-      rawCode = rawCode.replace(/([a-zA-Z0-9_-]+)\[(.*?)\]/g, (_m: string, id: string, content: string) => {
-        let cleanContent = content.trim();
-        if (cleanContent.startsWith('(') && cleanContent.endsWith(')')) {
-          let dbText = cleanContent.slice(1, -1).trim();
-          if (!dbText.startsWith('"')) {
-            dbText = `"${dbText}"`;
+      // Process line-by-line to avoid cross-matching subgraph lines with node/edge parsing rules
+      const lines = rawCode.split('\n');
+      const processedLines = lines.map((line: string) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('subgraph ')) {
+          // Extract the content after 'subgraph '
+          const content = trimmed.substring(9).trim();
+          
+          // Check if it already has a label in brackets, e.g. ID [Label] or ID ["Label"]
+          const bracketMatch = content.match(/^([^[]+)\s*\[(.*?)\]$/);
+          if (bracketMatch) {
+            const id = bracketMatch[1].trim();
+            const label = bracketMatch[2].trim();
+            const cleanId = id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
+            let cleanLabel = label;
+            if ((cleanLabel.startsWith('"') && cleanLabel.endsWith('"')) || 
+                (cleanLabel.startsWith("'") && cleanLabel.endsWith("'"))) {
+              cleanLabel = cleanLabel.slice(1, -1);
+            }
+            cleanLabel = cleanLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const indent = line.match(/^\s*/)?.[0] || '';
+            return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
           }
-          return `${id}[(${dbText})]`;
-        }
-        if (!cleanContent.startsWith('"')) {
-          cleanContent = `"${cleanContent}"`;
-        }
-        return `${id}[${cleanContent}]`;
-      });
+          
+          // If no brackets, check if it's already in quotes
+          if ((content.startsWith('"') && content.endsWith('"')) ||
+              (content.startsWith("'") && content.endsWith("'"))) {
+            let cleanLabel = content.slice(1, -1);
+            cleanLabel = cleanLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const indent = line.match(/^\s*/)?.[0] || '';
+            return `${indent}subgraph ${cleanLabel} ["${cleanLabel}"]`;
+          }
+          
+          // Otherwise, it's just 'subgraph Label' or 'subgraph ID'
+          const cleanId = content.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
+          const cleanLabel = content.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const indent = line.match(/^\s*/)?.[0] || '';
+          return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
+        } else {
+          let processedLine = line;
+          
+          // 3. Wrap node labels in quotes to support slashes and special characters
+          processedLine = processedLine.replace(/([a-zA-Z0-9_-]+)\[(.*?)\]/g, (_m: string, id: string, content: string) => {
+            let cleanContent = content.trim();
+            if (cleanContent.startsWith('(') && cleanContent.endsWith(')')) {
+              let dbText = cleanContent.slice(1, -1).trim();
+              if (dbText.startsWith('"') && dbText.endsWith('"')) {
+                dbText = dbText.slice(1, -1);
+              }
+              dbText = dbText.replace(/\\/g, '\\\\');
+              return `${id}[("${dbText}")]`;
+            }
+            if (cleanContent.startsWith('"') && cleanContent.endsWith('"')) {
+              cleanContent = cleanContent.slice(1, -1);
+            }
+            cleanContent = cleanContent.replace(/\\/g, '\\\\');
+            return `${id}["${cleanContent}"]`;
+          });
 
-      // 4. Wrap round brackets node labels in quotes
-      rawCode = rawCode.replace(/([a-zA-Z0-9_-]+)\(([^)]+)\)/g, (m: string, id: string, content: string) => {
-        if (id === 'subgraph') return m;
-        let cleanContent = content.trim();
-        if (!cleanContent.startsWith('"')) {
-          cleanContent = `"${cleanContent}"`;
-        }
-        return `${id}(${cleanContent})`;
-      });
+          // 4. Wrap round brackets node labels in quotes
+          processedLine = processedLine.replace(/([a-zA-Z0-9_-]+)\(([^)]+)\)/g, (m: string, id: string, content: string) => {
+            if (id === 'subgraph') return m;
+            let cleanContent = content.trim();
+            if (cleanContent.startsWith('"') && cleanContent.endsWith('"')) {
+              cleanContent = cleanContent.slice(1, -1);
+            }
+            cleanContent = cleanContent.replace(/\\/g, '\\\\');
+            return `${id}("${cleanContent}")`;
+          });
 
-      // 5. Wrap edge labels in quotes to support slashes
-      rawCode = rawCode.replace(/\|(.*?)\|/g, (_m: string, text: string) => {
-        let cleanText = text.trim();
-        if (!cleanText.startsWith('"')) {
-          cleanText = `"${cleanText}"`;
+          // 5. Wrap edge labels in quotes to support slashes
+          processedLine = processedLine.replace(/\|(.*?)\|/g, (_m: string, text: string) => {
+            let cleanText = text.trim();
+            if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+              cleanText = cleanText.slice(1, -1);
+            }
+            cleanText = cleanText.replace(/\\/g, '\\\\');
+            return `|"${cleanText}"|`;
+          });
+
+          return processedLine;
         }
-        return `|${cleanText}|`;
       });
+      rawCode = processedLines.join('\n');
 
       const placeholder = `<!--PLACEHOLDER_${placeholders.length}-->`;
       const escapedCode = rawCode
@@ -811,8 +961,6 @@ export const Editor: React.FC<EditorProps> = ({
       .replace(/^# (.*?)$/gm, '<h1 class="visual-h1">$1</h1>')
       .replace(/^## (.*?)$/gm, '<h2 class="visual-h2">$1</h2>')
       .replace(/^### (.*?)$/gm, '<h3 class="visual-h3">$1</h3>')
-      // Blockquotes
-      .replace(/^> (.*?)$/gm, '<blockquote class="visual-blockquote">$1</blockquote>')
       // Unordered Lists
       .replace(/^\s*[-*+]\s+\[\s*\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="text-text-muted">$1</span></div>')
       .replace(/^\s*[-*+]\s+\[x\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" checked disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="line-through text-text-disabled">$1</span></div>')
