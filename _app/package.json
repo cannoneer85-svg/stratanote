@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "npm run install:all",
-    "install:all": "npm install && npm install --prefix client --omit=none && npm install --prefix server",
+    "install:all": "npm install --prefix client --omit=none && npm install --prefix server",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
     "dev:server": "npm --prefix server run dev",
