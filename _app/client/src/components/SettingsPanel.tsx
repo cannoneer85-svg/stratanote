@@ -67,6 +67,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [mediaFiles, setMediaFiles] = useState<{ filename: string; size: number; updatedAt: string }[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'images' | 'videos' | 'others'>('all');
   const [mediaStatus, setMediaStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   useEffect(() => {
@@ -150,9 +151,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const filteredMediaFiles = mediaFiles.filter((file) =>
-    file.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase())
-  );
+  const filteredMediaFiles = mediaFiles.filter((file) => {
+    const matchesSearch = file.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (mediaTypeFilter === 'all') return true;
+
+    const ext = file.filename.split('.').pop()?.toLowerCase() || '';
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
+    const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(ext);
+
+    if (mediaTypeFilter === 'images') return isImage;
+    if (mediaTypeFilter === 'videos') return isVideo;
+    if (mediaTypeFilter === 'others') return !isImage && !isVideo;
+
+    return true;
+  });
 
   if (!isOpen) return null;
 
@@ -903,6 +917,58 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <div className="text-xs text-text-muted">
                   Всего файлов: <strong className="text-white">{filteredMediaFiles.length}</strong>
                 </div>
+              </div>
+
+              {/* Category Filters */}
+              <div className="flex flex-wrap items-center gap-2 bg-white/[0.01] border border-white/5 p-3 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setMediaTypeFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    mediaTypeFilter === 'all'
+                      ? 'bg-primary text-white border border-primary/20 shadow-glow'
+                      : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
+                  }`}
+                >
+                  Все ({mediaFiles.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTypeFilter('images')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    mediaTypeFilter === 'images'
+                      ? 'bg-primary text-white border border-primary/20 shadow-glow'
+                      : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
+                  }`}
+                >
+                  Изображения ({mediaFiles.filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTypeFilter('videos')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    mediaTypeFilter === 'videos'
+                      ? 'bg-primary text-white border border-primary/20 shadow-glow'
+                      : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
+                  }`}
+                >
+                  Видео ({mediaFiles.filter(f => ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTypeFilter('others')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    mediaTypeFilter === 'others'
+                      ? 'bg-primary text-white border border-primary/20 shadow-glow'
+                      : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
+                  }`}
+                >
+                  Другие ({mediaFiles.filter(f => {
+                    const ext = f.filename.split('.').pop()?.toLowerCase() || '';
+                    return !['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext) &&
+                           !['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(ext);
+                  }).length})
+                </button>
               </div>
 
               {/* Media Grid */}
