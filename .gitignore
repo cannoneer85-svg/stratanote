@@ -30,8 +30,6 @@ desktop.ini
 !/README.md
 !/.agents/
 !/CHANGELOG.md
-!/Общая архитектура проекта.md
-!/Business Requirements Document.md
 
 # Gemini system generated tasks and logs
 .system_generated/
