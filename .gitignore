@@ -26,12 +26,11 @@ desktop.ini
 /*
 !/_app/
 !/.gitignore
-!/package.json
-!/start-app.js
 !/start.bat
+!/README.md
+!/.agents/
 !/Общая архитектура проекта.md
 !/Business Requirements Document.md
-!/test_media_features.js
 
 # Gemini system generated tasks and logs
 .system_generated/

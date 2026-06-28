@@ -32,6 +32,8 @@ interface SidebarProps {
   selectedParentFolder: string;
   onSelectedParentFolderChange: (folder: string) => void;
   onOpenSettings?: () => void;
+  systemVersion?: string;
+  onOpenAbout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,7 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onExport,
   selectedParentFolder,
   onSelectedParentFolderChange,
-  onOpenSettings
+  onOpenSettings,
+  systemVersion = '1.0.0',
+  onOpenAbout
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -476,6 +480,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClose={() => setExportModalOpen(false)}
         onExport={onExport}
       />
+
+      {/* System Version Footer */}
+      {onOpenAbout && (
+        <div className="px-4 pb-3.5 bg-black/20 flex items-center justify-between text-[10px] text-text-disabled border-t border-white/5 pt-2 select-none">
+          <span className="font-medium">Obsidian Collab</span>
+          <button
+            onClick={onOpenAbout}
+            className="hover:text-primary transition-colors cursor-pointer underline font-bold"
+            title="О системе и история обновлений"
+          >
+            v{systemVersion}
+          </button>
+        </div>
+      )}
 
     </div>
   );

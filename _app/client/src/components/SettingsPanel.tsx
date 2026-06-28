@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 
 interface User {
@@ -17,6 +17,15 @@ interface SettingsPanelProps {
   selectedParentFolder: string;
   token: string | null;
   onVaultReload: () => void;
+  versionInfo?: {
+    version: string;
+    history: Array<{
+      version: string;
+      date: string;
+      title: string;
+      keynotes: string[];
+    }>;
+  };
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -26,8 +35,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   selectedParentFolder,
   token,
   onVaultReload,
+  versionInfo = { version: '1.0.0', history: [] }
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media' | 'about'>('import');
   
   // ZIP / MD Upload State
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -473,6 +483,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <Image className="w-3.5 h-3.5" />
             <span>Мультимедиа</span>
           </button>
+          <button
+            onClick={() => setActiveTab('about')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+              activeTab === 'about' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+            }`}
+          >
+            <Info className="w-3.5 h-3.5" />
+            <span>О системе</span>
+          </button>
         </div>
 
         {/* Main Content Area */}
@@ -853,7 +872,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
 
             </div>
-          ) : (
+          ) : activeTab === 'media' ? (
             <div className="space-y-6 text-left">
               {mediaStatus && (
                 <div className={`p-4 rounded-xl text-xs flex items-start space-x-2.5 border ${
@@ -958,7 +977,78 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
               )}
             </div>
-          )}
+          ) : activeTab === 'about' ? (
+            <div className="space-y-6 text-left animate-fade-in select-none">
+              {/* About Platform info card */}
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center text-primary text-lg">
+                    📚
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Obsidian Collab</h3>
+                    <p className="text-[10px] text-text-muted">Разработка системы ведения заметок и совместного редактирования</p>
+                  </div>
+                </div>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Платформа предназначена для командной работы с базой знаний Obsidian на основе Markdown. Данный раздел настроек показывает текущую установленную версию системы и подробный Changelog доработок и улучшений.
+                </p>
+              </div>
+
+              {/* Version info details */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Информация о сборке</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col space-y-1">
+                    <span className="text-[10px] text-text-disabled uppercase">Установленная версия</span>
+                    <span className="text-lg font-extrabold text-primary">v{versionInfo.version}</span>
+                  </div>
+                  <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col space-y-1">
+                    <span className="text-[10px] text-text-disabled uppercase">Среда выполнения</span>
+                    <span className="text-lg font-extrabold text-white">Production</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Release Timeline */}
+              <div className="space-y-4 pt-2">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">История версий</h4>
+                {versionInfo.history.length === 0 ? (
+                  <p className="text-xs text-text-disabled italic py-2">История релизов пуста</p>
+                ) : (
+                  <div className="relative pl-5 border-l border-white/5 space-y-6 py-1">
+                    {versionInfo.history.map((release) => (
+                      <div key={release.version} className="relative">
+                        {/* Timeline dot */}
+                        <span className="absolute -left-[27px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background-panel border-2 border-primary shrink-0">
+                          <span className="h-1 w-1 rounded-full bg-primary" />
+                        </span>
+                        
+                        <div className="space-y-1.5">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-white">v{release.version}</span>
+                            <span className="text-[10px] text-text-muted">({release.date})</span>
+                            <span className="text-[10px] text-primary font-medium">— {release.title}</span>
+                          </div>
+                          
+                          {release.keynotes && release.keynotes.length > 0 && (
+                            <ul className="space-y-1 pl-1">
+                              {release.keynotes.map((note, nIdx) => (
+                                <li key={nIdx} className="flex items-start text-[11px] text-text-muted">
+                                  <span className="text-primary mr-1.5">•</span>
+                                  <span>{note}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Footer info bar */}

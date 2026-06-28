@@ -48,6 +48,23 @@ app.get('/api/raw/*', authenticateJWT, rawHandler);
 app.use('/api/notes', notesRouter);
 app.use('/api/history', historyRouter);
 
+// System Version and Changelog Endpoint
+app.get('/api/version', authenticateJWT, (req, res) => {
+  try {
+    const releasesPath = join(__dirname, '..', 'releases.json');
+    if (fs.existsSync(releasesPath)) {
+      const releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
+      const currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
+      return res.json({ version: currentVersion, history: releases });
+    }
+    return res.json({ version: '1.0.0', history: [] });
+  } catch (err) {
+    console.error('Error reading version metadata:', err);
+    return res.status(500).json({ error: 'Failed to retrieve version info' });
+  }
+});
+
+
 // Serve production frontend assets if built
 const clientDistPath = join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientDistPath)) {

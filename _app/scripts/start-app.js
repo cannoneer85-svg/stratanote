@@ -3,8 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const net = require('net');
 
-const projectRoot = __dirname;
-const appDir = path.join(projectRoot, '_app');
+// __dirname is _app/scripts
+const appDir = path.resolve(__dirname, '..');
+const projectRoot = path.resolve(appDir, '..');
 const clientDist = path.join(appDir, 'client', 'dist');
 
 // Function to find a free port starting from a default

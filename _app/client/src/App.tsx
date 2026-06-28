@@ -6,6 +6,7 @@ import { GraphView } from './components/GraphView';
 import { DiffViewer } from './components/DiffViewer';
 import { Auth } from './components/Auth';
 import { SettingsPanel } from './components/SettingsPanel';
+import { AboutModal } from './components/AboutModal';
 import { formatToMoscowTime } from './utils/date';
 import { 
   Network, FileText, History, X, HelpCircle
@@ -61,6 +62,13 @@ export default function App() {
   const [historicContent, setHistoricContent] = useState<string>('');
   const [previousContent, setPreviousContent] = useState<string>('');
 
+  // System Version & About state
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{ version: string; history: any[] }>({
+    version: '1.0.0',
+    history: []
+  });
+
   // Auto hash navigation for external link clicks
   useEffect(() => {
     const handleHashChange = () => {
@@ -85,8 +93,9 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
 
-    // Load initial note index
+    // Load initial note index & version info
     loadNotes();
+    fetchVersionInfo();
 
     // Setup Socket
     const socketInstance = io(window.location.origin);
@@ -171,6 +180,21 @@ export default function App() {
       socketInstance.disconnect();
     };
   }, [token]);
+
+  // Load system version info from server
+  const fetchVersionInfo = async () => {
+    try {
+      const res = await fetch('/api/version', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVersionInfo(data);
+      }
+    } catch (err) {
+      console.error('Failed to load version info:', err);
+    }
+  };
 
   // Load physical notes index from database
   const loadNotes = async () => {
@@ -463,6 +487,8 @@ export default function App() {
           selectedParentFolder={selectedParentFolder}
           onSelectedParentFolderChange={setSelectedParentFolder}
           onOpenSettings={() => setSettingsOpen(true)}
+          systemVersion={versionInfo.version}
+          onOpenAbout={() => setAboutOpen(true)}
         />
       </div>
 
@@ -644,6 +670,13 @@ export default function App() {
         selectedParentFolder={selectedParentFolder}
         token={token}
         onVaultReload={loadNotes}
+        versionInfo={versionInfo}
+      />
+
+      <AboutModal
+        isOpen={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        versionInfo={versionInfo}
       />
     </div>
   );

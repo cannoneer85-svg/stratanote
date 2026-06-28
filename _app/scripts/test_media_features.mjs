@@ -1,5 +1,9 @@
 import { writeFileSync, existsSync, rmSync } from 'fs';
-import { join } from 'path';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const assetsDir = resolve(__dirname, '..', '..', 'assets');
 
 const BASE_URL = `http://localhost:${process.env.PORT || 3001}`;
 
@@ -8,9 +12,9 @@ async function runTests() {
 
   try {
     // Pre-cleanup to ensure clean state
-    const pre1 = join('.', 'assets', 'test-image.png');
-    const pre2 = join('.', 'assets', 'test-image (1).png');
-    const pre3 = join('.', 'assets', 'test-image (2).png');
+    const pre1 = join(assetsDir, 'test-image.png');
+    const pre2 = join(assetsDir, 'test-image (1).png');
+    const pre3 = join(assetsDir, 'test-image (2).png');
     if (existsSync(pre1)) rmSync(pre1);
     if (existsSync(pre2)) rmSync(pre2);
     if (existsSync(pre3)) rmSync(pre3);
