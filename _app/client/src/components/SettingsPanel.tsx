@@ -1053,12 +1053,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     📚
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Obsidian Collab</h3>
+                    <h3 className="text-sm font-bold text-white">StrataNote</h3>
                     <p className="text-[10px] text-text-muted">Разработка системы ведения заметок и совместного редактирования</p>
                   </div>
                 </div>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Платформа предназначена для командной работы с базой знаний Obsidian на основе Markdown. Данный раздел настроек показывает текущую установленную версию системы и подробный Changelog доработок и улучшений.
+                  Платформа предназначена для командной работы с базой знаний StrataNote на основе Markdown. Данный раздел настроек показывает текущую установленную версию системы и подробный Changelog доработок и улучшений.
                 </p>
               </div>
 

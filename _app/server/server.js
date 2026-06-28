@@ -179,7 +179,7 @@ const startServer = async () => {
     // 3. Start Listening
     server.listen(PORT, () => {
       console.log(`==================================================`);
-      console.log(`🚀 Obsidian Collaborative Server running on port ${PORT}`);
+      console.log(`🚀 StrataNote Collaborative Server running on port ${PORT}`);
       console.log(`📁 Vault Directory: ${vaultPath}`);
       console.log(`==================================================`);
     });

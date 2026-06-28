@@ -25,7 +25,7 @@ function findFreePort(startPort) {
 }
 
 async function main() {
-  console.log('=== Запуск Obsidian Collaborative App ===');
+  console.log('=== Запуск StrataNote Collaborative App ===');
   console.log('Поиск свободного порта...');
   const port = await findFreePort(3001);
   console.log(`Выбран свободный порт: ${port}`);

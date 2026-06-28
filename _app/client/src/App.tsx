@@ -604,7 +604,7 @@ export default function App() {
                 <div className="w-full h-full flex flex-col items-center justify-center text-center space-y-4">
                   <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl max-w-sm glass-card">
                     <HelpCircle className="w-12 h-12 text-primary/70 mx-auto mb-3 animate-pulse" />
-                    <h2 className="text-lg font-bold text-white mb-1">Совместная база Obsidian</h2>
+                    <h2 className="text-lg font-bold text-white mb-1">Совместная база StrataNote</h2>
                     <p className="text-xs text-text-muted">
                       Выберите существующий markdown-документ в левом сайдбаре или создайте новый, чтобы приступить к редактированию.
                     </p>

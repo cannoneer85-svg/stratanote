@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User, PlusCircle, ArrowRight } from 'lucide-react';
+import { Lock, User, PlusCircle, ArrowRight } from 'lucide-react';
 
 interface AuthProps {
   onLoginSuccess: (token: string, user: { id: number; username: string; role: string }) => void;
@@ -55,13 +55,11 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
       <div className="w-full max-w-md p-8 rounded-2xl glass-panel shadow-glass text-center border border-white/10 glow-active">
         <div className="flex justify-center mb-4">
-          <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 text-primary">
-            <Shield className="w-10 h-10 animate-pulse" />
-          </div>
+          <img src="/logo_icon.png" className="w-20 h-20 object-contain" alt="StrataNote Logo" />
         </div>
 
         <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2 bg-gradient-to-r from-white via-primary to-primary-hover bg-clip-text text-transparent">
-          Obsidian Collab
+          StrataNote
         </h1>
         <p className="text-text-muted text-sm mb-6">
           {isRegister ? 'Создайте учетную запись для работы в команде' : 'Вход в совместную базу знаний'}

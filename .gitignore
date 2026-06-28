@@ -39,3 +39,8 @@ task.md
 walkthrough.md
 implementation_plan.md
 
+# Environment variables
+.env
+_app/.env
+_app/server/.env
+

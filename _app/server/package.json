@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-web-server",
+  "name": "stratanote-server",
   "version": "1.2.0",
-  "description": "Collaborative web-based Obsidian vault server",
+  "description": "Collaborative web-based StrataNote vault server",
   "main": "server.js",
   "type": "module",
   "scripts": {

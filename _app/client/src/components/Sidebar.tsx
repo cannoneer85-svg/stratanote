@@ -484,7 +484,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* System Version Footer */}
       {onOpenAbout && (
         <div className="px-4 pb-3.5 bg-black/20 flex items-center justify-between text-[10px] text-text-disabled border-t border-white/5 pt-2 select-none">
-          <span className="font-medium">Obsidian Collab</span>
+          <span className="font-medium">StrataNote</span>
           <button
             onClick={onOpenAbout}
             className="hover:text-primary transition-colors cursor-pointer underline font-bold"

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { run, get, all } from '../db.js';
 
 const router = express.Router();
-export const JWT_SECRET = 'obsidian-collaborative-secret-key-2026';
+export const JWT_SECRET = 'stratanote-collaborative-secret-key-2026';
 
 // Middleware to authenticate JWT
 export const authenticateJWT = (req, res, next) => {

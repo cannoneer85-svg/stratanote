@@ -462,7 +462,7 @@ router.get('/export', authenticateJWT, (req, res) => {
   } else if (!includeMD && !includeAssets) {
     typePrefix = 'empty';
   }
-  const filename = `obsidian-vault-${typePrefix}-${year}${month}${day}-${hours}${minutes}.zip`;
+  const filename = `stratanote-vault-${typePrefix}-${year}${month}${day}-${hours}${minutes}.zip`;
 
   res.attachment(filename);
   const archive = archiver('zip', { zlib: { level: 9 } });

@@ -50,7 +50,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">Obsidian Collab</h2>
+                <h2 className="text-base font-bold text-white">StrataNote</h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-primary/25 border border-primary/45 text-primary shadow-glow">
                   v{versionInfo.version}
                 </span>
@@ -72,7 +72,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version
           <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">О платформе</h3>
             <p className="text-xs text-text-muted leading-relaxed">
-              <strong>Obsidian Collab</strong> — это современная веб-система совместной работы над базой знаний в формате Markdown. Решение сочетает локальный контроль над файлами с облачной синхронизацией, интерактивным графом связей заметок, блокировками во избежание конфликтов редактирования и полной историей изменений.
+              <strong>StrataNote</strong> — это современная веб-система совместной работы над базой знаний в формате Markdown. Решение сочетает локальный контроль над файлами с облачной синхронизацией, интерактивным графом связей заметок, блокировками во избежание конфликтов редактирования и полной историей изменений.
             </p>
           </div>
 
@@ -124,7 +124,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version
         {/* Footer */}
         <div className="px-6 py-3.5 border-t border-white/5 bg-black/15 text-center flex items-center justify-center space-x-1.5 text-[10px] text-text-disabled">
           <Award className="w-3.5 h-3.5 text-primary" />
-          <span>Obsidian Collab Open Source Platform © 2026</span>
+          <span>StrataNote Open Source Platform © 2026</span>
         </div>
 
       </div>
