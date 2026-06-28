@@ -25,6 +25,7 @@ interface SettingsPanelProps {
       title: string;
       keynotes: string[];
     }>;
+    env?: string;
   };
 }
 
@@ -35,7 +36,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   selectedParentFolder,
   token,
   onVaultReload,
-  versionInfo = { version: '1.0.0', history: [] }
+  versionInfo = { version: '1.0.0', history: [], env: 'Development' }
 }) => {
   const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media' | 'about'>('import');
   
@@ -1005,7 +1006,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                   <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col space-y-1">
                     <span className="text-[10px] text-text-disabled uppercase">Среда выполнения</span>
-                    <span className="text-lg font-extrabold text-white">Production</span>
+                    <span className="text-lg font-extrabold text-white">{versionInfo.env || 'Development'}</span>
                   </div>
                 </div>
               </div>

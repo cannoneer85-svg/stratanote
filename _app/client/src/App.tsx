@@ -64,9 +64,10 @@ export default function App() {
 
   // System Version & About state
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [versionInfo, setVersionInfo] = useState<{ version: string; history: any[] }>({
+  const [versionInfo, setVersionInfo] = useState<{ version: string; history: any[]; env?: string }>({
     version: '1.0.0',
-    history: []
+    history: [],
+    env: 'Development'
   });
 
   // Auto hash navigation for external link clicks

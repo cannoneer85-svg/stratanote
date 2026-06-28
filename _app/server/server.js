@@ -52,12 +52,14 @@ app.use('/api/history', historyRouter);
 app.get('/api/version', authenticateJWT, (req, res) => {
   try {
     const releasesPath = join(__dirname, '..', 'releases.json');
+    const isProd = process.env.NODE_ENV === 'production';
+    const envName = isProd ? 'Production' : 'Development';
     if (fs.existsSync(releasesPath)) {
       const releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
       const currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
-      return res.json({ version: currentVersion, history: releases });
+      return res.json({ version: currentVersion, history: releases, env: envName });
     }
-    return res.json({ version: '1.0.0', history: [] });
+    return res.json({ version: '1.0.0', history: [], env: envName });
   } catch (err) {
     console.error('Error reading version metadata:', err);
     return res.status(500).json({ error: 'Failed to retrieve version info' });

@@ -14,6 +14,7 @@ interface AboutModalProps {
   versionInfo: {
     version: string;
     history: Release[];
+    env?: string;
   };
 }
 
