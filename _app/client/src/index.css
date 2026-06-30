@@ -229,3 +229,32 @@
   line-height: 1.5;
   box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.02);
 }
+
+/* Custom scrollable styling for Mermaid diagrams */
+.markdown-preview .mermaid {
+  width: 100%;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1.25rem 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.markdown-preview .mermaid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.markdown-preview .mermaid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.markdown-preview .mermaid svg {
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+}
+
