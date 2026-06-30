@@ -6,7 +6,8 @@ import { Range } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { 
   Heading1, Heading2, Heading3, Bold, Italic, List, CheckSquare, 
-  Link as LinkIcon, Image as ImageIcon, Eye, Code, Save, FileLock, User
+  Link as LinkIcon, Image as ImageIcon, Eye, Code, Save, FileLock, User,
+  Download
 } from 'lucide-react';
 import mermaid from 'mermaid';
 
@@ -487,6 +488,23 @@ export const Editor: React.FC<EditorProps> = ({
       console.error('Error saving:', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDownload = () => {
+    try {
+      const fileName = notePath.split('/').pop() || 'note.md';
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading note:', err);
     }
   };
 
@@ -1437,6 +1455,14 @@ export const Editor: React.FC<EditorProps> = ({
               <span>Просмотр</span>
             </button>
           </div>
+
+          <button
+            onClick={handleDownload}
+            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer"
+            title="Скачать файл в формате MD"
+          >
+            <Download className="w-4 h-4" />
+          </button>
 
           {!isReadOnly && !lockedBy && (
             <button
