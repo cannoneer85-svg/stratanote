@@ -833,18 +833,20 @@ export const Editor: React.FC<EditorProps> = ({
         .replace(/&lt;--/g, '<--')
         .replace(/&lt;==/g, '<==')
         .replace(/==&gt;/g, '==>')
-        .replace(/-\.-&gt;/g, '-.->')
-        // Normalize bidirectional arrows (handles em-dash, en-dash, minus, hyphens, and spaces)
-        .replace(/<\s*[\u2014\u2013\u2212-]+\s*>/g, '<-->')
-        // Normalize right-pointing arrows (excluding dotted links)
-        .replace(/(?<!\.)[\u2014\u2013\u2212-]+\s*>/g, '-->')
-        .replace(/\bgraph\b/g, 'flowchart');
+        .replace(/-\.-&gt;/g, '-.->');
 
       // Process line-by-line only for flowcharts/graphs to avoid breaking other diagram types (e.g. erDiagram, sequenceDiagram)
       const trimmedCode = rawCode.trim();
       const isFlowchart = trimmedCode.startsWith('flowchart') || trimmedCode.startsWith('graph');
+      const isGantt = trimmedCode.startsWith('gantt');
 
       if (isFlowchart) {
+        // Normalize bidirectional and right-pointing arrows for flowcharts/graphs
+        rawCode = rawCode
+          .replace(/<\s*[\u2014\u2013\u2212-]+\s*>/g, '<-->')
+          .replace(/(?<!\.)[\u2014\u2013\u2212-]+\s*>/g, '-->')
+          .replace(/\bgraph\b/g, 'flowchart');
+
         const lines = rawCode.split('\n');
         const processedLines = lines.map((line: string) => {
           const trimmed = line.trim();
@@ -872,9 +874,10 @@ export const Editor: React.FC<EditorProps> = ({
             if ((content.startsWith('"') && content.endsWith('"')) ||
                 (content.startsWith("'") && content.endsWith("'"))) {
               let cleanLabel = content.slice(1, -1);
+              const cleanId = cleanLabel.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
               cleanLabel = cleanLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
               const indent = line.match(/^\s*/)?.[0] || '';
-              return `${indent}subgraph ${cleanLabel} ["${cleanLabel}"]`;
+              return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
             }
             
             // Otherwise, it's just 'subgraph Label' or 'subgraph ID'
@@ -948,6 +951,141 @@ export const Editor: React.FC<EditorProps> = ({
           }
         });
         rawCode = processedLines.join('\n');
+      } else if (isGantt) {
+        const lines = rawCode.split('\n');
+        const processedLines = lines.map((line: string) => {
+          const trimmed = line.trim();
+          const lowerTrimmed = trimmed.toLowerCase();
+          if (
+            lowerTrimmed.startsWith('gantt') ||
+            lowerTrimmed.startsWith('title') ||
+            lowerTrimmed.startsWith('dateformat') ||
+            lowerTrimmed.startsWith('axisformat') ||
+            lowerTrimmed.startsWith('tickinterval') ||
+            lowerTrimmed.startsWith('weekday') ||
+            lowerTrimmed.startsWith('todaymarker') ||
+            lowerTrimmed.startsWith('section') ||
+            lowerTrimmed.startsWith('excludes') ||
+            lowerTrimmed.startsWith('click') ||
+            trimmed.startsWith('%%')
+          ) {
+            return line;
+          }
+          // If there is more than one colon in the line
+          const colonCount = (line.match(/:/g) || []).length;
+          if (colonCount > 1) {
+            const lastColonIndex = line.lastIndexOf(':');
+            const taskPart = line.substring(0, lastColonIndex);
+            const metaPart = line.substring(lastColonIndex);
+            const cleanTaskPart = taskPart.replace(/:/g, ' - ');
+            return cleanTaskPart + metaPart;
+          }
+          return line;
+        });
+        rawCode = processedLines.join('\n')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&');
+      } else if (trimmedCode.startsWith('erDiagram')) {
+        const lines = rawCode.split('\n');
+        const processedLines = lines.map((line: string) => {
+          // Remove spaces between PK, FK, UK key combinations
+          return line.replace(/\b(PK|FK|UK)\s*,\s*(PK|FK|UK)\b/gi, '$1,$2');
+        });
+        rawCode = processedLines.join('\n')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&');
+      } else if (trimmedCode.startsWith('timeline') || trimmedCode.startsWith('chronology')) {
+        const lines = rawCode.split('\n');
+        const processedLines = lines.map((line: string) => {
+          let processedLine = line;
+          const trimmed = line.trim();
+          if (trimmed.startsWith('chronology')) {
+            processedLine = line.replace('chronology', 'timeline');
+            return processedLine;
+          }
+          if (
+            trimmed.startsWith('timeline') ||
+            trimmed.startsWith('title') ||
+            trimmed.startsWith('section') ||
+            trimmed.startsWith('%%')
+          ) {
+            return processedLine;
+          }
+
+          // If there is at least one colon
+          const colonCount = (line.match(/:/g) || []).length;
+          if (colonCount > 1) {
+            // Find the separator colon index
+            // Look for a colon with spaces around it first
+            let separatorIndex = line.search(/(?:\s+:\s*|\s*:\s+)/);
+            if (separatorIndex === -1) {
+              separatorIndex = line.indexOf(':');
+            }
+            if (separatorIndex !== -1) {
+              const leftPart = line.substring(0, separatorIndex);
+              const rightPart = line.substring(separatorIndex);
+              // Replace all colons in the left part with fullwidth colons U+FF1A
+              const cleanLeftPart = leftPart.replace(/:/g, '：');
+              return cleanLeftPart + rightPart;
+            }
+          }
+          return processedLine;
+        });
+        rawCode = processedLines.join('\n')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&');
+      } else if (trimmedCode.startsWith('sequenceDiagram')) {
+        const lines = rawCode.split('\n');
+        const processedLines = lines.map((line: string) => {
+          // Replace em-dash, en-dash, minus with standard hyphens in arrows
+          let processedLine = line.replace(/[\u2014\u2013\u2212]/g, '-');
+          
+          const trimmed = processedLine.trim();
+          const lowerTrimmed = trimmed.toLowerCase();
+          
+          // Skip keywords and non-message lines
+          if (
+            lowerTrimmed.startsWith('sequencediagram') ||
+            lowerTrimmed.startsWith('participant') ||
+            lowerTrimmed.startsWith('actor') ||
+            lowerTrimmed.startsWith('note ') ||
+            lowerTrimmed.startsWith('autonumber') ||
+            lowerTrimmed.startsWith('activate') ||
+            lowerTrimmed.startsWith('deactivate') ||
+            lowerTrimmed.startsWith('loop') ||
+            lowerTrimmed.startsWith('alt') ||
+            lowerTrimmed.startsWith('else') ||
+            lowerTrimmed.startsWith('opt') ||
+            lowerTrimmed.startsWith('end') ||
+            lowerTrimmed.startsWith('rect') ||
+            lowerTrimmed.startsWith('critical') ||
+            trimmed.startsWith('%%')
+          ) {
+            return processedLine;
+          }
+          
+          // If it is a message line (contains a colon)
+          const colonIndex = processedLine.indexOf(':');
+          if (colonIndex !== -1) {
+            const participantPart = processedLine.substring(0, colonIndex);
+            const messagePart = processedLine.substring(colonIndex + 1);
+            // Replace double quotes in messagePart with &quot;
+            // Also escape semicolons to &#59; to prevent statement splitting
+            const cleanMessagePart = messagePart
+              .replace(/"/g, '&quot;')
+              .replace(/;/g, '&#59;');
+            return participantPart + ':' + cleanMessagePart;
+          }
+          
+          return processedLine;
+        });
+        rawCode = processedLines.join('\n')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&');
       } else {
         // For other diagram types (sequenceDiagram, erDiagram, etc.), restore all raw comparison and special operators
         rawCode = rawCode
