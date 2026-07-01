@@ -99,6 +99,16 @@ export const initDb = async () => {
     )
   `);
 
+  // 5. Note Embeddings Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS note_embeddings (
+      relative_path TEXT PRIMARY KEY,
+      embedding TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      FOREIGN KEY (relative_path) REFERENCES notes(relative_path) ON DELETE CASCADE
+    )
+  `);
+
   // Seed default admin if table is empty
   const adminExists = await get('SELECT id FROM users WHERE username = ?', ['admin']);
   if (!adminExists) {

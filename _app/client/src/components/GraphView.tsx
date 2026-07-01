@@ -26,6 +26,113 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
   const hasInitialFit = useRef(false);
 
+  // States for semantic graph filtering
+  const [showWikiLinks, setShowWikiLinks] = useState(true);
+  const [showSemanticLinks, setShowSemanticLinks] = useState(true);
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.90); // Default similarity threshold 90%
+  const [excludedFolders, setExcludedFolders] = useState<Set<string>>(new Set());
+
+  // Helper to extract display folder names (with subfolders support for _sources)
+  const getDisplayFolder = (id: string): string => {
+    const parts = id.split('/');
+    if (parts.length <= 1) return 'Корень';
+    if (parts[0] === '_sources' && parts.length > 2) {
+      return `_sources/${parts[1]}`;
+    }
+    return parts[0];
+  };
+
+  // Dynamically extract all display folders present in the data
+  const allFolders = useMemo(() => {
+    const folders = new Set<string>();
+    graphData.nodes.forEach((n: any) => {
+      folders.add(getDisplayFolder(n.id));
+    });
+    return Array.from(folders).sort();
+  }, [graphData.nodes]);
+
+  // Construct hierarchical folder tree
+  const folderTree = useMemo(() => {
+    const tree: { name: string; path: string; subfolders?: { name: string; path: string }[] }[] = [];
+    const groups: Record<string, string[]> = {};
+    
+    allFolders.forEach(folder => {
+      if (folder.startsWith('_sources/')) {
+        const sub = folder.substring('_sources/'.length);
+        if (!groups['_sources']) groups['_sources'] = [];
+        groups['_sources'].push(sub);
+      } else {
+        if (!groups[folder]) groups[folder] = [];
+      }
+    });
+
+    Object.keys(groups).forEach(key => {
+      if (key === '_sources') {
+        tree.push({
+          name: '_sources',
+          path: '_sources',
+          subfolders: groups[key].map(sub => ({
+            name: sub,
+            path: `_sources/${sub}`
+          }))
+        });
+      } else {
+        tree.push({
+          name: key,
+          path: key
+        });
+      }
+    });
+
+    return tree;
+  }, [allFolders]);
+
+  // Filter nodes based on folder exclusions
+  const filteredNodes = useMemo(() => {
+    return graphData.nodes.filter((node: any) => {
+      return !excludedFolders.has(getDisplayFolder(node.id));
+    });
+  }, [graphData.nodes, excludedFolders]);
+
+  // Filter links dynamically based on user selections AND folder exclusions
+  const filteredLinks = useMemo(() => {
+    const nodeIds = new Set(filteredNodes.map(n => n.id));
+    return graphData.links.filter((l: any) => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      
+      // Both source and target must be visible nodes
+      if (!nodeIds.has(sourceId) || !nodeIds.has(targetId)) {
+        return false;
+      }
+
+      if (l.isSemantic) {
+        return showSemanticLinks && l.similarity >= similarityThreshold;
+      } else {
+        return showWikiLinks;
+      }
+    });
+  }, [graphData.links, filteredNodes, showWikiLinks, showSemanticLinks, similarityThreshold]);
+
+  // Dynamically calculate link degrees based only on visible (filtered) links
+  const visibleDegrees = useMemo(() => {
+    const degrees: Record<string, number> = {};
+    filteredLinks.forEach((l: any) => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      
+      if (l.isSemantic) {
+        // Semantic links count less (0.15) for both nodes since they are dense and symmetric
+        degrees[sourceId] = (degrees[sourceId] || 0) + 0.15;
+        degrees[targetId] = (degrees[targetId] || 0) + 0.15;
+      } else {
+        // Wiki links count 1.0 (backlinks count on the target node)
+        degrees[targetId] = (degrees[targetId] || 0) + 1.0;
+      }
+    });
+    return degrees;
+  }, [filteredLinks]);
+
   // Safe zoom-to-fit that utilizes custom framing for small graphs and D3 fit for larger ones
   const triggerClampedFit = () => {
     if (!graphRef.current) return;
@@ -66,6 +173,17 @@ export const GraphView: React.FC<GraphViewProps> = ({
     hasInitialFit.current = false;
   }, [graphData]);
 
+  // Center camera on the active note when it changes, preserving the user's current zoom scale
+  useEffect(() => {
+    if (graphRef.current && activeNotePath && filteredNodes.length > 0) {
+      const node = filteredNodes.find(n => n.id === activeNotePath);
+      if (node && node.x !== undefined && node.y !== undefined) {
+        // Center the camera on the selected node coordinate with a smooth transition
+        graphRef.current.centerAt(node.x, node.y, 450);
+      }
+    }
+  }, [activeNotePath]);
+
   const toggleFullscreen = () => {
     const nextFullscreen = !isFullscreen;
     setIsFullscreen(nextFullscreen);
@@ -87,17 +205,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
         const data = await res.json();
         
         if (res.ok) {
-          // Calculate link degrees to size nodes by backlink count (incoming links only)
-          const degrees: Record<string, number> = {};
-          data.links.forEach((l: any) => {
-            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-            degrees[targetId] = (degrees[targetId] || 0) + 1;
-          });
-
+          // Unfreeze nodes so D3 can calculate initial force layout
           const nodes = data.nodes.map((node: any) => ({
             ...node,
-            val: 1 + (degrees[node.id] || 0) * 0.8,
-            isCurrent: node.id === activeNotePath
+            fx: undefined,
+            fy: undefined
           }));
 
           setGraphData({ nodes, links: data.links });
@@ -108,14 +220,14 @@ export const GraphView: React.FC<GraphViewProps> = ({
     };
 
     fetchGraphData();
-  }, [notes, activeNotePath]);
+  }, [notes]);
 
   // Track hovered node and its neighbors
   const [hoverNode, setHoverNode] = useState<any>(null);
   const hoverNeighbors = useMemo(() => {
     const neighbors = new Set<string>();
     if (hoverNode) {
-      graphData.links.forEach(link => {
+      filteredLinks.forEach(link => {
         const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
         const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
         if (sourceId === hoverNode.id) neighbors.add(targetId);
@@ -123,20 +235,20 @@ export const GraphView: React.FC<GraphViewProps> = ({
       });
     }
     return neighbors;
-  }, [hoverNode, graphData]);
+  }, [hoverNode, filteredLinks]);
 
   // Identify mutual links to curve them
   const mutualLinks = useMemo(() => {
     const mutual = new Set<string>();
     const linkSet = new Set<string>();
     
-    graphData.links.forEach(link => {
+    filteredLinks.forEach(link => {
       const s = typeof link.source === 'object' ? link.source.id : link.source;
       const t = typeof link.target === 'object' ? link.target.id : link.target;
       linkSet.add(`${s}->${t}`);
     });
 
-    graphData.links.forEach(link => {
+    filteredLinks.forEach(link => {
       const s = typeof link.source === 'object' ? link.source.id : link.source;
       const t = typeof link.target === 'object' ? link.target.id : link.target;
       if (linkSet.has(`${t}->${s}`)) {
@@ -145,7 +257,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
     });
 
     return mutual;
-  }, [graphData.links]);
+  }, [filteredLinks]);
 
 
   // Handle graph auto-zooming / fitting on load
@@ -158,7 +270,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
       const linkDistance = nodeCount <= 2 ? 180 : nodeCount <= 5 ? 120 : 80;
       const chargeStrength = nodeCount <= 2 ? -400 : nodeCount <= 5 ? -300 : -200;
 
-      graphRef.current.d3Force('charge').strength(chargeStrength);
+      graphRef.current.d3Force('charge')
+        .strength(chargeStrength)
+        .distanceMax(300);
       graphRef.current.d3Force('link').distance(linkDistance);
       
       // Reheat the force simulation to let the nodes spread out beautifully
@@ -172,6 +286,15 @@ export const GraphView: React.FC<GraphViewProps> = ({
       triggerClampedFit();
       hasInitialFit.current = true;
     }
+    
+    // Freeze all nodes in their current positions to prevent them from moving
+    // when links or threshold change
+    graphData.nodes.forEach(node => {
+      if (node.x !== undefined && node.fx === undefined) {
+        node.fx = node.x;
+        node.fy = node.y;
+      }
+    });
   };
 
   // Custom node renderer (HTML5 Canvas)
@@ -181,7 +304,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
     const isNeighbor = hoverNeighbors.has(node.id);
     const isActive = node.id === activeNotePath;
 
-    const baseRadius = Math.max(3, Math.sqrt(node.val) * 2.5);
+    // Logarithmic scaling based on visible connections count to keep layout compact and clean
+    const degreeCount = visibleDegrees[node.id] || 0;
+    const baseRadius = Math.max(3.5, 3.5 + Math.log1p(degreeCount) * 2.2);
     let radius = baseRadius;
 
     // Draw shadow glow for active/searched/hovered
@@ -212,21 +337,25 @@ export const GraphView: React.FC<GraphViewProps> = ({
     // Reset shadow
     ctx.shadowBlur = 0;
 
-    // Node Text Label
-    const label = node.name;
-    const fontSize = Math.max(3.5, 10 / Math.sqrt(globalScale));
-    ctx.font = `${fontSize}px Outfit, Inter, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
+    // Node Text Label (render only if zoomed in enough or if node is active/highlighted/hovered)
+    const showLabel = globalScale > 0.85 || isActive || isHighlighted || isHovered || isNeighbor;
+    if (showLabel) {
+      const label = node.name;
+      // Cap maximum font size at 11px to prevent huge letters when zooming out
+      const fontSize = Math.min(11, Math.max(4, 9 / Math.sqrt(globalScale)));
+      ctx.font = `${fontSize}px Outfit, Inter, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
 
-    // Label opacity
-    let textStyle = 'rgba(224, 224, 224, 0.8)';
-    if (isActive) textStyle = '#ffffff';
-    else if (isHighlighted) textStyle = '#f59e0b';
-    else if (hoverNode && !isHovered && !isNeighbor) textStyle = 'rgba(255, 255, 255, 0.1)';
+      // Label opacity
+      let textStyle = 'rgba(224, 224, 224, 0.8)';
+      if (isActive) textStyle = '#ffffff';
+      else if (isHighlighted) textStyle = '#f59e0b';
+      else if (hoverNode && !isHovered && !isNeighbor) textStyle = 'rgba(255, 255, 255, 0.1)';
 
-    ctx.fillStyle = textStyle;
-    ctx.fillText(label, node.x, node.y + radius + 2);
+      ctx.fillStyle = textStyle;
+      ctx.fillText(label, node.x, node.y + radius + 2);
+    }
   };
 
 
@@ -250,6 +379,172 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-black/40 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50 transition-colors"
           />
+        </div>
+
+        {/* Semantic Graph Settings */}
+        <div className="bg-black/60 backdrop-blur-md border border-white/5 p-3 rounded-lg flex flex-col space-y-2 w-64 text-xs text-text">
+          <div className="font-semibold text-text-muted border-b border-white/5 pb-1 select-none">Связи на графе:</div>
+          
+          <label className="flex items-center space-x-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showWikiLinks}
+              onChange={(e) => setShowWikiLinks(e.target.checked)}
+              className="accent-primary rounded cursor-pointer"
+            />
+            <span>Вики-ссылки (сплошные)</span>
+          </label>
+
+          <label className="flex items-center space-x-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showSemanticLinks}
+              onChange={(e) => setShowSemanticLinks(e.target.checked)}
+              className="accent-purple-500 rounded cursor-pointer"
+            />
+            <span>Логические связи (пунктир)</span>
+          </label>
+
+          {showSemanticLinks && (
+            <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-white/5">
+              <div className="flex justify-between text-[10px] text-text-muted select-none">
+                <span>Порог сходства:</span>
+                <span className="font-mono text-purple-400 font-semibold">{(similarityThreshold * 100).toFixed(0)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.50"
+                max="0.95"
+                step="0.05"
+                value={similarityThreshold}
+                onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value))}
+                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+            </div>
+          )}
+
+          {/* Folders Filter Section */}
+          <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-white/5">
+            <div className="font-semibold text-text-muted select-none">Каталоги:</div>
+            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 border border-white/5 rounded p-1.5 bg-black/20">
+              {folderTree.map(parent => {
+                const isParent = !!parent.subfolders;
+                if (isParent) {
+                  const subfolders = parent.subfolders || [];
+                  const visibleSubs = subfolders.filter(sub => !excludedFolders.has(sub.path));
+                  const isChecked = visibleSubs.length > 0;
+                  
+                  return (
+                    <div key={parent.path} className="flex flex-col space-y-1">
+                      {/* Parent Checkbox */}
+                      <label className="flex items-center space-x-2 cursor-pointer select-none text-[10px] font-semibold text-text-muted hover:text-text">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const newExcludes = new Set(excludedFolders);
+                            if (isChecked) {
+                              // Turn OFF parent: exclude all subfolders
+                              subfolders.forEach(sub => newExcludes.add(sub.path));
+                            } else {
+                              // Turn ON parent: include all subfolders (remove from excludes)
+                              subfolders.forEach(sub => newExcludes.delete(sub.path));
+                            }
+                            setExcludedFolders(newExcludes);
+                            // Unfreeze all nodes so D3 simulation can rearrange them beautifully
+                            graphData.nodes.forEach((n: any) => {
+                              n.fx = undefined;
+                              n.fy = undefined;
+                            });
+                            hasInitialFit.current = false;
+                            if (graphRef.current) {
+                              graphRef.current.d3ReheatSimulation();
+                            }
+                          }}
+                          className="accent-purple-500 rounded cursor-pointer scale-75"
+                        />
+                        <span className="truncate" title={parent.name}>{parent.name}</span>
+                      </label>
+                      
+                      {/* Subfolders List */}
+                      <div className="flex flex-col space-y-1 pl-4 border-l border-white/5 ml-1.5 py-0.5">
+                        {subfolders.map((sub, idx) => {
+                          const isSubChecked = !excludedFolders.has(sub.path);
+                          const isLast = idx === subfolders.length - 1;
+                          return (
+                            <label key={sub.path} className="flex items-center space-x-1.5 cursor-pointer select-none text-[9px] text-text-muted hover:text-text">
+                              <span className="text-white/20 select-none font-mono">{isLast ? '└─' : '├─'}</span>
+                              <input
+                                type="checkbox"
+                                checked={isSubChecked}
+                                onChange={() => {
+                                  const newExcludes = new Set(excludedFolders);
+                                  if (isSubChecked) {
+                                    newExcludes.add(sub.path);
+                                  } else {
+                                    newExcludes.delete(sub.path);
+                                  }
+                                  setExcludedFolders(newExcludes);
+                                  // Unfreeze all nodes
+                                  graphData.nodes.forEach((n: any) => {
+                                    n.fx = undefined;
+                                    n.fy = undefined;
+                                  });
+                                  hasInitialFit.current = false;
+                                  if (graphRef.current) {
+                                    graphRef.current.d3ReheatSimulation();
+                                  }
+                                }}
+                                className="accent-primary rounded cursor-pointer scale-75"
+                              />
+                              <span className="truncate" title={sub.name}>{sub.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // Normal Folder without subfolders
+                  const isChecked = !excludedFolders.has(parent.path);
+                  return (
+                    <label key={parent.path} className="flex items-center space-x-2 cursor-pointer select-none text-[10px]">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          const newExcludes = new Set(excludedFolders);
+                          if (isChecked) {
+                            newExcludes.add(parent.path);
+                          } else {
+                            newExcludes.delete(parent.path);
+                          }
+                          setExcludedFolders(newExcludes);
+                          // Unfreeze all nodes
+                          graphData.nodes.forEach((n: any) => {
+                            n.fx = undefined;
+                            n.fy = undefined;
+                          });
+                          hasInitialFit.current = false;
+                          if (graphRef.current) {
+                            graphRef.current.d3ReheatSimulation();
+                          }
+                        }}
+                        className="accent-primary rounded cursor-pointer scale-75"
+                      />
+                      <span className="truncate" title={parent.name}>{parent.name}</span>
+                    </label>
+                  );
+                }
+              })}
+            </div>
+          </div>
+
+          {/* Statistics Info */}
+          <div className="flex justify-between items-center text-[10px] text-text-muted pt-2 border-t border-white/5 select-none font-mono">
+            <span>Узлов: <strong className="text-white">{filteredNodes.length}</strong></span>
+            <span>Связей: <strong className="text-purple-400">{filteredLinks.length}</strong></span>
+          </div>
         </div>
       </div>
 
@@ -293,7 +588,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         ) : (
           <ForceGraph2D
             ref={graphRef}
-            graphData={graphData}
+            graphData={{ nodes: filteredNodes, links: filteredLinks }}
             nodeCanvasObject={drawNode}
             linkColor={(link: any) => {
               const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
@@ -302,27 +597,36 @@ export const GraphView: React.FC<GraphViewProps> = ({
               const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
 
               if (hoverNode) {
-                return isHovered ? '#a78bfa' : 'rgba(255, 255, 255, 0.02)';
+                if (isHovered) {
+                  return link.isSemantic ? '#c084fc' : '#a78bfa';
+                }
+                return 'rgba(255, 255, 255, 0.02)';
               }
               if (activeNotePath) {
-                return isActive ? '#9d4edd' : 'rgba(255, 255, 255, 0.05)';
+                if (isActive) {
+                  return link.isSemantic ? '#c084fc' : '#9d4edd';
+                }
+                return 'rgba(255, 255, 255, 0.04)';
               }
-              return 'rgba(255, 255, 255, 0.12)';
+              return link.isSemantic ? 'rgba(168, 85, 247, 0.35)' : 'rgba(255, 255, 255, 0.12)';
             }}
             linkWidth={(link: any) => {
               const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
               const targetId = typeof link.target === 'object' ? link.target.id : link.target;
               const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
-              return isHovered ? 1.8 : 0.8;
+              return isHovered ? (link.isSemantic ? 1.5 : 1.8) : (link.isSemantic ? 0.6 : 0.8);
             }}
             linkCurvature={(link: any) => {
+              if (link.isSemantic) return 0.15; // slightly curve semantic links to separate them visually
               const s = typeof link.source === 'object' ? link.source.id : link.source;
               const t = typeof link.target === 'object' ? link.target.id : link.target;
               return mutualLinks.has(`${s}->${t}`) ? 0.25 : 0;
             }}
+            linkLineDash={(link: any) => link.isSemantic ? [3, 2.5] : null}
             
             // Directional Arrows
             linkDirectionalArrowLength={(link: any) => {
+              if (link.isSemantic) return 0; // semantic links are symmetric and undirected
               const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
               const targetId = typeof link.target === 'object' ? link.target.id : link.target;
               const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
@@ -331,6 +635,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
               return 3.5;
             }}
             linkDirectionalArrowColor={(link: any) => {
+              if (link.isSemantic) return 'transparent';
               const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
               const targetId = typeof link.target === 'object' ? link.target.id : link.target;
               const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
@@ -350,12 +655,12 @@ export const GraphView: React.FC<GraphViewProps> = ({
               const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
 
               if (hoverNode) {
-                return isHovered ? 3 : 0; // Flow only on hovered connections
+                return isHovered ? 2 : 0; // Flow only on hovered connections
               }
               if (activeNotePath) {
-                return isActive ? 2 : 0;
+                return isActive ? 1 : 0;
               }
-              return 1; // Subtle background flow
+              return link.isSemantic ? 0 : 0.6; // No default flow for semantic links to prevent clutter
             }}
             linkDirectionalParticleSpeed={(link: any) => {
               const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
@@ -375,13 +680,30 @@ export const GraphView: React.FC<GraphViewProps> = ({
               const isHovered = hoverNode && (hoverNode.id === sourceId || hoverNode.id === targetId);
               const isActive = activeNotePath && (activeNotePath === sourceId || activeNotePath === targetId);
 
-              if (isHovered) return '#d8b4fe'; // Lavender glow
-              if (isActive) return '#a78bfa'; // Purple glow
+              if (link.isSemantic) {
+                return isHovered ? '#e9d5ff' : '#d8b4fe';
+              }
+              if (isHovered) return '#d8b4fe';
+              if (isActive) return '#a78bfa';
               return 'rgba(255, 255, 255, 0.4)';
+            }}
+
+            linkLabel={(link: any) => {
+              if (link.isSemantic) {
+                return `<div style="background: rgba(18,18,18,0.95); border: 1px solid rgba(168,85,247,0.4); border-radius: 6px; padding: 6px 10px; color: #f3f4f6; font-size: 11px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); font-family: Inter, sans-serif;">
+                  <span style="color: #c084fc; font-weight: 600;">Логическая семантическая связь</span><br/>
+                  Сходство текстов: <span style="font-family: monospace; color: #a855f7; font-weight: 700;">${(link.similarity * 100).toFixed(0)}%</span>
+                </div>`;
+              }
+              return '';
             }}
 
             onNodeClick={(node: any) => onNoteSelect(node.id)}
             onNodeHover={(node: any) => setHoverNode(node)}
+            onNodeDragEnd={(node: any) => {
+              node.fx = node.x;
+              node.fy = node.y;
+            }}
             onEngineStop={handleEngineStop}
             backgroundColor="#181818"
             cooldownTicks={100}

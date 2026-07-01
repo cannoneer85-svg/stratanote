@@ -4,9 +4,36 @@ import { join, dirname, basename, relative, resolve, extname } from 'path';
 import { fileURLToPath } from 'url';
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
+import crypto from 'crypto';
 import { run, get, all } from '../db.js';
 import { vaultPath } from '../watcher.js';
 import { authenticateJWT } from './auth.js';
+import { getEmbedding, cosineSimilarity } from '../embeddings.js';
+
+// Helper to update note embedding in the background
+const updateNoteEmbedding = async (relPath, content) => {
+  try {
+    const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+
+    // Check if the embedding is already up to date
+    const existing = await get('SELECT content_hash FROM note_embeddings WHERE relative_path = ?', [relPath]);
+    if (existing && existing.content_hash === contentHash) {
+      return;
+    }
+
+    const embedding = await getEmbedding(content);
+    await run(`
+      INSERT INTO note_embeddings (relative_path, embedding, content_hash)
+      VALUES (?, ?, ?)
+      ON CONFLICT(relative_path) DO UPDATE SET
+        embedding = excluded.embedding,
+        content_hash = excluded.content_hash
+    `, [relPath, JSON.stringify(embedding), contentHash]);
+    console.log(`[Embeddings] Successfully updated embedding for: ${relPath}`);
+  } catch (err) {
+    console.error(`[Embeddings] Failed to update embedding for ${relPath}:`, err);
+  }
+};
 
 const router = express.Router();
 
@@ -108,7 +135,13 @@ router.post('/', authenticateJWT, canEdit, async (req, res) => {
     } else {
       // Ensure parent directory exists
       fs.mkdirSync(dirname(absolutePath), { recursive: true });
-      fs.writeFileSync(absolutePath, `# ${title}\n\n`, 'utf8');
+      const initialContent = `# ${title}\n\n`;
+      fs.writeFileSync(absolutePath, initialContent, 'utf8');
+
+      updateNoteEmbedding(normPath, initialContent).catch(err => {
+        console.error('[Embeddings] Initial note embedding calculation failed:', err);
+      });
+
       res.status(201).json({ message: 'Note created', relative_path: normPath });
     }
   } catch (err) {
@@ -145,6 +178,11 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
       'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
       [req.user.username, normPath]
     );
+
+    // Calculate embedding in the background
+    updateNoteEmbedding(normPath, content).catch(err => {
+      console.error('[Embeddings] Background update failed:', err);
+    });
 
     // Broadcast file update to all clients to trigger live tree and graph refresh
     req.app.get('io').emit('file-update', { relative_path: normPath, content });
@@ -261,6 +299,8 @@ router.post('/rename', authenticateJWT, canEdit, async (req, res) => {
       await run('UPDATE versions SET relative_path = ? WHERE relative_path = ?', 
         [childNewPath, note.relative_path]);
       await run('UPDATE locks SET relative_path = ? WHERE relative_path = ?', 
+        [childNewPath, note.relative_path]);
+      await run('UPDATE note_embeddings SET relative_path = ? WHERE relative_path = ?', 
         [childNewPath, note.relative_path]);
     }
 
@@ -430,13 +470,80 @@ router.get('/graph-data', authenticateJWT, async (req, res) => {
       }
     }
 
+    // Load embeddings to compute semantic links
+    const embeddingsList = await all('SELECT relative_path, embedding FROM note_embeddings');
+    const embeddingsMap = {};
+    for (const item of embeddingsList) {
+      try {
+        embeddingsMap[item.relative_path] = JSON.parse(item.embedding);
+      } catch (e) {
+        console.error(`[Embeddings] Failed to parse embedding for ${item.relative_path}`);
+      }
+    }
+
+    const semanticLinks = [];
+    for (let i = 0; i < validNotes.length; i++) {
+      const pathA = validNotes[i].relative_path;
+      const vecA = embeddingsMap[pathA];
+      if (!vecA) continue;
+
+      for (let j = i + 1; j < validNotes.length; j++) {
+        const pathB = validNotes[j].relative_path;
+        const vecB = embeddingsMap[pathB];
+        if (!vecB) continue;
+
+        const sim = cosineSimilarity(vecA, vecB);
+        // Server-side cutoff is 0.45 to prevent transferring noisy/irrelevant links
+        if (sim >= 0.45) {
+          semanticLinks.push({
+            source: pathA,
+            target: pathB,
+            isSemantic: true,
+            similarity: parseFloat(sim.toFixed(4))
+          });
+        }
+      }
+    }
+
     res.json({
       nodes: validNotes.map(n => ({ id: n.relative_path, name: n.title, val: 1 })),
-      links
+      links: [...links, ...semanticLinks]
     });
   } catch (err) {
     console.error('Failed to generate graph data:', err);
     res.status(500).json({ error: 'Failed to generate graph data' });
+  }
+});
+
+// 6.6. Reindex Embeddings (Compute embeddings for all existing notes in background)
+router.post('/reindex-embeddings', authenticateJWT, canEdit, async (req, res) => {
+  try {
+    const notesList = await all('SELECT relative_path FROM notes WHERE is_directory = 0');
+    console.log(`[Embeddings] Starting manual reindexing of ${notesList.length} notes...`);
+
+    // Run reindexing asynchronously in background to not block client response
+    (async () => {
+      let count = 0;
+      for (const note of notesList) {
+        const absolutePath = join(vaultPath, note.relative_path);
+        if (fs.existsSync(absolutePath)) {
+          const content = fs.readFileSync(absolutePath, 'utf8');
+          await updateNoteEmbedding(note.relative_path, content);
+          count++;
+        }
+      }
+      console.log(`[Embeddings] Manual reindexing completed. Successfully processed ${count} notes.`);
+    })().catch(err => {
+      console.error('[Embeddings] Batch reindexing failed:', err);
+    });
+
+    res.json({ 
+      message: 'Reindexing started in background', 
+      total: notesList.length 
+    });
+  } catch (err) {
+    console.error('Reindexing failed:', err);
+    res.status(500).json({ error: 'Failed to start embedding reindexing' });
   }
 });
 
@@ -584,6 +691,11 @@ const scanAndIndex = async (dir, baseDir = vaultPath) => {
           );
         }
       }
+
+      // Always trigger background embedding computation during indexing
+      updateNoteEmbedding(relPath, content).catch(err => {
+        console.error(`[Embeddings] Watcher index update failed for ${relPath}:`, err);
+      });
     }
   }
 };

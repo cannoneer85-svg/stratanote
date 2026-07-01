@@ -2,7 +2,31 @@ import chokidar from 'chokidar';
 import fs from 'fs';
 import { join, relative, dirname, basename, extname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 import { run, get, all } from './db.js';
+import { getEmbedding } from './embeddings.js';
+
+// Helper to update embedding in background for watcher events
+const updateNoteEmbedding = async (relPath, content) => {
+  try {
+    const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+    const existing = await get('SELECT content_hash FROM note_embeddings WHERE relative_path = ?', [relPath]);
+    if (existing && existing.content_hash === contentHash) {
+      return;
+    }
+    const embedding = await getEmbedding(content);
+    await run(`
+      INSERT INTO note_embeddings (relative_path, embedding, content_hash)
+      VALUES (?, ?, ?)
+      ON CONFLICT(relative_path) DO UPDATE SET
+        embedding = excluded.embedding,
+        content_hash = excluded.content_hash
+    `, [relPath, JSON.stringify(embedding), contentHash]);
+    console.log(`[Watcher Embeddings] Successfully updated embedding for: ${relPath}`);
+  } catch (err) {
+    console.error(`[Watcher Embeddings] Failed to update embedding for ${relPath}:`, err);
+  }
+};
 
 // Resolve vault path (parent directory of _app, or custom env path)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -61,6 +85,9 @@ export const initWatcher = (io) => {
             'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
             [relPath, content, 'Внешняя система']
           );
+          updateNoteEmbedding(relPath, content).catch(err => {
+            console.error('[Watcher] Background embedding creation failed:', err);
+          });
           console.log(`[Watcher] Indexed new file: ${relPath}`);
           io.emit('file-create', { relative_path: relPath, title, is_directory: false, parent_path: parentPath });
         } else {
@@ -75,6 +102,9 @@ export const initWatcher = (io) => {
               'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
               ['Внешняя система', relPath]
             );
+            updateNoteEmbedding(relPath, content).catch(err => {
+              console.error('[Watcher] Background embedding update failed:', err);
+            });
             console.log(`[Watcher] Updated existing file from disk: ${relPath}`);
             io.emit('file-update', { relative_path: relPath, content });
           }
@@ -121,6 +151,9 @@ export const initWatcher = (io) => {
             'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
             ['Внешняя система', relPath]
           );
+          updateNoteEmbedding(relPath, content).catch(err => {
+            console.error('[Watcher] Background embedding update failed:', err);
+          });
           console.log(`[Watcher] File changed externally: ${relPath}`);
           io.emit('file-update', { relative_path: relPath, content });
         }
