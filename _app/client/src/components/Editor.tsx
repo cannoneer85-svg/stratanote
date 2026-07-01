@@ -144,8 +144,8 @@ const stripMarkdown = (text: string) => {
     .replace(/^[-*+]\s+/, '') // strip list items
     .replace(/^\d+\.\s+/, '') // strip numbered list items
     .replace(/[\*_`~]/g, '') // strip bold, italic, code formatting
-    .replace(/\[\[(.*?)\]\]/g, '$1') // strip wiki-links
-    .replace(/\[(.*?)\]\((.*?)\)/g, '$1') // strip links
+    .replace(/\[\[([^\]]+)\]\]/g, '$1') // strip wiki-links
+    .replace(/\[([^\]]+)\]\((.*?)\)/g, '$1') // strip links
     .trim();
 };
 
@@ -1258,9 +1258,38 @@ export const Editor: React.FC<EditorProps> = ({
         contentLines = lines.slice(1);
       }
 
+      // Pre-process content lines to insert line break placeholders for consecutive lines
+      let inCode = false;
+      const processedLines = contentLines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('```')) {
+          inCode = !inCode;
+          return line;
+        }
+        if (inCode) {
+          return line;
+        }
+        if (
+          trimmed.startsWith('#') || 
+          trimmed === '---' || 
+          trimmed === '***' || 
+          trimmed === '___' || 
+          trimmed.includes('|') || // Skip table lines containing pipe character
+          /^\s*([-*+]\s|\d+\.\s)/.test(line) ||
+          idx === contentLines.length - 1 ||
+          !trimmed
+        ) {
+          return line;
+        }
+        return line + ' [BR_PLACEHOLDER]';
+      });
+
       // Join content lines, unescape HTML, and parse them recursively
-      const innerMd = unescapeHtml(contentLines.join('\n'));
-      const innerHtml = parseMarkdown(innerMd);
+      const innerMd = unescapeHtml(processedLines.join('\n'));
+      let innerHtml = parseMarkdown(innerMd);
+      
+      // Restore line breaks
+      innerHtml = innerHtml.replace(/ \[BR_PLACEHOLDER\]/g, '<br />');
 
       if (isCallout) {
         const { colorClass, iconSvg } = getCalloutConfig(calloutType);
@@ -1658,7 +1687,7 @@ export const Editor: React.FC<EditorProps> = ({
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       // Standard Images (or video)
-      .replace(/!\[(.*?)\]\((.*?)\)/g, (_match, alt, path) => renderMediaHtml(path, alt, []))
+      .replace(/!\[([^\]]*)\]\((.*?)\)/g, (_match, alt, path) => renderMediaHtml(path, alt, []))
       // WikiLink Embeds ![[media]] (must run before standard wiki-links!)
       .replace(/!\[\[([^\]]+)\]\]/g, (_match, content) => {
         const parts = content.split('|');
@@ -1668,7 +1697,7 @@ export const Editor: React.FC<EditorProps> = ({
         return renderMediaHtml(relativePath, filename, options);
       })
       // Standard links
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-primary hover:underline">$1</a>')
+      .replace(/\[([^\]]+)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-primary hover:underline">$1</a>')
       // Obsidian WikiLinks [[RelativePath]] or [[RelativePath|Label]]
       .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, path, label) => {
         const cleanPath = path.trim();
