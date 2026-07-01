@@ -164,6 +164,53 @@ io.on('connection', (socket) => {
   });
 });
 
+// Auto-reindex embeddings on startup if the embeddings table is empty (plug-and-play for Railway/production)
+const autoReindexEmbeddings = async () => {
+  try {
+    const existingCount = await get('SELECT COUNT(*) as count FROM note_embeddings');
+    if (!existingCount || existingCount.count === 0) {
+      console.log('[Embeddings] No note embeddings found in database. Starting background auto-reindex...');
+      
+      // Run the reindexing process asynchronously in the background so it doesn't block server startup
+      (async () => {
+        try {
+          const { getEmbedding } = await import('./embeddings.js');
+          const crypto = await import('crypto');
+          const notesList = await all('SELECT relative_path FROM notes WHERE is_directory = 0');
+          console.log(`[Embeddings Auto-Reindex] Found ${notesList.length} notes to index.`);
+          
+          let successCount = 0;
+          for (const note of notesList) {
+            const absolutePath = join(vaultPath, note.relative_path);
+            if (!fs.existsSync(absolutePath)) continue;
+            
+            const content = fs.readFileSync(absolutePath, 'utf8');
+            const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+            
+            const embedding = await getEmbedding(content);
+            await run(`
+              INSERT INTO note_embeddings (relative_path, embedding, content_hash)
+              VALUES (?, ?, ?)
+              ON CONFLICT(relative_path) DO UPDATE SET
+                embedding = excluded.embedding,
+                content_hash = excluded.content_hash
+            `, [note.relative_path, JSON.stringify(embedding), contentHash]);
+            
+            successCount++;
+          }
+          console.log(`[Embeddings Auto-Reindex] Completed! Successfully indexed ${successCount} notes.`);
+        } catch (e) {
+          console.error('[Embeddings Auto-Reindex] Failed:', e);
+        }
+      })();
+    } else {
+      console.log(`[Embeddings] Verified note embeddings database: ${existingCount.count} entries present.`);
+    }
+  } catch (err) {
+    console.error('[Embeddings] Verification error during startup:', err);
+  }
+};
+
 // Bootstrapping
 const startServer = async () => {
   try {
@@ -176,7 +223,10 @@ const startServer = async () => {
     // 2. Start Chokidar watcher (watches files and handles live SQLite / Socket sync)
     initWatcher(io);
 
-    // 3. Start Listening
+    // 3. Auto-reindex embeddings in the background if database is empty
+    autoReindexEmbeddings();
+
+    // 4. Start Listening
     server.listen(PORT, () => {
       console.log(`==================================================`);
       console.log(`🚀 StrataNote Collaborative Server running on port ${PORT}`);
