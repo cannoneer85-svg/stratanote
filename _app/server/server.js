@@ -221,10 +221,13 @@ const startServer = async () => {
     await run("DELETE FROM notes WHERE relative_path = 'node_modules' OR relative_path LIKE 'node_modules/%'");
 
     // 2. Start Chokidar watcher (watches files and handles live SQLite / Socket sync)
-    initWatcher(io);
+    const watcher = initWatcher(io);
 
-    // 3. Auto-reindex embeddings in the background if database is empty
-    autoReindexEmbeddings();
+    // 3. Auto-reindex embeddings in the background once the initial filesystem scan is complete
+    watcher.on('ready', () => {
+      console.log('[Watcher] Initial scan complete. Verifying note embeddings...');
+      autoReindexEmbeddings();
+    });
 
     // 4. Start Listening
     server.listen(PORT, () => {
