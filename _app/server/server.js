@@ -164,23 +164,28 @@ io.on('connection', (socket) => {
   });
 });
 
-// Auto-reindex embeddings on startup if the embeddings table is empty (plug-and-play for Railway/production)
+// Auto-reindex embeddings on startup for any missing notes (plug-and-play for Railway/production)
 const autoReindexEmbeddings = async () => {
   try {
-    const existingCount = await get('SELECT COUNT(*) as count FROM note_embeddings');
-    if (!existingCount || existingCount.count === 0) {
-      console.log('[Embeddings] No note embeddings found in database. Starting background auto-reindex...');
+    // Find notes that are missing their vector embeddings
+    const missingNotes = await all(`
+      SELECT n.relative_path 
+      FROM notes n
+      LEFT JOIN note_embeddings ne ON n.relative_path = ne.relative_path
+      WHERE n.is_directory = 0 AND ne.relative_path IS NULL
+    `);
+
+    if (missingNotes && missingNotes.length > 0) {
+      console.log(`[Embeddings] Found ${missingNotes.length} notes missing embeddings. Starting background auto-reindex...`);
       
       // Run the reindexing process asynchronously in the background so it doesn't block server startup
       (async () => {
         try {
           const { getEmbedding } = await import('./embeddings.js');
           const crypto = await import('crypto');
-          const notesList = await all('SELECT relative_path FROM notes WHERE is_directory = 0');
-          console.log(`[Embeddings Auto-Reindex] Found ${notesList.length} notes to index.`);
           
           let successCount = 0;
-          for (const note of notesList) {
+          for (const note of missingNotes) {
             const absolutePath = join(vaultPath, note.relative_path);
             if (!fs.existsSync(absolutePath)) continue;
             
@@ -198,13 +203,13 @@ const autoReindexEmbeddings = async () => {
             
             successCount++;
           }
-          console.log(`[Embeddings Auto-Reindex] Completed! Successfully indexed ${successCount} notes.`);
+          console.log(`[Embeddings Auto-Reindex] Completed! Successfully indexed ${successCount} missing notes.`);
         } catch (e) {
           console.error('[Embeddings Auto-Reindex] Failed:', e);
         }
       })();
     } else {
-      console.log(`[Embeddings] Verified note embeddings database: ${existingCount.count} entries present.`);
+      console.log('[Embeddings] Verified note embeddings database: all notes are fully indexed.');
     }
   } catch (err) {
     console.error('[Embeddings] Verification error during startup:', err);
