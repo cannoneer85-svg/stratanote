@@ -138,6 +138,17 @@ const imagePreviewPlugin = ViewPlugin.fromClass(class {
   decorations: v => v.decorations
 });
 
+const stripMarkdown = (text: string) => {
+  return text
+    .replace(/^#+\s+/, '') // strip headers
+    .replace(/^[-*+]\s+/, '') // strip list items
+    .replace(/^\d+\.\s+/, '') // strip numbered list items
+    .replace(/[\*_`~]/g, '') // strip bold, italic, code formatting
+    .replace(/\[\[(.*?)\]\]/g, '$1') // strip wiki-links
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1') // strip links
+    .trim();
+};
+
 interface Note {
   relative_path: string;
   title: string;
@@ -425,6 +436,11 @@ export const Editor: React.FC<EditorProps> = ({
     return (savedMode === 'edit' || savedMode === 'preview') ? savedMode : 'edit';
   });
 
+  // Scroll synchronization states
+  const [pendingEditorScrollPos, setPendingEditorScrollPos] = useState<number | null>(null);
+  const [pendingPreviewScrollText, setPendingPreviewScrollText] = useState<string | null>(null);
+  const [pendingScrollPct, setPendingScrollPct] = useState<number | null>(null);
+
   // Persist mode changes
   useEffect(() => {
     localStorage.setItem('editor_mode', mode);
@@ -473,6 +489,229 @@ export const Editor: React.FC<EditorProps> = ({
     lockedByRef.current = lockedBy;
     contentRef.current = content;
   }, [isReadOnly, lockedBy, content]);
+
+  // Reset pending scroll states when note changes to prevent jumping in other files
+  useEffect(() => {
+    setPendingEditorScrollPos(null);
+    setPendingPreviewScrollText(null);
+    setPendingScrollPct(null);
+  }, [notePath]);
+
+  // Handle editor instance creation from CodeMirror and restore scroll position
+  const handleCreateEditor = (view: any) => {
+    console.log('[ScrollSync] CodeMirror created, restoring scroll. Pos:', pendingEditorScrollPos, 'Pct:', pendingScrollPct);
+    if (pendingEditorScrollPos !== null) {
+      const pos = Math.min(pendingEditorScrollPos, view.state.doc.length);
+      setTimeout(() => {
+        view.dispatch({
+          selection: { anchor: pos, head: pos },
+          effects: EditorView.scrollIntoView(pos, { y: 'center' })
+        });
+        view.focus();
+      }, 80);
+      setPendingEditorScrollPos(null);
+      setPendingScrollPct(null);
+    } else if (pendingScrollPct !== null) {
+      setTimeout(() => {
+        const scroller = view.scrollDOM;
+        if (scroller) {
+          scroller.scrollTop = pendingScrollPct * (scroller.scrollHeight - scroller.clientHeight);
+        }
+      }, 80);
+      setPendingScrollPct(null);
+    }
+  };
+
+  // Restore Preview scroll position when switching to preview mode
+  useEffect(() => {
+    if (mode === 'preview' && previewRef.current) {
+      const container = previewRef.current;
+      
+      const doScroll = () => {
+        if (pendingPreviewScrollText) {
+          let parsed: { type: string; text?: string; words?: string[] };
+          try {
+            parsed = JSON.parse(pendingPreviewScrollText);
+          } catch (e) {
+            parsed = { type: 'plain', text: pendingPreviewScrollText };
+          }
+          
+          console.log('[ScrollSync] Restoring preview scroll. Parsed:', parsed, 'Pct:', pendingScrollPct);
+          const elements = container.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, td, th, pre, blockquote');
+          let bestElement: HTMLElement | null = null;
+          
+          if (parsed.type === 'heading' && parsed.text) {
+            const searchText = parsed.text.toLowerCase();
+            for (const el of Array.from(elements) as HTMLElement[]) {
+              if (el.tagName.startsWith('H') && el.innerText.toLowerCase().includes(searchText)) {
+                bestElement = el;
+                break;
+              }
+            }
+          } else if (parsed.type === 'text' && parsed.words) {
+            const words = parsed.words.map(w => w.toLowerCase());
+            for (const el of Array.from(elements) as HTMLElement[]) {
+              const txt = el.innerText.toLowerCase();
+              if (words.every(w => txt.includes(w))) {
+                bestElement = el;
+                break;
+              }
+            }
+          } else if (parsed.text) {
+            const searchText = parsed.text.toLowerCase();
+            for (const el of Array.from(elements) as HTMLElement[]) {
+              if (el.innerText.toLowerCase().includes(searchText)) {
+                bestElement = el;
+                break;
+              }
+            }
+          }
+
+          if (bestElement) {
+            const containerRect = container.getBoundingClientRect();
+            const elementRect = bestElement.getBoundingClientRect();
+            const relativeTop = elementRect.top - containerRect.top + container.scrollTop;
+            console.log('[ScrollSync] Found element for preview scroll:', bestElement.tagName, bestElement.innerText);
+            container.scrollTo({
+              top: Math.max(0, relativeTop - 80),
+              behavior: 'auto'
+            });
+          } else if (pendingScrollPct !== null) {
+            container.scrollTop = pendingScrollPct * (container.scrollHeight - container.clientHeight);
+          }
+        } else if (pendingScrollPct !== null) {
+          container.scrollTop = pendingScrollPct * (container.scrollHeight - container.clientHeight);
+        }
+        
+        setPendingPreviewScrollText(null);
+        setPendingScrollPct(null);
+      };
+
+      const timer = setTimeout(doScroll, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [mode, pendingPreviewScrollText, pendingScrollPct]);
+
+  const switchToPreview = () => {
+    const view = editorRef.current?.view;
+    if (view) {
+      const scroller = view.scrollDOM;
+      const scrollTop = scroller.scrollTop;
+      
+      // Determine the line that is currently visible at the top of the scrolled editor viewport
+      let pos = view.state.selection.main.from;
+      try {
+        const lineBlock = view.lineBlockAtHeight(scrollTop + 20);
+        pos = lineBlock.from;
+      } catch (err) {
+        console.warn('[ScrollSync] Failed to get line block at scroll height, using cursor fallback:', err);
+      }
+      
+      const line = view.state.doc.lineAt(pos);
+      const currentLineText = line.text.trim();
+      
+      let headingText = '';
+      let currentLineNum = line.number;
+      while (currentLineNum >= 1) {
+        const curLineText = view.state.doc.line(currentLineNum).text.trim();
+        if (curLineText.startsWith('#')) {
+          headingText = curLineText.replace(/^#+\s+/, '').trim();
+          break;
+        }
+        currentLineNum--;
+      }
+
+      console.log('[ScrollSync] Switching to Preview. Line:', currentLineText, 'Heading:', headingText);
+
+      if (currentLineText.startsWith('#')) {
+        const cleanHeading = currentLineText.replace(/^#+\s+/, '').trim();
+        setPendingPreviewScrollText(JSON.stringify({ type: 'heading', text: cleanHeading }));
+      } else if (currentLineText.length > 8) {
+        const cleaned = stripMarkdown(currentLineText);
+        const words = cleaned.split(/\s+/).filter(w => w.length > 2).slice(0, 3);
+        if (words.length >= 2) {
+          setPendingPreviewScrollText(JSON.stringify({ type: 'text', words }));
+        } else if (headingText) {
+          setPendingPreviewScrollText(JSON.stringify({ type: 'heading', text: headingText }));
+        } else {
+          const scroller = view.scrollDOM;
+          const pct = scroller.scrollTop / Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+          setPendingScrollPct(pct);
+        }
+      } else if (headingText) {
+        setPendingPreviewScrollText(JSON.stringify({ type: 'heading', text: headingText }));
+      } else {
+        const scroller = view.scrollDOM;
+        const pct = scroller.scrollTop / Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+        setPendingScrollPct(pct);
+      }
+    }
+    setMode('preview');
+  };
+
+  const switchToEdit = () => {
+    if (previewRef.current) {
+      const container = previewRef.current;
+      const rect = container.getBoundingClientRect();
+      
+      const children = container.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, tr, pre, blockquote');
+      let bestElement: HTMLElement | null = null;
+      let bestDist = Infinity;
+      const targetY = rect.top + 80;
+      
+      for (const child of Array.from(children) as HTMLElement[]) {
+        const childRect = child.getBoundingClientRect();
+        const dist = Math.abs(childRect.top - targetY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestElement = child;
+        }
+      }
+      
+      if (bestElement) {
+        const isHeading = bestElement.tagName.startsWith('H');
+        const text = bestElement.innerText || '';
+        const cleanSearch = text.split('\n')[0].trim();
+        
+        console.log('[ScrollSync] Switching to Edit. Best Preview element:', bestElement.tagName, cleanSearch);
+
+        if (isHeading) {
+          const headingClean = cleanSearch.toLowerCase();
+          const lines = content.split('\n');
+          const idx = lines.findIndex(l => l.trim().startsWith('#') && l.toLowerCase().includes(headingClean));
+          if (idx !== -1) {
+            const charIdx = lines.slice(0, idx).join('\n').length + (idx > 0 ? 1 : 0);
+            console.log('[ScrollSync] Found matching heading in markdown at line:', idx);
+            setPendingEditorScrollPos(charIdx);
+            setMode('edit');
+            return;
+          }
+        }
+        
+        const cleaned = stripMarkdown(cleanSearch);
+        const words = cleaned.split(/\s+/).filter(w => w.length > 2).slice(0, 3);
+        if (words.length >= 2) {
+          const lines = content.split('\n');
+          const idx = lines.findIndex(line => words.every(word => line.toLowerCase().includes(word.toLowerCase())));
+          if (idx !== -1) {
+            const charIdx = lines.slice(0, idx).join('\n').length + (idx > 0 ? 1 : 0);
+            console.log('[ScrollSync] Found matching paragraph words in markdown at line:', idx);
+            setPendingEditorScrollPos(charIdx);
+            setMode('edit');
+            return;
+          }
+        }
+        
+        const pct = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
+        console.log('[ScrollSync] No exact match in markdown, using fallback percentage:', pct);
+        setPendingScrollPct(pct);
+      } else {
+        const pct = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
+        setPendingScrollPct(pct);
+      }
+    }
+    setMode('edit');
+  };
 
   // Handle Drag-and-Drop and Copy-Paste for media files inside CodeMirror
   const mediaEvents = useMemo(() => {
@@ -1702,7 +1941,7 @@ export const Editor: React.FC<EditorProps> = ({
 
           <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30">
             <button
-              onClick={() => setMode('edit')}
+              onClick={switchToEdit}
               className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
                 mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
               }`}
@@ -1711,7 +1950,7 @@ export const Editor: React.FC<EditorProps> = ({
               <span>Код</span>
             </button>
             <button
-              onClick={() => setMode('preview')}
+              onClick={switchToPreview}
               className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
                 mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
               }`}
@@ -1800,6 +2039,7 @@ export const Editor: React.FC<EditorProps> = ({
               theme="dark" // UIW standard dark theme
               editable={!isReadOnly && !lockedBy}
               onChange={handleEditorChange}
+              onCreateEditor={handleCreateEditor}
               className="h-full border-0 focus:outline-none"
               placeholder="Начните писать markdown или используйте панель форматирования..."
             />

@@ -447,12 +447,14 @@ router.get('/export', authenticateJWT, (req, res) => {
 
   console.log(`[Export] Generating vault ZIP archive (MD: ${includeMD}, Assets: ${includeAssets})...`);
 
+  // Get date in Moscow timezone (UTC+3)
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const moscowTime = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+  const year = moscowTime.getUTCFullYear();
+  const month = String(moscowTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(moscowTime.getUTCDate()).padStart(2, '0');
+  const hours = String(moscowTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(moscowTime.getUTCMinutes()).padStart(2, '0');
 
   let typePrefix = 'export';
   if (includeMD && !includeAssets) {
