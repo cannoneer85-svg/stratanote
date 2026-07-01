@@ -44,6 +44,7 @@ const getTitleFromPath = (filePath) => {
 
 export const initWatcher = (io) => {
   console.log(`[Watcher] Starting file monitor on: ${vaultPath}`);
+  let isReady = false;
 
   const watcher = chokidar.watch(vaultPath, {
     ignored: [
@@ -85,9 +86,11 @@ export const initWatcher = (io) => {
             'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
             [relPath, content, 'Внешняя система']
           );
-          updateNoteEmbedding(relPath, content).catch(err => {
-            console.error('[Watcher] Background embedding creation failed:', err);
-          });
+          if (isReady) {
+            updateNoteEmbedding(relPath, content).catch(err => {
+              console.error('[Watcher] Background embedding creation failed:', err);
+            });
+          }
           console.log(`[Watcher] Indexed new file: ${relPath}`);
           io.emit('file-create', { relative_path: relPath, title, is_directory: false, parent_path: parentPath });
         } else {
@@ -102,9 +105,11 @@ export const initWatcher = (io) => {
               'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
               ['Внешняя система', relPath]
             );
-            updateNoteEmbedding(relPath, content).catch(err => {
-              console.error('[Watcher] Background embedding update failed:', err);
-            });
+            if (isReady) {
+              updateNoteEmbedding(relPath, content).catch(err => {
+                console.error('[Watcher] Background embedding update failed:', err);
+              });
+            }
             console.log(`[Watcher] Updated existing file from disk: ${relPath}`);
             io.emit('file-update', { relative_path: relPath, content });
           }
@@ -151,9 +156,11 @@ export const initWatcher = (io) => {
             'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
             ['Внешняя система', relPath]
           );
-          updateNoteEmbedding(relPath, content).catch(err => {
-            console.error('[Watcher] Background embedding update failed:', err);
-          });
+          if (isReady) {
+            updateNoteEmbedding(relPath, content).catch(err => {
+              console.error('[Watcher] Background embedding update failed:', err);
+            });
+          }
           console.log(`[Watcher] File changed externally: ${relPath}`);
           io.emit('file-update', { relative_path: relPath, content });
         }
@@ -186,6 +193,10 @@ export const initWatcher = (io) => {
         console.error(`[Watcher] Error deleting directory index for ${relPath}:`, err);
       }
     });
+
+  watcher.on('ready', () => {
+    isReady = true;
+  });
 
   return watcher;
 };
