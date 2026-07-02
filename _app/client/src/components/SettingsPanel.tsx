@@ -448,7 +448,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none">
-      <div className="relative w-full max-w-3xl h-[600px] flex flex-col bg-background-panel border border-white/10 rounded-2xl overflow-hidden shadow-glass animate-scale-up">
+      <div className="relative w-full max-w-3xl h-[600px] max-h-[85vh] flex flex-col bg-background-panel border border-white/10 rounded-2xl overflow-hidden shadow-glass animate-scale-up">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20">
@@ -470,10 +470,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
 
         {/* Tabs switcher */}
-        <div className="flex border-b border-white/5 bg-black/10 px-6 py-2 space-x-2">
+        <div className="flex border-b border-white/5 bg-black/10 px-6 py-2 space-x-2 overflow-x-auto scrollbar-none flex-nowrap shrink-0">
           <button
             onClick={() => setActiveTab('import')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
               activeTab === 'import' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
             }`}
           >
@@ -482,7 +482,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
               activeTab === 'users' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
             }`}
           >
@@ -491,7 +491,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('media')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
               activeTab === 'media' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
             }`}
           >
@@ -500,7 +500,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('about')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
               activeTab === 'about' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
             }`}
           >

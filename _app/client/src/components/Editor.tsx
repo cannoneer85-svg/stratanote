@@ -1861,14 +1861,14 @@ export const Editor: React.FC<EditorProps> = ({
     <div className="flex flex-col h-full bg-background-panel border border-white/5 rounded-xl overflow-hidden shadow-glass">
       
       {/* Editor Toolbar */}
-      <div className="flex flex-wrap items-center justify-between px-4 py-2 border-b border-white/5 bg-black/10 select-none">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-2 border-b border-white/5 bg-black/10 select-none gap-2">
         
         {/* Formatting Actions */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none flex-nowrap w-full sm:w-auto pb-1 sm:pb-0 pr-2">
           <button
             onClick={() => insertText('# ', '')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Заголовок H1"
           >
             <Heading1 className="w-4 h-4" />
@@ -1876,7 +1876,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('## ', '')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Заголовок H2"
           >
             <Heading2 className="w-4 h-4" />
@@ -1884,16 +1884,16 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('### ', '')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Заголовок H3"
           >
             <Heading3 className="w-4 h-4" />
           </button>
-          <div className="w-[1px] h-4 bg-white/10 mx-1" />
+          <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
           <button
             onClick={() => insertText('**', '**')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Жирный текст"
           >
             <Bold className="w-4 h-4" />
@@ -1901,16 +1901,16 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('*', '*')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Курсив"
           >
             <Italic className="w-4 h-4" />
           </button>
-          <div className="w-[1px] h-4 bg-white/10 mx-1" />
+          <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
           <button
             onClick={() => insertText('- ', '')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Маркированный список"
           >
             <List className="w-4 h-4" />
@@ -1918,7 +1918,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('- [ ] ', '')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Чек-лист"
           >
             <CheckSquare className="w-4 h-4" />
@@ -1926,7 +1926,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('[[', ']]')}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Вставить Вики-ссылку"
           >
             [[ ]]
@@ -1934,7 +1934,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={() => insertText('[ссылка](', ')') }
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Вставить ссылку"
           >
             <LinkIcon className="w-4 h-4" />
@@ -1942,7 +1942,7 @@ export const Editor: React.FC<EditorProps> = ({
           <button
             onClick={handleMediaUpload}
             disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30"
+            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
             title="Загрузить медиафайл (Изображение или Видео)"
           >
             <ImageIcon className="w-4 h-4" />
@@ -1950,25 +1950,28 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
 
         {/* Lock / Saving Status Indicator */}
-        <div className="flex items-center space-x-3 mt-1 sm:mt-0">
+        <div className="flex items-center justify-between sm:justify-end space-x-2.5 w-full sm:w-auto overflow-x-auto scrollbar-none flex-nowrap pb-1 sm:pb-0">
           {lockedBy ? (
-            <div className="flex items-center space-x-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20">
+            <div className="flex items-center space-x-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20 shrink-0">
               <FileLock className="w-3.5 h-3.5" />
-              <span>Редактирует: {lockedBy} (ReadOnly)</span>
+              <span className="hidden sm:inline">Редактирует: {lockedBy} (ReadOnly)</span>
+              <span className="inline sm:hidden">Блок: {lockedBy}</span>
             </div>
           ) : isReadOnly ? (
-            <div className="flex items-center space-x-1.5 text-xs text-text-muted bg-white/5 px-2.5 py-1 rounded-full">
+            <div className="flex items-center space-x-1.5 text-xs text-text-muted bg-white/5 px-2.5 py-1 rounded-full shrink-0">
               <User className="w-3.5 h-3.5" />
-              <span>Режим чтения (ReadOnly)</span>
+              <span className="hidden sm:inline">Режим чтения (ReadOnly)</span>
+              <span className="inline sm:hidden">Чтение</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20">
+            <div className="flex items-center space-x-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shrink-0">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
-              <span>Синхронизация активна</span>
+              <span className="hidden sm:inline">Синхронизация активна</span>
+              <span className="inline sm:hidden">Синхронизация</span>
             </div>
           )}
 
-          <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30">
+          <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30 shrink-0">
             <button
               onClick={switchToEdit}
               className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
@@ -1991,7 +1994,7 @@ export const Editor: React.FC<EditorProps> = ({
 
           <button
             onClick={handleDownload}
-            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
             title="Скачать файл в формате MD"
           >
             <Download className="w-4 h-4" />
@@ -2001,7 +2004,7 @@ export const Editor: React.FC<EditorProps> = ({
             <button
               onClick={handleSave}
               disabled={saving || content === initialContent}
-              className="p-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/40 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-30"
+              className="p-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/40 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-30 shrink-0"
               title="Сохранить (Ctrl + S)"
             >
               <Save className="w-4 h-4" />
@@ -2077,7 +2080,7 @@ export const Editor: React.FC<EditorProps> = ({
           <div 
             ref={previewRef}
             onClick={handlePreviewClick}
-            className="w-full h-full p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
+            className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
             dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
           />
         )}

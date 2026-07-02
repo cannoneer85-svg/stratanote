@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
@@ -7,9 +7,10 @@ import { DiffViewer } from './components/DiffViewer';
 import { Auth } from './components/Auth';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AboutModal } from './components/AboutModal';
+import { ExportModal } from './components/ExportModal';
 import { formatToMoscowTime } from './utils/date';
 import { 
-  Network, FileText, History, X, HelpCircle
+  Network, FileText, History, X, HelpCircle, Menu
 } from 'lucide-react';
 
 interface Note {
@@ -45,9 +46,83 @@ export default function App() {
   const [noteContents, setNoteContents] = useState<Record<string, string>>({});
   const [openedTabs, setOpenedTabs] = useState<string[]>([]);
   const [activeNotePath, setActiveNotePath] = useState<string | null>(null);
+
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth > 768 : true;
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebar_width');
+    return saved ? parseInt(saved, 10) : 320;
+  });
+
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    
+    // Create temporary full-screen overlay to block selections and capture events
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.zIndex = '9999';
+    overlay.style.cursor = 'col-resize';
+    overlay.style.userSelect = 'none';
+    document.body.appendChild(overlay);
+
+    // Create the ghost line indicator
+    const ghostLine = document.createElement('div');
+    ghostLine.style.position = 'fixed';
+    ghostLine.style.top = '0';
+    ghostLine.style.bottom = '0';
+    ghostLine.style.width = '2px';
+    ghostLine.style.backgroundColor = '#9d4edd'; // Primary neon purple color
+    ghostLine.style.boxShadow = '0 0 8px #9d4edd, 0 0 15px #9d4edd'; // neon glow!
+    ghostLine.style.zIndex = '10000';
+    ghostLine.style.pointerEvents = 'none';
+    
+    // Position it initially at the current border position
+    const currentSidebarNode = sidebarRef.current;
+    const initialLeft = currentSidebarNode ? currentSidebarNode.getBoundingClientRect().right : startX;
+    ghostLine.style.left = `${initialLeft}px`;
+    document.body.appendChild(ghostLine);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const currentX = moveEvent.clientX;
+      const boundedX = Math.max(200, Math.min(600, currentX));
+      ghostLine.style.left = `${boundedX}px`;
+    };
+    
+    const handleMouseUp = (moveEvent: MouseEvent) => {
+      const finalX = moveEvent.clientX;
+      const boundedWidth = Math.max(200, Math.min(600, finalX));
+      
+      setSidebarWidth(boundedWidth);
+      localStorage.setItem('sidebar_width', boundedWidth.toString());
+      
+      // Update DOM width directly at the end of resize to match state immediately and prevent single-frame snap delays
+      if (sidebarRef.current) {
+        sidebarRef.current.style.width = `${boundedWidth}px`;
+      }
+      
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
+      if (document.body.contains(ghostLine)) {
+        document.body.removeChild(ghostLine);
+      }
+      
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
   
   // Admin & settings states
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedParentFolder, setSelectedParentFolder] = useState('');
 
   // Real-time synchronization
@@ -225,6 +300,9 @@ export default function App() {
     setActiveNotePath(path);
     setHistoryOpen(false);
     setSelectedHistoryItem(null);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
 
     // Fetch file content if not already cached
     if (noteContents[path] === undefined) {
@@ -468,28 +546,60 @@ export default function App() {
   if (!token || !currentUser) {
     return <Auth onLoginSuccess={handleLoginSuccess} />;
   }
-
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
+    <div className="flex h-screen w-screen overflow-hidden bg-background relative">
       
-      {/* Side Navigation panel */}
-      <div className="w-80 h-full flex-shrink-0 select-none">
-        <Sidebar
-          notes={notes}
-          activeNotePath={activeNotePath}
-          onNoteSelect={openNote}
-          onCreateResource={handleCreateResource}
-          onDeleteResource={handleDeleteResource}
-          onRenameResource={handleRenameResource}
-          activeUsers={activeUsers}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          onExport={handleExportVault}
-          selectedParentFolder={selectedParentFolder}
-          onSelectedParentFolderChange={setSelectedParentFolder}
-          onOpenSettings={() => setSettingsOpen(true)}
-          systemVersion={versionInfo.version}
-          onOpenAbout={() => setAboutOpen(true)}
+      {/* Sidebar Overlay backdrop on mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div 
+        ref={sidebarRef}
+        className={`
+          fixed inset-y-0 left-0 h-full z-40 transition-transform duration-300 ease-in-out select-none
+          md:relative md:translate-x-0 md:transition-none
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarOpen ? 'md:flex' : 'md:hidden'}
+        `}
+        style={{
+          width: sidebarOpen ? (typeof window !== 'undefined' && window.innerWidth > 768 ? `${sidebarWidth}px` : '20rem') : '0px'
+        }}
+      >
+        <div className="flex-1 h-full min-w-0">
+          <Sidebar
+            notes={notes}
+            activeNotePath={activeNotePath}
+            onNoteSelect={openNote}
+            onCreateResource={handleCreateResource}
+            onDeleteResource={handleDeleteResource}
+            onRenameResource={handleRenameResource}
+            activeUsers={activeUsers}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onOpenExport={() => setExportModalOpen(true)}
+            selectedParentFolder={selectedParentFolder}
+            onSelectedParentFolderChange={setSelectedParentFolder}
+            onOpenSettings={() => {
+              setSettingsOpen(true);
+              if (window.innerWidth < 768) setSidebarOpen(false);
+            }}
+            systemVersion={versionInfo.version}
+            onOpenAbout={() => {
+              setAboutOpen(true);
+              if (window.innerWidth < 768) setSidebarOpen(false);
+            }}
+          />
+        </div>
+
+        {/* Desktop Resize handle */}
+        <div
+          onMouseDown={startResizing}
+          className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/40 active:bg-primary transition-colors z-50 hidden md:block"
+          title="Перетащите для изменения ширины"
         />
       </div>
 
@@ -499,6 +609,15 @@ export default function App() {
         {/* Top Navbar / Opened tabs */}
         <div className="h-12 border-b border-white/5 bg-black/20 flex items-center justify-between px-4 select-none">
           <div className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none flex-1 pr-4">
+            {/* Sidebar toggle button */}
+            <button
+              onClick={() => setSidebarOpen(prev => !prev)}
+              className="p-1.5 hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors cursor-pointer mr-1"
+              title={sidebarOpen ? "Скрыть панель" : "Показать панель"}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
             {openedTabs.map((tabPath) => {
               const note = notes.find(n => n.relative_path === tabPath);
               const title = note ? note.title : tabPath.split('/').pop()?.replace('.md', '');
@@ -536,21 +655,21 @@ export default function App() {
             <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30">
               <button
                 onClick={() => setActiveTab('editor')}
-                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
+                className={`p-1 px-2.5 sm:px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
                   activeTab === 'editor' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>Заметки</span>
+                <span className="hidden sm:inline">Заметки</span>
               </button>
               <button
                 onClick={() => setActiveTab('graph')}
-                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
+                className={`p-1 px-2.5 sm:px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
                   activeTab === 'graph' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
                 <Network className="w-3.5 h-3.5" />
-                <span>Граф</span>
+                <span className="hidden sm:inline">Граф</span>
               </button>
             </div>
 
@@ -678,6 +797,12 @@ export default function App() {
         isOpen={aboutOpen}
         onClose={() => setAboutOpen(false)}
         versionInfo={versionInfo}
+      />
+
+      <ExportModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={handleExportVault}
       />
     </div>
   );

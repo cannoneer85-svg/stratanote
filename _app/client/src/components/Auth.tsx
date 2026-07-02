@@ -53,7 +53,7 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-      <div className="w-full max-w-md p-8 rounded-2xl glass-panel shadow-glass text-center border border-white/10 glow-active">
+      <div className="w-full max-w-md p-8 rounded-2xl glass-panel shadow-glass text-center border border-white/10 glow-active mx-4">
         <div className="flex justify-center mb-4">
           <img src="/logo_icon.png" className="w-20 h-20 object-contain" alt="StrataNote Logo" />
         </div>

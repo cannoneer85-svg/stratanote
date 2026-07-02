@@ -3,7 +3,6 @@ import {
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
   Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings
 } from 'lucide-react';
-import { ExportModal } from './ExportModal';
 
 interface Note {
   relative_path: string;
@@ -28,7 +27,7 @@ interface SidebarProps {
   activeUsers: UserPresence[];
   currentUser: { username: string; role: string };
   onLogout: () => void;
-  onExport: (includeMD: boolean, includeAssets: boolean) => void;
+  onOpenExport: () => void;
   selectedParentFolder: string;
   onSelectedParentFolderChange: (folder: string) => void;
   onOpenSettings?: () => void;
@@ -46,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeUsers,
   currentUser,
   onLogout,
-  onExport,
+  onOpenExport,
   selectedParentFolder,
   onSelectedParentFolderChange,
   onOpenSettings,
@@ -55,7 +54,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
-  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Auto-expand all parent folders when the active note changes
   useEffect(() => {
@@ -467,19 +465,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Operations Utilities */}
       <div className="p-3 border-t border-white/5 bg-black/20 flex flex-col space-y-2">
         <button
-          onClick={() => setExportModalOpen(true)}
+          onClick={onOpenExport}
           className="w-full py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white text-xs font-semibold rounded-lg flex items-center justify-center space-x-2 transition-all border border-primary/20 shadow-glow cursor-pointer"
         >
           <Download className="w-4 h-4" />
           <span>Экспорт хранилища (.zip)</span>
         </button>
       </div>
-
-      <ExportModal
-        isOpen={exportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-        onExport={onExport}
-      />
 
       {/* System Version Footer */}
       {onOpenAbout && (
