@@ -160,7 +160,21 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [animate, setAnimate] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const offsetRef = useRef(offset);
+  const scaleRef = useRef(scale);
+
+  // Keep refs in sync with React state updates (e.g. from initial fit or buttons)
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
 
   // Extract SVG ID
   const svgId = useMemo(() => {
@@ -260,58 +274,82 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
     const scaleY = containerHeight / dimensions.height;
     const fitScale = Math.min(Math.min(scaleX, scaleY), 1.5);
     
+    setAnimate(false);
     setScale(fitScale);
     setOffset({ x: 0, y: 0 });
   }, [dimensions]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return; // only left click
+    setAnimate(false);
     setIsDragging(true);
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    setDragStart({ x: e.clientX - offsetRef.current.x, y: e.clientY - offsetRef.current.y });
     e.preventDefault();
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
-    setOffset({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    });
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    
+    offsetRef.current = { x: newX, y: newY };
+    
+    if (contentRef.current) {
+      contentRef.current.style.transform = `translate(${newX}px, ${newY}px) scale(${scaleRef.current})`;
+    }
   };
 
   const handleMouseUp = () => {
-    setIsDragging(false);
+    if (isDragging) {
+      setIsDragging(false);
+      setOffset(offsetRef.current);
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    setAnimate(false);
     const zoomFactor = 1.15;
-    const nextScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
+    const currentScale = scaleRef.current;
+    const nextScale = e.deltaY < 0 ? currentScale * zoomFactor : currentScale / zoomFactor;
     const clampedScale = Math.max(0.1, Math.min(10, nextScale));
     
+    let newOffset = offsetRef.current;
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const mouseX = e.clientX - rect.left - rect.width / 2;
       const mouseY = e.clientY - rect.top - rect.height / 2;
       
-      const factor = clampedScale / scale;
-      setOffset(prev => ({
-        x: mouseX - (mouseX - prev.x) * factor,
-        y: mouseY - (mouseY - prev.y) * factor
-      }));
+      const factor = clampedScale / currentScale;
+      newOffset = {
+        x: mouseX - (mouseX - offsetRef.current.x) * factor,
+        y: mouseY - (mouseY - offsetRef.current.y) * factor
+      };
+      
+      offsetRef.current = newOffset;
+    }
+    
+    scaleRef.current = clampedScale;
+    
+    if (contentRef.current) {
+      contentRef.current.style.transform = `translate(${newOffset.x}px, ${newOffset.y}px) scale(${clampedScale})`;
     }
     
     setScale(clampedScale);
+    setOffset(newOffset);
   };
 
   const handleZoomIn = () => {
+    setAnimate(true);
     setScale(s => Math.min(10, s * 1.25));
   };
 
   const handleZoomOut = () => {
+    setAnimate(true);
     setScale(s => Math.max(0.1, s / 1.25));
   };
 
   const handleReset = () => {
+    setAnimate(true);
     const containerWidth = window.innerWidth * 0.95;
     const containerHeight = window.innerHeight * 0.85;
     const scaleX = containerWidth / dimensions.width;
@@ -389,12 +427,13 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
         onWheel={handleWheel}
       >
         <div
+          ref={contentRef}
           style={{
             width: dimensions.width,
             height: dimensions.height,
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
             transformOrigin: 'center center',
-            transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+            transition: animate ? 'transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
           }}
           className={`flex items-center justify-center ${isDragging ? 'pointer-events-none' : ''}`}
           dangerouslySetInnerHTML={{ __html: styleHtml + cleanedSvgHtml }}
