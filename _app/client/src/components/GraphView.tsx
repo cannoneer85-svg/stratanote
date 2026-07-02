@@ -29,8 +29,40 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // States for semantic graph filtering
   const [showWikiLinks, setShowWikiLinks] = useState(true);
   const [showSemanticLinks, setShowSemanticLinks] = useState(true);
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.90); // Default similarity threshold 90%
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.85); // Default similarity threshold 85%
   const [excludedFolders, setExcludedFolders] = useState<Set<string>>(new Set());
+
+  const handleSelectAllFolders = () => {
+    setExcludedFolders(new Set());
+    graphData.nodes.forEach((n: any) => {
+      n.fx = undefined;
+      n.fy = undefined;
+    });
+    hasInitialFit.current = false;
+    if (graphRef.current) {
+      graphRef.current.d3ReheatSimulation();
+    }
+  };
+
+  const handleDeselectAllFolders = () => {
+    const allPaths: string[] = [];
+    folderTree.forEach(parent => {
+      if (parent.subfolders) {
+        parent.subfolders.forEach(sub => allPaths.push(sub.path));
+      } else {
+        allPaths.push(parent.path);
+      }
+    });
+    setExcludedFolders(new Set(allPaths));
+    graphData.nodes.forEach((n: any) => {
+      n.fx = undefined;
+      n.fy = undefined;
+    });
+    hasInitialFit.current = false;
+    if (graphRef.current) {
+      graphRef.current.d3ReheatSimulation();
+    }
+  };
 
   // Helper to extract display folder names (with subfolders support for _sources)
   const getDisplayFolder = (id: string): string => {
@@ -97,21 +129,56 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Filter links dynamically based on user selections AND folder exclusions
   const filteredLinks = useMemo(() => {
     const nodeIds = new Set(filteredNodes.map(n => n.id));
-    return graphData.links.filter((l: any) => {
+    
+    // 1. Separate wiki links and semantic candidates
+    const wikiLinks: any[] = [];
+    const semanticCandidates: any[] = [];
+    
+    graphData.links.forEach((l: any) => {
       const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
       const targetId = typeof l.target === 'object' ? l.target.id : l.target;
       
       // Both source and target must be visible nodes
       if (!nodeIds.has(sourceId) || !nodeIds.has(targetId)) {
-        return false;
+        return;
       }
-
+      
       if (l.isSemantic) {
-        return showSemanticLinks && l.similarity >= similarityThreshold;
+        if (showSemanticLinks && l.similarity >= similarityThreshold) {
+          semanticCandidates.push(l);
+        }
       } else {
-        return showWikiLinks;
+        if (showWikiLinks) {
+          wikiLinks.push(l);
+        }
       }
     });
+    
+    // 2. Limit semantic links to Top-3 strongest connections per node to prevent rendering "hairballs" and lag
+    const topSemanticLinks = new Set<any>();
+    const nodeSemanticLinks: Record<string, any[]> = {};
+    
+    semanticCandidates.forEach((l: any) => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      
+      if (!nodeSemanticLinks[sourceId]) nodeSemanticLinks[sourceId] = [];
+      if (!nodeSemanticLinks[targetId]) nodeSemanticLinks[targetId] = [];
+      
+      nodeSemanticLinks[sourceId].push(l);
+      nodeSemanticLinks[targetId].push(l);
+    });
+    
+    Object.keys(nodeSemanticLinks).forEach(nodeId => {
+      const links = nodeSemanticLinks[nodeId];
+      // Sort in descending order of similarity
+      links.sort((a, b) => b.similarity - a.similarity);
+      // Keep only top 3 connections
+      const topK = links.slice(0, 3);
+      topK.forEach(l => topSemanticLinks.add(l));
+    });
+    
+    return [...wikiLinks, ...Array.from(topSemanticLinks)];
   }, [graphData.links, filteredNodes, showWikiLinks, showSemanticLinks, similarityThreshold]);
 
   // Dynamically calculate link degrees based only on visible (filtered) links
@@ -425,7 +492,24 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
           {/* Folders Filter Section */}
           <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-white/5">
-            <div className="font-semibold text-text-muted select-none">Каталоги:</div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-text-muted select-none">Каталоги:</span>
+              <div className="flex items-center space-x-2 text-[10px]">
+                <button
+                  onClick={handleSelectAllFolders}
+                  className="text-primary hover:underline cursor-pointer font-medium"
+                >
+                  выбрать все
+                </button>
+                <span className="text-white/20 select-none">|</span>
+                <button
+                  onClick={handleDeselectAllFolders}
+                  className="text-text-muted hover:text-white hover:underline cursor-pointer font-medium"
+                >
+                  снять все
+                </button>
+              </div>
+            </div>
             <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 border border-white/5 rounded p-1.5 bg-black/20">
               {folderTree.map(parent => {
                 const isParent = !!parent.subfolders;
@@ -688,9 +772,40 @@ export const GraphView: React.FC<GraphViewProps> = ({
               return 'rgba(255, 255, 255, 0.4)';
             }}
 
+            nodeLabel={(node: any) => {
+              let wikiLinksCount = 0;
+              let semanticLinksCount = 0;
+              
+              filteredLinks.forEach((l: any) => {
+                const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                if (sId === node.id || tId === node.id) {
+                  if (l.isSemantic) {
+                    semanticLinksCount++;
+                  } else {
+                    wikiLinksCount++;
+                  }
+                }
+              });
+              
+              const totalLinks = wikiLinksCount + semanticLinksCount;
+              const filename = node.id.split('/').pop() || node.id;
+              const title = filename.endsWith('.md') ? filename.slice(0, -3) : filename;
+
+              return `<div style="background: rgba(18,18,18,0.95); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px 12px; color: #f3f4f6; font-size: 11px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); font-family: Inter, sans-serif; line-height: 1.4; pointer-events: none;">
+                <div style="font-weight: 700; color: #ffffff; margin-bottom: 2px; font-size: 12px;">${title}</div>
+                <div style="color: #9ca3af; font-size: 9px; margin-bottom: 6px; font-family: monospace; word-break: break-all;">${node.id}</div>
+                <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+                  <div>Всего связей: <span style="font-weight: 700; color: #fff;">${totalLinks}</span></div>
+                  <div style="color: #a78bfa;">• Вики-ссылки: <span style="font-weight: 700;">${wikiLinksCount}</span></div>
+                  <div style="color: #c084fc;">• Логические связи: <span style="font-weight: 700;">${semanticLinksCount}</span></div>
+                </div>
+              </div>`;
+            }}
+
             linkLabel={(link: any) => {
               if (link.isSemantic) {
-                return `<div style="background: rgba(18,18,18,0.95); border: 1px solid rgba(168,85,247,0.4); border-radius: 6px; padding: 6px 10px; color: #f3f4f6; font-size: 11px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); font-family: Inter, sans-serif;">
+                return `<div style="background: rgba(18,18,18,0.95); border: 1px solid rgba(168,85,247,0.4); border-radius: 6px; padding: 6px 10px; color: #f3f4f6; font-size: 11px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); font-family: Inter, sans-serif; pointer-events: none;">
                   <span style="color: #c084fc; font-weight: 600;">Логическая семантическая связь</span><br/>
                   Сходство текстов: <span style="font-family: monospace; color: #a855f7; font-weight: 700;">${(link.similarity * 100).toFixed(0)}%</span>
                 </div>`;
