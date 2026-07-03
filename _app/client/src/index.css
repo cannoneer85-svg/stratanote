@@ -106,6 +106,32 @@
   margin-bottom: 0.5rem;
 }
 
+.markdown-preview h4, .visual-h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #d1d5db;
+  margin-top: 0.875rem;
+  margin-bottom: 0.375rem;
+}
+
+.markdown-preview h5, .visual-h5 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.markdown-preview h6, .visual-h6 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
 .markdown-preview p {
   margin-bottom: 1rem;
   line-height: 1.7;

@@ -1712,10 +1712,13 @@ export const Editor: React.FC<EditorProps> = ({
     html = html
       // Horizontal Rules
       .replace(/^\s*([-*_])\s*(?:\1\s*){2,}$/gm, '<hr class="border-t border-white/10 my-6" />')
-      // Headers (with id slugs for anchor navigation)
-      .replace(/^# (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h1 id="${slug}" class="visual-h1">${title}</h1>`; })
-      .replace(/^## (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h2 id="${slug}" class="visual-h2">${title}</h2>`; })
+      // Headers (with id slugs for anchor navigation; longest prefix first to avoid greedy matching)
+      .replace(/^###### (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h6 id="${slug}" class="visual-h6">${title}</h6>`; })
+      .replace(/^##### (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h5 id="${slug}" class="visual-h5">${title}</h5>`; })
+      .replace(/^#### (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h4 id="${slug}" class="visual-h4">${title}</h4>`; })
       .replace(/^### (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h3 id="${slug}" class="visual-h3">${title}</h3>`; })
+      .replace(/^## (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h2 id="${slug}" class="visual-h2">${title}</h2>`; })
+      .replace(/^# (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h1 id="${slug}" class="visual-h1">${title}</h1>`; })
       // Unordered Lists
       .replace(/^\s*[-*+]\s+\[\s*\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="text-text-muted">$1</span></div>')
       .replace(/^\s*[-*+]\s+\[x\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" checked disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="line-through text-text-disabled">$1</span></div>')
@@ -1748,8 +1751,11 @@ export const Editor: React.FC<EditorProps> = ({
         const displayLabel = label ? label.trim() : cleanPath.replace(/\.md$/, '');
         return `<a href="#" data-wikilink="${cleanPath}" class="text-primary hover:underline border-b border-primary/20">${displayLabel}</a>`;
       })
-      // Paragraph line breaks
-      .replace(/\n\n/g, '</p><p>');
+      // Paragraph line breaks (double newline = new paragraph)
+      .replace(/\n\n/g, '</p><p>')
+      // Single line breaks → <br /> (Obsidian-style strict line breaks)
+      // Skip lines that are already block-level HTML elements
+      .replace(/(?<!\>)\n(?!\s*<\/?(?:h[1-6]|li|div|hr|table|thead|tbody|tr|th|td|p|ul|ol|blockquote|pre|code)[\s>\/])/gi, '<br />\n');
 
     html = `<p>${html}</p>`;
 
