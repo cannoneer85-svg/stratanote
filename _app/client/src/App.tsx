@@ -596,10 +596,12 @@ export default function App() {
           ${sidebarOpen ? 'md:flex' : 'md:hidden'}
         `}
         style={{
-          width: sidebarOpen ? (typeof window !== 'undefined' && window.innerWidth > 768 ? `${sidebarWidth}px` : '20rem') : '0px'
+          width: typeof window !== 'undefined' && window.innerWidth > 768 
+            ? (sidebarOpen ? `${sidebarWidth}px` : '0px') 
+            : '20rem'
         }}
       >
-        <div className="flex-1 h-full min-w-0">
+        <div className="flex-1 h-full w-full min-w-0">
           <Sidebar
             notes={notes}
             activeNotePath={activeNotePath}

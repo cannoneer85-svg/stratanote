@@ -333,7 +333,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background-panel border-r border-white/5 overflow-visible text-left select-none">
+    <div className="flex flex-col h-full w-full bg-background-panel border-r border-white/5 overflow-visible text-left select-none">
       
       {/* User Info Header */}
       <div className="p-4 border-b border-white/5 bg-black/10 flex items-center justify-between">
@@ -365,7 +365,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               {showNotifications && (
-                <div className="absolute left-0 mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
+                <div className="absolute right-[-85px] mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
                   <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
                     <span className="font-bold text-white">Рецензии на согласование</span>
                     <div className="flex items-center space-x-2">
