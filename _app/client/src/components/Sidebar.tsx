@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
-  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell
+  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell, X
 } from 'lucide-react';
 
 interface Note {
@@ -368,11 +368,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="absolute left-0 mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
                   <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
                     <span className="font-bold text-white">Рецензии на согласование</span>
-                    {pendingSuggestions.length > 0 && (
-                      <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-                        {pendingSuggestions.length}
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {pendingSuggestions.length > 0 && (
+                        <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          {pendingSuggestions.length}
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowNotifications(false);
+                        }}
+                        className="p-1 hover:bg-white/10 hover:text-white text-text-disabled rounded transition-colors cursor-pointer"
+                        title="Закрыть"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="max-h-60 overflow-y-auto divide-y divide-white/5">
                     {pendingSuggestions.length === 0 ? (
