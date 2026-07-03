@@ -7,8 +7,9 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { 
   Heading1, Heading2, Heading3, Bold, Italic, List, CheckSquare, 
   Link as LinkIcon, Image as ImageIcon, Eye, Code, Save, FileLock, User,
-  Download
+  Download, GitBranch, GitPullRequest, Check, X, MessageSquare, ArrowLeft
 } from 'lucide-react';
+import { DiffViewer } from './DiffViewer';
 import mermaid from 'mermaid';
 
 console.log('Mermaid object:', mermaid);
@@ -153,6 +154,7 @@ interface Note {
   relative_path: string;
   title: string;
   is_directory: boolean;
+  created_by?: string;
 }
 
 const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ svgHtml, onClose }) => {
@@ -454,9 +456,11 @@ interface EditorProps {
   onSave: (content: string) => Promise<void>;
   isReadOnly: boolean;
   lockedBy: string | null;
-  currentUser: { username: string };
+  currentUser: { id: number; username: string; role: string };
   allNotes: Note[];
   socket: any;
+  autoOpenSuggestion?: any | null;
+  onClearAutoOpenSuggestion?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -467,7 +471,9 @@ export const Editor: React.FC<EditorProps> = ({
   lockedBy,
   currentUser,
   allNotes,
-  socket
+  socket,
+  autoOpenSuggestion = null,
+  onClearAutoOpenSuggestion
 }) => {
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<'edit' | 'preview'>(() => {
@@ -479,6 +485,22 @@ export const Editor: React.FC<EditorProps> = ({
   const [pendingEditorScrollPos, setPendingEditorScrollPos] = useState<number | null>(null);
   const [pendingPreviewScrollText, setPendingPreviewScrollText] = useState<string | null>(null);
   const [pendingScrollPct, setPendingScrollPct] = useState<number | null>(null);
+
+  // Suggest mode states
+  const [isSuggestMode, setIsSuggestMode] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<any | null>(null);
+  const [suggestionViewMode, setSuggestionViewMode] = useState<'original' | 'preview' | 'diff'>('diff');
+  const [showSuggestionsSidebar, setShowSuggestionsSidebar] = useState(false);
+  const [conflictData, setConflictData] = useState<{ id: number; mergedText: string } | null>(null);
+
+  const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
+  const [wikiSearch, setWikiSearch] = useState('');
+  const [wikiSelectedIndex, setWikiSelectedIndex] = useState(0);
+  const [editorSelection, setEditorSelection] = useState<{ anchor: number; head: number } | null>(null);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
 
   // Persist mode changes
   useEffect(() => {
@@ -495,14 +517,15 @@ export const Editor: React.FC<EditorProps> = ({
     setPrevNotePath(notePath);
     setPrevInitialContent(initialContent);
     setContent(initialContent);
+    setIsSuggestMode(false);
+    setSelectedSuggestion(null);
+    setConflictData(null);
+    setShowSuggestionsSidebar(false);
   }
-  const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
-  const [wikiSearch, setWikiSearch] = useState('');
-  const [wikiSelectedIndex, setWikiSelectedIndex] = useState(0);
-  const [editorSelection, setEditorSelection] = useState<{ anchor: number; head: number } | null>(null);
-  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
+
+  const currentNote = useMemo(() => allNotes.find(n => n.relative_path === notePath), [allNotes, notePath]);
+  const noteCreator = currentNote?.created_by || 'Внешняя система';
+  const canReview = currentUser.username === noteCreator || currentUser.role === 'Admin';
   
   const filteredDropdownNotes = useMemo(() => {
     return allNotes
@@ -523,11 +546,13 @@ export const Editor: React.FC<EditorProps> = ({
   const isReadOnlyRef = useRef(isReadOnly);
   const lockedByRef = useRef(lockedBy);
   const contentRef = useRef(content);
+  const isSuggestModeRef = useRef(isSuggestMode);
   useEffect(() => {
     isReadOnlyRef.current = isReadOnly;
     lockedByRef.current = lockedBy;
     contentRef.current = content;
-  }, [isReadOnly, lockedBy, content]);
+    isSuggestModeRef.current = isSuggestMode;
+  }, [isReadOnly, lockedBy, content, isSuggestMode]);
 
   // Reset pending scroll states when note changes to prevent jumping in other files
   useEffect(() => {
@@ -756,7 +781,7 @@ export const Editor: React.FC<EditorProps> = ({
   const mediaEvents = useMemo(() => {
     return EditorView.domEventHandlers({
       drop: (e: DragEvent, view: EditorView) => {
-        if (isReadOnlyRef.current || lockedByRef.current) return;
+        if (isReadOnlyRef.current || (lockedByRef.current && !isSuggestModeRef.current)) return;
         const files = e.dataTransfer?.files;
         if (!files || files.length === 0) return;
 
@@ -808,7 +833,7 @@ export const Editor: React.FC<EditorProps> = ({
         return true;
       },
       paste: (e: ClipboardEvent, view: EditorView) => {
-        if (isReadOnlyRef.current || lockedByRef.current) return;
+        if (isReadOnlyRef.current || (lockedByRef.current && !isSuggestModeRef.current)) return;
         const items = e.clipboardData?.items;
         if (!items) return;
 
@@ -876,7 +901,7 @@ export const Editor: React.FC<EditorProps> = ({
   // Request lock when entering edit mode
   useEffect(() => {
     if (socket && notePath && !isReadOnly && !lockedBy) {
-      socket.emit('lock-note', { relative_path: notePath, username: currentUser.username, userId: 1 });
+      socket.emit('lock-note', { relative_path: notePath, username: currentUser.username, userId: currentUser.id });
       socket.emit('view-note', notePath);
       
       // Auto-unlock when unmounting
@@ -885,17 +910,29 @@ export const Editor: React.FC<EditorProps> = ({
         socket.emit('view-note', null);
       };
     }
-  }, [notePath, isReadOnly, lockedBy, socket, currentUser]);
+  }, [notePath, isReadOnly, socket, currentUser]);
 
-  // Auto save every 10 seconds if modified
+  // Handle autoOpenSuggestion from notifications
+  useEffect(() => {
+    if (autoOpenSuggestion && autoOpenSuggestion.relative_path === notePath) {
+      setSelectedSuggestion(autoOpenSuggestion);
+      setSuggestionViewMode('diff');
+      setShowSuggestionsSidebar(true);
+      if (onClearAutoOpenSuggestion) {
+        onClearAutoOpenSuggestion();
+      }
+    }
+  }, [autoOpenSuggestion, notePath, onClearAutoOpenSuggestion]);
+
+  // Auto save every 10 seconds if modified (disabled in Suggest Mode)
   useEffect(() => {
     const timer = setInterval(() => {
-      if (content !== initialContent && !isReadOnly && !lockedBy && !saving) {
+      if (content !== initialContent && !isReadOnly && !lockedBy && !isSuggestMode && !saving) {
         handleSave();
       }
     }, 10000);
     return () => clearInterval(timer);
-  }, [content, initialContent, isReadOnly, lockedBy, saving]);
+  }, [content, initialContent, isReadOnly, lockedBy, isSuggestMode, saving]);
 
   // Render Mermaid diagrams on preview mode change or content update, using MutationObserver to handle async React re-renders
   useEffect(() => {
@@ -1012,11 +1049,154 @@ export const Editor: React.FC<EditorProps> = ({
     };
   }, [mode, content, notePath]);
 
-  const handleSave = async () => {
-    if (isReadOnly || lockedBy || saving) return;
+  // Load suggestions
+  const loadSuggestions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/notes/suggestions?relative_path=${encodeURIComponent(notePath)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data);
+      }
+    } catch (err) {
+      console.error('Failed to load suggestions:', err);
+    }
+  };
+
+  // Load suggestions on mount and file change
+  useEffect(() => {
+    if (notePath) {
+      loadSuggestions();
+    }
+  }, [notePath]);
+
+  // Listen to socket events for suggestions
+  useEffect(() => {
+    if (socket) {
+      const handleSuggestionChange = (data: any) => {
+        if (data.relative_path === notePath) {
+          loadSuggestions();
+        }
+      };
+      socket.on('suggestion:changed', handleSuggestionChange);
+      return () => {
+        socket.off('suggestion:changed', handleSuggestionChange);
+      };
+    }
+  }, [socket, notePath]);
+
+  const handleAcceptSuggestion = async (id: number) => {
     setSaving(true);
     try {
-      await onSave(content);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/notes/suggestions/${id}/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setSelectedSuggestion(null);
+        setContent(data.mergedText);
+        loadSuggestions();
+      } else if (res.status === 409 && data.hasConflict) {
+        setConflictData({ id, mergedText: data.mergedText });
+        setContent(data.mergedText);
+        setSelectedSuggestion(null);
+        setMode('edit');
+        alert('Обнаружены конфликты слияния! Они отмечены в редакторе символами <<<<<<< и >>>>>>>. Пожалуйста, разрешите конфликты вручную и сохраните файл.');
+      } else {
+        alert(data.error || 'Не удалось принять предложение');
+      }
+    } catch (err) {
+      console.error('Failed to accept suggestion:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRejectSuggestion = async (id: number) => {
+    if (!confirm('Вы уверены, что хотите отклонить это предложение?')) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/notes/suggestions/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setSelectedSuggestion(null);
+        loadSuggestions();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Не удалось отклонить предложение');
+      }
+    } catch (err) {
+      console.error('Failed to reject suggestion:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResolveConflict = async () => {
+    if (!conflictData) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/notes/suggestions/${conflictData.id}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ resolved_content: content })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConflictData(null);
+        setContent(data.mergedText);
+        loadSuggestions();
+      } else {
+        alert(data.error || 'Не удалось сохранить разрешение конфликта');
+      }
+    } catch (err) {
+      console.error('Failed to resolve conflict:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (isReadOnly || saving) return;
+    if (lockedBy && !isSuggestMode) return; // Allow save in suggest mode even if file is locked
+    setSaving(true);
+    try {
+      if (isSuggestMode) {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/notes/suggest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ relative_path: notePath, suggested_content: content })
+        });
+        if (res.ok) {
+          // Sync initialContent with content locally so the Save button becomes disabled again
+          // (assuming there's a dirty state check)
+          console.log('Suggestion saved successfully');
+        } else {
+          alert('Не удалось сохранить предложение');
+        }
+      } else {
+        await onSave(content);
+      }
     } catch (err) {
       console.error('Error saving:', err);
     } finally {
@@ -1927,160 +2107,309 @@ export const Editor: React.FC<EditorProps> = ({
     <div className="flex flex-col h-full bg-background-panel border border-white/5 rounded-xl overflow-hidden shadow-glass">
       
       {/* Editor Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-2 border-b border-white/5 bg-black/10 select-none gap-2">
-        
-        {/* Formatting Actions */}
-        <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none flex-nowrap w-full sm:w-auto pb-1 sm:pb-0 pr-2">
-          <button
-            onClick={() => insertText('# ', '')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Заголовок H1"
-          >
-            <Heading1 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => insertText('## ', '')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Заголовок H2"
-          >
-            <Heading2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => insertText('### ', '')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Заголовок H3"
-          >
-            <Heading3 className="w-4 h-4" />
-          </button>
-          <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
-          <button
-            onClick={() => insertText('**', '**')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Жирный текст"
-          >
-            <Bold className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => insertText('*', '*')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Курсив"
-          >
-            <Italic className="w-4 h-4" />
-          </button>
-          <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
-          <button
-            onClick={() => insertText('- ', '')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Маркированный список"
-          >
-            <List className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => insertText('- [ ] ', '')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Чек-лист"
-          >
-            <CheckSquare className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => insertText('[[', ']]')}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Вставить Вики-ссылку"
-          >
-            [[ ]]
-          </button>
-          <button
-            onClick={() => insertText('[ссылка](', ')') }
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Вставить ссылку"
-          >
-            <LinkIcon className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleMediaUpload}
-            disabled={mode === 'preview' || isReadOnly || !!lockedBy}
-            className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-            title="Загрузить медиафайл (Изображение или Видео)"
-          >
-            <ImageIcon className="w-4 h-4" />
-          </button>
-        </div>
+      {selectedSuggestion ? (
+        // Specialized Toolbar for Suggestion Review
+        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-b border-primary/20 bg-primary/5 select-none gap-2">
+          <div className="flex items-center space-x-2.5">
+            <GitPullRequest className="w-5 h-5 text-primary animate-pulse" />
+            <div>
+              <div className="text-xs font-bold text-white">Предложение от {selectedSuggestion.author_name}</div>
+              <div className="text-[10px] text-text-disabled">Создано: {new Date(selectedSuggestion.created_at).toLocaleString()}</div>
+            </div>
+          </div>
 
-        {/* Lock / Saving Status Indicator */}
-        <div className="flex items-center justify-between sm:justify-end space-x-2.5 w-full sm:w-auto overflow-x-auto scrollbar-none flex-nowrap pb-1 sm:pb-0">
-          {lockedBy ? (
-            <div className="flex items-center space-x-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20 shrink-0">
-              <FileLock className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Редактирует: {lockedBy} (ReadOnly)</span>
-              <span className="inline sm:hidden">Блок: {lockedBy}</span>
+          <div className="flex items-center space-x-2.5">
+            <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30 shrink-0">
+              <button
+                onClick={() => setSuggestionViewMode('original')}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
+                  suggestionViewMode === 'original' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <span>Оригинал</span>
+              </button>
+              <button
+                onClick={() => setSuggestionViewMode('preview')}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
+                  suggestionViewMode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <span>Результат</span>
+              </button>
+              <button
+                onClick={() => setSuggestionViewMode('diff')}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
+                  suggestionViewMode === 'diff' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <span>Разница</span>
+              </button>
             </div>
-          ) : isReadOnly ? (
-            <div className="flex items-center space-x-1.5 text-xs text-text-muted bg-white/5 px-2.5 py-1 rounded-full shrink-0">
-              <User className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Режим чтения (ReadOnly)</span>
-              <span className="inline sm:hidden">Чтение</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shrink-0">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
-              <span className="hidden sm:inline">Синхронизация активна</span>
-              <span className="inline sm:hidden">Синхронизация</span>
-            </div>
-          )}
 
-          <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30 shrink-0">
+            {canReview && (
+              <div className="flex space-x-1.5 border-l border-white/10 pl-2.5">
+                <button
+                  onClick={() => handleAcceptSuggestion(selectedSuggestion.id)}
+                  disabled={saving}
+                  className="p-1 px-3 bg-green-500/20 border border-green-500/30 hover:bg-green-500/40 text-green-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-30"
+                  title="Принять предложение"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Принять</span>
+                </button>
+                <button
+                  onClick={() => handleRejectSuggestion(selectedSuggestion.id)}
+                  disabled={saving}
+                  className="p-1 px-3 bg-red-500/20 border border-red-500/30 hover:bg-red-500/40 text-red-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-30"
+                  title="Отклонить предложение"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Отклонить</span>
+                </button>
+              </div>
+            )}
+
             <button
-              onClick={switchToEdit}
-              className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
-                mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-              }`}
+              onClick={() => setSelectedSuggestion(null)}
+              className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer"
+              title="Закрыть просмотр"
             >
-              <Code className="w-3.5 h-3.5" />
-              <span>Код</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        // Standard Toolbar
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-2 border-b border-white/5 bg-black/10 select-none gap-2">
+          {/* Formatting Actions */}
+          <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none flex-nowrap w-full sm:w-auto pb-1 sm:pb-0 pr-2">
+            <button
+              onClick={() => insertText('# ', '')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Заголовок H1"
+            >
+              <Heading1 className="w-4 h-4" />
             </button>
             <button
-              onClick={switchToPreview}
-              className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer ${
-                mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-              }`}
+              onClick={() => insertText('## ', '')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Заголовок H2"
             >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Просмотр</span>
+              <Heading2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => insertText('### ', '')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Заголовок H3"
+            >
+              <Heading3 className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
+            <button
+              onClick={() => insertText('**', '**')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Жирный текст"
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => insertText('*', '*')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Курсив"
+            >
+              <Italic className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-white/10 mx-1 shrink-0" />
+            <button
+              onClick={() => insertText('- ', '')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Маркированный список"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => insertText('- [ ] ', '')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Чек-лист"
+            >
+              <CheckSquare className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => insertText('[[', ']]')}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Вставить Вики-ссылку"
+            >
+              [[ ]]
+            </button>
+            <button
+              onClick={() => insertText('[ссылка](', ')') }
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Вставить ссылку"
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleMediaUpload}
+              disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
+              className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+              title="Загрузить медиафайл (Изображение или Видео)"
+            >
+              <ImageIcon className="w-4 h-4" />
             </button>
           </div>
 
-          <button
-            onClick={handleDownload}
-            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-            title="Скачать файл в формате MD"
-          >
-            <Download className="w-4 h-4" />
-          </button>
+          {/* Status and Action Buttons */}
+          <div className="flex items-center justify-between sm:justify-end space-x-2.5 w-full sm:w-auto overflow-x-auto scrollbar-none flex-nowrap pb-1 sm:pb-0">
+            {/* Suggest mode toggle */}
+            {!isReadOnly && (
+              <button
+                onClick={() => {
+                  const nextMode = !isSuggestMode;
+                  setIsSuggestMode(nextMode);
+                  if (nextMode) {
+                    setMode('edit');
+                  }
+                }}
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
+                  isSuggestMode 
+                    ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]' 
+                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                }`}
+                title={isSuggestMode ? "Режим предложений активен. Сохранение запишет изменения как предложение." : "Включить режим предложений (рецензирование)"}
+              >
+                <GitBranch className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[11px] hidden md:inline">Рецензирование</span>
+              </button>
+            )}
 
-          {!isReadOnly && !lockedBy && (
+            {/* Suggestions counter sidebar toggle */}
+            {suggestions.length > 0 && (
+              <button
+                onClick={() => setShowSuggestionsSidebar(!showSuggestionsSidebar)}
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${
+                  showSuggestionsSidebar 
+                    ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]' 
+                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                }`}
+                title="Показать список предложений"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span className="text-[11px] hidden md:inline">Предложения</span>
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[9px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-background-editor shadow-glow animate-pulse">
+                  {suggestions.length}
+                </span>
+              </button>
+            )}
+
+            {/* Normal Lock / Saving Status Indicator */}
+            {isSuggestMode ? (
+              <div className="flex items-center space-x-1.5 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 shrink-0">
+                <GitBranch className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Режим рецензирования</span>
+                <span className="inline sm:hidden">Рецензия</span>
+              </div>
+            ) : lockedBy ? (
+              <div className="flex items-center space-x-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20 shrink-0">
+                <FileLock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Редактирует: {lockedBy} (ReadOnly)</span>
+                <span className="inline sm:hidden">Блок: {lockedBy}</span>
+              </div>
+            ) : isReadOnly ? (
+              <div className="flex items-center space-x-1.5 text-xs text-text-muted bg-white/5 px-2.5 py-1 rounded-full shrink-0">
+                <User className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Режим чтения (ReadOnly)</span>
+                <span className="inline sm:hidden">Чтение</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shrink-0">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
+                <span className="hidden sm:inline">Синхронизация активна</span>
+                <span className="inline sm:hidden">Синхронизация</span>
+              </div>
+            )}
+
+            <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30 shrink-0">
+              <button
+                onClick={switchToEdit}
+                disabled={selectedSuggestion !== null}
+                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
+                  mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span>Код</span>
+              </button>
+              <button
+                onClick={switchToPreview}
+                disabled={selectedSuggestion !== null}
+                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
+                  mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Просмотр</span>
+              </button>
+            </div>
+
             <button
-              onClick={handleSave}
-              disabled={saving || content === initialContent}
-              className="p-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/40 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Сохранить (Ctrl + S)"
+              onClick={handleDownload}
+              className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+              title="Скачать файл в формате MD"
             >
-              <Save className="w-4 h-4" />
+              <Download className="w-4 h-4" />
             </button>
-          )}
+
+            {/* Resolve conflict or save button */}
+            {conflictData ? (
+              <button
+                onClick={handleResolveConflict}
+                disabled={saving}
+                className="p-1.5 bg-green-600/35 border border-green-500/50 hover:bg-green-500/60 text-green-300 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shrink-0 font-semibold text-xs animate-pulse"
+                title="Сохранить разрешение конфликтов"
+              >
+                <Check className="w-4 h-4" />
+                <span className="hidden sm:inline">Слить конфликты</span>
+              </button>
+            ) : (
+              (!isReadOnly && (!lockedBy || isSuggestMode) && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving || content === initialContent}
+                  className="p-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/40 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-30 shrink-0"
+                  title="Сохранить (Ctrl + S)"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+              ))
+            )}
+
+            {conflictData && (
+              <button
+                onClick={() => {
+                  setConflictData(null);
+                  setContent(initialContent);
+                }}
+                className="p-1.5 bg-red-600/20 border border-red-500/30 hover:bg-red-500/40 text-red-400 rounded-lg transition-colors cursor-pointer shrink-0"
+                title="Отменить разрешение"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Editor Main Area */}
-      <div className="flex-1 relative overflow-hidden bg-background-editor text-sm min-h-[300px]">
+      <div className="flex-1 flex flex-row relative overflow-hidden bg-background-editor text-sm min-h-[300px]">
         {/* Floating WikiLinks Autocomplete Dropdown */}
         {wikiDropdownOpen && dropdownCoords && (
           <div 
@@ -2127,34 +2456,125 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
         )}
 
-        {mode === 'edit' ? (
-          <div className="w-full h-full text-left">
-            <CodeMirror
-              ref={editorRef}
-              value={content}
-              height="100%"
-              extensions={[markdown({ base: markdownLanguage }), EditorView.lineWrapping, mediaEvents, imagePreviewPlugin]}
-              theme="dark" // UIW standard dark theme
-              editable={!isReadOnly && !lockedBy}
-              onChange={handleEditorChange}
-              onCreateEditor={handleCreateEditor}
-              className="h-full border-0 focus:outline-none"
-              placeholder="Начните писать markdown или используйте панель форматирования..."
-            />
+        {/* Left Side: Editor, Preview or Diff */}
+        <div className="flex-1 h-full min-w-0 relative flex flex-col">
+          {selectedSuggestion ? (
+            suggestionViewMode === 'diff' ? (
+              <DiffViewer
+                versionId={selectedSuggestion.id}
+                versionDate={selectedSuggestion.created_at}
+                authorName={selectedSuggestion.author_name}
+                historicContent={selectedSuggestion.base_content}
+                currentContent={selectedSuggestion.suggested_content}
+                onClose={() => setSelectedSuggestion(null)}
+                onRestore={() => handleAcceptSuggestion(selectedSuggestion.id)}
+                isReadOnly={!canReview}
+              />
+            ) : suggestionViewMode === 'original' ? (
+              <div 
+                className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.base_content) }}
+              />
+            ) : (
+              <div 
+                className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.suggested_content) }}
+              />
+            )
+          ) : (
+            mode === 'edit' ? (
+              <div className="w-full h-full text-left">
+                <CodeMirror
+                  ref={editorRef}
+                  value={content}
+                  height="100%"
+                  extensions={[markdown({ base: markdownLanguage }), EditorView.lineWrapping, mediaEvents, imagePreviewPlugin]}
+                  theme="dark" // UIW standard dark theme
+                  editable={!isReadOnly && (!lockedBy || isSuggestMode)}
+                  onChange={handleEditorChange}
+                  onCreateEditor={handleCreateEditor}
+                  className="h-full border-0 focus:outline-none"
+                  placeholder="Начните писать markdown или используйте панель форматирования..."
+                />
+              </div>
+            ) : (
+              <div 
+                ref={previewRef}
+                onClick={handlePreviewClick}
+                className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
+              />
+            )
+          )}
+        </div>
+
+        {/* Right Side: Suggestions List Panel */}
+        {showSuggestionsSidebar && suggestions.length > 0 && (
+          <div className="w-72 border-l border-white/5 bg-black/30 backdrop-blur-md flex flex-col h-full select-none shrink-0 overflow-y-auto p-4 space-y-3">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-white/5 pb-2 flex items-center space-x-1.5">
+              <GitPullRequest className="w-4 h-4 text-primary" />
+              <span>Предложенные правки</span>
+            </h3>
+            <div className="space-y-2">
+              {suggestions.map((s) => (
+                <div 
+                  key={s.id} 
+                  onClick={() => {
+                    setSelectedSuggestion(s);
+                    setSuggestionViewMode('diff');
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer text-left hover:scale-[1.02] active:scale-95 ${
+                    selectedSuggestion?.id === s.id 
+                      ? 'bg-primary/10 border-primary shadow-glow' 
+                      : 'bg-white/[0.02] border-white/5 hover:bg-white/5 hover:border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-white flex items-center space-x-1">
+                      <User className="w-3 h-3 text-primary/75" />
+                      <span>{s.author_name}</span>
+                    </span>
+                    <span className="text-[9px] text-text-disabled">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-text-muted truncate">
+                    Кликните для просмотра разницы и принятия правок.
+                  </p>
+                  {canReview && (
+                    <div className="flex items-center justify-end space-x-2 mt-2 pt-2 border-t border-white/5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptSuggestion(s.id);
+                        }}
+                        className="px-2 py-0.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded text-[9px] font-semibold flex items-center space-x-0.5 transition-colors cursor-pointer"
+                      >
+                        <Check className="w-2.5 h-2.5" />
+                        <span>Принять</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRejectSuggestion(s.id);
+                        }}
+                        className="px-2 py-0.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[9px] font-semibold flex items-center space-x-0.5 transition-colors cursor-pointer"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                        <span>Отклонить</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        ) : (
-          <div 
-            ref={previewRef}
-            onClick={handlePreviewClick}
-            className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
-            dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
-          />
         )}
       </div>
 
       {/* Footer Info */}
       <div className="px-4 py-1.5 border-t border-white/5 bg-black/20 text-[10px] text-text-disabled flex justify-between select-none">
-        <span>Путь: {notePath}</span>
+        <span>Путь: {notePath} | Владелец: <span className="text-primary font-semibold">{noteCreator}</span></span>
         <span>Символов: {content.length} | Строк: {content.split('\n').length}</span>
       </div>
 

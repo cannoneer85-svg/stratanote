@@ -79,8 +79,8 @@ export const initWatcher = (io) => {
         if (!existingNote) {
           // New file detected
           await run(
-            'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by) VALUES (?, ?, ?, ?, ?)',
-            [relPath, title, 0, parentPath, 'Внешняя система']
+            'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            [relPath, title, 0, parentPath, 'Внешняя система', 'Внешняя система']
           );
           await run(
             'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
@@ -129,8 +129,8 @@ export const initWatcher = (io) => {
         const existingDir = await get('SELECT * FROM notes WHERE relative_path = ?', [relPath]);
         if (!existingDir) {
           await run(
-            'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by) VALUES (?, ?, ?, ?, ?)',
-            [relPath, title, 1, parentPath, 'Внешняя система']
+            'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            [relPath, title, 1, parentPath, 'Внешняя система', 'Внешняя система']
           );
           console.log(`[Watcher] Indexed new directory: ${relPath}`);
           io.emit('file-create', { relative_path: relPath, title, is_directory: true, parent_path: parentPath });

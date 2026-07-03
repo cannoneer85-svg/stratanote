@@ -112,6 +112,13 @@ io.on('connection', (socket) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // Lock lasts 5 mins
 
     try {
+      // Check if already locked by someone else and lock is not expired
+      const existingLock = await get('SELECT * FROM locks WHERE relative_path = ?', [relative_path]);
+      if (existingLock && existingLock.user_id !== userId && new Date(existingLock.expires_at) > new Date()) {
+        console.log(`[Socket] Lock request denied for: ${relative_path} by ${username} (already locked by ${existingLock.username})`);
+        return;
+      }
+
       // Upsert lock in SQLite
       await run(
         'INSERT OR REPLACE INTO locks (relative_path, user_id, username, expires_at) VALUES (?, ?, ?, ?)',

@@ -9,6 +9,7 @@ import { run, get, all } from '../db.js';
 import { vaultPath } from '../watcher.js';
 import { authenticateJWT } from './auth.js';
 import { getEmbedding, cosineSimilarity } from '../embeddings.js';
+import { threeWayMerge } from '../merge.js';
 
 // Helper to update note embedding in the background
 const updateNoteEmbedding = async (relPath, content) => {
@@ -129,13 +130,30 @@ router.post('/', authenticateJWT, canEdit, async (req, res) => {
     const parentPath = normalizePath(dirname(normPath)) === '.' ? '' : normalizePath(dirname(normPath));
 
     if (is_directory) {
+      // 1. Insert directory record to DB first
+      await run(
+        'INSERT OR REPLACE INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [normPath, title, 1, parentPath, req.user.username, req.user.username]
+      );
+      // 2. Create physical directory
       fs.mkdirSync(absolutePath, { recursive: true });
-      // Database update will be triggered automatically by Chokidar, but we return immediate response
       res.status(201).json({ message: 'Directory created', relative_path: normPath });
     } else {
       // Ensure parent directory exists
       fs.mkdirSync(dirname(absolutePath), { recursive: true });
       const initialContent = `# ${title}\n\n`;
+
+      // 1. Insert note and first version record to DB first
+      await run(
+        'INSERT OR REPLACE INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [normPath, title, 0, parentPath, req.user.username, req.user.username]
+      );
+      await run(
+        'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+        [normPath, initialContent, req.user.username]
+      );
+
+      // 2. Write note content to disk
       fs.writeFileSync(absolutePath, initialContent, 'utf8');
 
       updateNoteEmbedding(normPath, initialContent).catch(err => {
@@ -162,6 +180,16 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
   try {
     if (!fs.existsSync(absolutePath)) {
       return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    // Check owner permission for non-Admin users
+    if (req.user.role !== 'Admin') {
+      const note = await get('SELECT created_by FROM notes WHERE relative_path = ?', [normPath]);
+      if (note && note.created_by && note.created_by !== 'Внешняя система' && note.created_by !== req.user.username) {
+        return res.status(403).json({ 
+          error: 'Permission denied: Прямое редактирование чужого документа запрещено. Пожалуйста, используйте Режим рецензирования (Suggest Mode).' 
+        });
+      }
     }
 
     // Write to physical disk
@@ -631,7 +659,7 @@ const clearVaultMarkdown = (dir) => {
 };
 
 // Helper to recursively scan folder and index notes/directories into SQLite
-const scanAndIndex = async (dir, baseDir = vaultPath) => {
+const scanAndIndex = async (dir, baseDir = vaultPath, creatorName = 'Внешняя система') => {
   const items = fs.readdirSync(dir);
   for (const item of items) {
     const fullPath = join(dir, item);
@@ -657,11 +685,11 @@ const scanAndIndex = async (dir, baseDir = vaultPath) => {
       const existing = await get('SELECT relative_path FROM notes WHERE relative_path = ?', [relPath]);
       if (!existing) {
         await run(
-          'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by) VALUES (?, ?, ?, ?, ?)',
-          [relPath, title, 1, parentPath, 'Внешняя система']
+          'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+          [relPath, title, 1, parentPath, creatorName, creatorName]
         );
       }
-      await scanAndIndex(fullPath, baseDir);
+      await scanAndIndex(fullPath, baseDir, creatorName);
     } else if (stat.isFile() && item.endsWith('.md')) {
       const title = item.replace(/\.md$/, '');
       const parentPath = normalizePath(dirname(relPath)) === '.' ? '' : normalizePath(dirname(relPath));
@@ -670,8 +698,8 @@ const scanAndIndex = async (dir, baseDir = vaultPath) => {
       const existing = await get('SELECT relative_path FROM notes WHERE relative_path = ?', [relPath]);
       if (!existing) {
         await run(
-          'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by) VALUES (?, ?, ?, ?, ?)',
-          [relPath, title, 0, parentPath, 'Внешняя система']
+          'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+          [relPath, title, 0, parentPath, creatorName, creatorName]
         );
         await run(
           'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
@@ -729,7 +757,7 @@ router.post('/import', authenticateJWT, canEdit, async (req, res) => {
 
     // 3. Scan and reindex vault files into SQLite
     console.log('[Import] Scanning and reindexing vault files...');
-    await scanAndIndex(vaultPath);
+    await scanAndIndex(vaultPath, vaultPath, req.user.username);
 
     // 4. Notify all active sockets about the vault reload
     req.app.get('io').emit('vault-reload');
@@ -841,7 +869,7 @@ router.post('/import-chunk', authenticateJWT, canEdit, (req, res) => {
 
           // 3. Scan and reindex vault files into SQLite
           console.log('[Import] Scanning and reindexing vault files...');
-          await scanAndIndex(vaultPath);
+          await scanAndIndex(vaultPath, vaultPath, req.user.username);
 
           // 4. Clean up merged ZIP
           if (fs.existsSync(mergedZipPath)) {
@@ -905,8 +933,8 @@ router.post('/upload-md', authenticateJWT, canEdit, async (req, res) => {
     const existingNote = await get('SELECT * FROM notes WHERE relative_path = ?', [relPath]);
     if (!existingNote) {
       await run(
-        'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by) VALUES (?, ?, ?, ?, ?)',
-        [relPath, title, 0, dbParentPath, req.user.username]
+        'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [relPath, title, 0, dbParentPath, req.user.username, req.user.username]
       );
       await run(
         'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
@@ -929,6 +957,244 @@ router.post('/upload-md', authenticateJWT, canEdit, async (req, res) => {
   } catch (err) {
     console.error('Error uploading md file:', err);
     res.status(500).json({ error: 'Failed to upload md file' });
+  }
+});
+
+// 7.6. Get pending suggestions for notifications (accessible to review owners/Admins)
+router.get('/suggestions/pending', authenticateJWT, async (req, res) => {
+  try {
+    let pendingSuggestions = [];
+    if (req.user.role === 'Admin') {
+      pendingSuggestions = await all(`
+        SELECT s.*, n.title 
+        FROM suggestions s 
+        JOIN notes n ON s.relative_path = n.relative_path 
+        WHERE s.status = 'pending' 
+        ORDER BY s.created_at DESC
+      `);
+    } else if (req.user.role === 'Editor') {
+      pendingSuggestions = await all(`
+        SELECT s.*, n.title 
+        FROM suggestions s 
+        JOIN notes n ON s.relative_path = n.relative_path 
+        WHERE s.status = 'pending' AND n.created_by = ? 
+        ORDER BY s.created_at DESC
+      `, [req.user.username]);
+    }
+    res.json(pendingSuggestions);
+  } catch (err) {
+    console.error('Error fetching pending suggestions:', err);
+    res.status(500).json({ error: 'Failed to fetch pending suggestions' });
+  }
+});
+
+// 7.7. Get active suggestions for a note
+router.get('/suggestions', authenticateJWT, async (req, res) => {
+  const relPath = req.query.relative_path;
+  if (!relPath) return res.status(400).json({ error: 'relative_path is required' });
+
+  try {
+    const list = await all(
+      "SELECT * FROM suggestions WHERE relative_path = ? AND status = 'pending' ORDER BY created_at DESC",
+      [relPath]
+    );
+    res.json(list);
+  } catch (err) {
+    console.error('Error fetching suggestions:', err);
+    res.status(500).json({ error: 'Failed to fetch suggestions' });
+  }
+});
+
+// 7.8. Create or update a suggestion (Suggest Mode saving)
+router.post('/suggest', authenticateJWT, canEdit, async (req, res) => {
+  const { relative_path, suggested_content } = req.body;
+  if (!relative_path || suggested_content === undefined) {
+    return res.status(400).json({ error: 'relative_path and suggested_content are required' });
+  }
+
+  const absolutePath = join(vaultPath, relative_path);
+  try {
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: 'Note not found on disk' });
+    }
+
+    const currentDiskContent = fs.readFileSync(absolutePath, 'utf8');
+
+    // Check if user already has a pending suggestion for this file
+    const existing = await get(
+      "SELECT id FROM suggestions WHERE relative_path = ? AND author_name = ? AND status = 'pending'",
+      [relative_path, req.user.username]
+    );
+
+    if (existing) {
+      // Update existing suggestion
+      await run(
+        "UPDATE suggestions SET suggested_content = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [suggested_content, existing.id]
+      );
+    } else {
+      // Create new suggestion. The current content on disk is set as the base_content
+      await run(
+        "INSERT INTO suggestions (relative_path, author_name, base_content, suggested_content) VALUES (?, ?, ?, ?)",
+        [relative_path, req.user.username, currentDiskContent, suggested_content]
+      );
+    }
+
+    // Notify other editors/sockets
+    req.app.get('io').emit('suggestion:changed', { relative_path });
+
+    res.json({ message: 'Suggestion saved successfully' });
+  } catch (err) {
+    console.error('Error saving suggestion:', err);
+    res.status(500).json({ error: 'Failed to save suggestion' });
+  }
+});
+
+// Helper to verify suggestion review permission (creator or Admin)
+const checkReviewPermission = async (req, res, next) => {
+  const suggestionId = req.params.id;
+  try {
+    const suggestion = await get("SELECT * FROM suggestions WHERE id = ?", [suggestionId]);
+    if (!suggestion) {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
+
+    const note = await get("SELECT created_by FROM notes WHERE relative_path = ?", [suggestion.relative_path]);
+    const noteCreator = note ? note.created_by : 'Внешняя система';
+
+    if (req.user.username !== noteCreator && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Permission denied: Only the document creator or Admins can review suggestions' });
+    }
+
+    req.suggestion = suggestion;
+    next();
+  } catch (err) {
+    console.error('Error verifying review permission:', err);
+    res.status(500).json({ error: 'Failed to verify review permission' });
+  }
+};
+
+// 7.9. Reject suggestion
+router.post('/suggestions/:id/reject', authenticateJWT, canEdit, checkReviewPermission, async (req, res) => {
+  const suggestionId = req.params.id;
+  const relPath = req.suggestion.relative_path;
+
+  try {
+    await run("UPDATE suggestions SET status = 'rejected' WHERE id = ?", [suggestionId]);
+    req.app.get('io').emit('suggestion:changed', { relative_path: relPath });
+    res.json({ message: 'Suggestion rejected successfully' });
+  } catch (err) {
+    console.error('Error rejecting suggestion:', err);
+    res.status(500).json({ error: 'Failed to reject suggestion' });
+  }
+});
+
+// 7.10. Accept suggestion (Three-Way Merge)
+router.post('/suggestions/:id/accept', authenticateJWT, canEdit, checkReviewPermission, async (req, res) => {
+  const suggestionId = req.params.id;
+  const { relative_path, author_name, base_content, suggested_content } = req.suggestion;
+  const absolutePath = join(vaultPath, relative_path);
+
+  try {
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: 'Note not found on disk' });
+    }
+
+    const currentDiskContent = fs.readFileSync(absolutePath, 'utf8');
+
+    // Run 3-way merge
+    const mergeResult = threeWayMerge(base_content, currentDiskContent, suggested_content);
+
+    if (mergeResult.hasConflict) {
+      return res.status(409).json({
+        error: 'Merge conflict detected',
+        hasConflict: true,
+        mergedText: mergeResult.mergedText
+      });
+    }
+
+    // Save merged content to disk
+    fs.writeFileSync(absolutePath, mergeResult.mergedText, 'utf8');
+
+    // Add version to SQLite history
+    await run(
+      'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+      [relative_path, mergeResult.mergedText, author_name]
+    );
+
+    // Update note meta info
+    await run(
+      'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
+      [author_name, relative_path]
+    );
+
+    // Accept suggestion in DB
+    await run("UPDATE suggestions SET status = 'accepted' WHERE id = ?", [suggestionId]);
+
+    // Recalculate embeddings in the background
+    updateNoteEmbedding(relative_path, mergeResult.mergedText).catch(err => {
+      console.error('[Embeddings] Suggest merge embedding recalculation failed:', err);
+    });
+
+    // Notify sockets
+    req.app.get('io').emit('file-update', { relative_path, content: mergeResult.mergedText });
+    req.app.get('io').emit('suggestion:changed', { relative_path });
+
+    res.json({ message: 'Suggestion accepted and merged successfully', mergedText: mergeResult.mergedText });
+  } catch (err) {
+    console.error('Error accepting suggestion:', err);
+    res.status(500).json({ error: 'Failed to accept suggestion' });
+  }
+});
+
+// 7.11. Resolve conflicts and accept suggestion
+router.post('/suggestions/:id/resolve', authenticateJWT, canEdit, checkReviewPermission, async (req, res) => {
+  const suggestionId = req.params.id;
+  const { relative_path, author_name } = req.suggestion;
+  const { resolved_content } = req.body;
+
+  if (resolved_content === undefined) {
+    return res.status(400).json({ error: 'resolved_content is required' });
+  }
+
+  const absolutePath = join(vaultPath, relative_path);
+
+  try {
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: 'Note not found on disk' });
+    }
+
+    // Save resolved content to disk
+    fs.writeFileSync(absolutePath, resolved_content, 'utf8');
+
+    // Add version to SQLite history
+    await run(
+      'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+      [relative_path, resolved_content, author_name]
+    );
+
+    // Update note meta info
+    await run(
+      'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
+      [author_name, relative_path]
+    );
+
+    // Accept suggestion in DB
+    await run("UPDATE suggestions SET status = 'accepted' WHERE id = ?", [suggestionId]);
+
+    // Recalculate embeddings in the background
+    updateNoteEmbedding(relative_path, resolved_content).catch(err => {
+      console.error('[Embeddings] Suggest resolve embedding recalculation failed:', err);
+    });
+
+    // Notify sockets
+    req.app.get('io').emit('file-update', { relative_path, content: resolved_content });
+    req.app.get('io').emit('suggestion:changed', { relative_path });
+
+    res.json({ message: 'Suggestion resolved and accepted successfully', mergedText: resolved_content });
+  } catch (err) {
+    console.error('Error resolving suggestion conflict:', err);
+    res.status(500).json({ error: 'Failed to resolve suggestion conflict' });
   }
 });
 

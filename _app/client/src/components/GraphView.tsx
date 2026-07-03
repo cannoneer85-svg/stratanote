@@ -7,6 +7,7 @@ interface Note {
   title: string;
   is_directory: boolean;
   parent_path: string;
+  created_by?: string;
 }
 
 interface GraphViewProps {

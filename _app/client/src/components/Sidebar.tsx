@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
-  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings
+  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell
 } from 'lucide-react';
 
 interface Note {
@@ -9,6 +9,7 @@ interface Note {
   title: string;
   is_directory: boolean;
   parent_path: string;
+  created_by?: string;
 }
 
 interface UserPresence {
@@ -33,6 +34,8 @@ interface SidebarProps {
   onOpenSettings?: () => void;
   systemVersion?: string;
   onOpenAbout?: () => void;
+  pendingSuggestions?: any[];
+  onNotificationClick?: (suggestion: any) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -50,10 +53,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectedParentFolderChange,
   onOpenSettings,
   systemVersion = '1.0.0',
-  onOpenAbout
+  onOpenAbout,
+  pendingSuggestions = [],
+  onNotificationClick
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Auto-expand all parent folders when the active note changes
   useEffect(() => {
@@ -327,7 +333,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background-panel border-r border-white/5 overflow-hidden text-left select-none">
+    <div className="flex flex-col h-full bg-background-panel border-r border-white/5 overflow-visible text-left select-none">
       
       {/* User Info Header */}
       <div className="p-4 border-b border-white/5 bg-black/10 flex items-center justify-between">
@@ -342,6 +348,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         
         <div className="flex items-center space-x-1.5">
+          {/* Notifications Bell & Popover */}
+          {currentUser.role !== 'Viewer' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`p-1.5 hover:bg-white/5 rounded-lg transition-colors cursor-pointer relative ${
+                  pendingSuggestions.length > 0 ? 'text-primary animate-pulse' : 'text-text-disabled hover:text-white'
+                }`}
+                title="Уведомления о рецензиях"
+              >
+                <Bell className="w-4 h-4" />
+                {pendingSuggestions.length > 0 && (
+                  <span className="absolute top-0 right-0 bg-primary w-2 h-2 rounded-full ring-2 ring-background-panel" />
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute left-0 mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
+                  <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                    <span className="font-bold text-white">Рецензии на согласование</span>
+                    {pendingSuggestions.length > 0 && (
+                      <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
+                        {pendingSuggestions.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto divide-y divide-white/5">
+                    {pendingSuggestions.length === 0 ? (
+                      <div className="p-4 text-center text-text-disabled">
+                        Нет предложений, ожидающих вашей рецензии.
+                      </div>
+                    ) : (
+                      pendingSuggestions.map((s: any) => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            if (onNotificationClick) onNotificationClick(s);
+                            setShowNotifications(false);
+                          }}
+                          className="w-full p-3 hover:bg-white/5 transition-colors text-left flex flex-col space-y-1 cursor-pointer"
+                        >
+                          <div className="flex justify-between items-start">
+                            <span className="font-semibold text-white truncate max-w-[160px]">
+                              {s.title}
+                            </span>
+                            <span className="text-[9px] text-text-disabled shrink-0 bg-white/5 px-1.5 py-0.5 rounded">
+                              {s.author_name}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-text-disabled truncate">
+                            Путь: {s.relative_path}
+                          </span>
+                          <span className="text-[9px] text-primary/80 uppercase font-semibold">
+                            Кликните для перехода к рецензии
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {currentUser.role === 'Admin' && onOpenSettings && (
             <button
               onClick={onOpenSettings}

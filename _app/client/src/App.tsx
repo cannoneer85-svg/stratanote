@@ -18,6 +18,7 @@ interface Note {
   title: string;
   is_directory: boolean;
   parent_path: string;
+  created_by?: string;
 }
 
 interface UserPresence {
@@ -39,6 +40,25 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(
     localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null
   );
+
+  // Suggestions notifications state
+  const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
+  const [autoOpenSuggestion, setAutoOpenSuggestion] = useState<any | null>(null);
+
+  const loadPendingSuggestions = async () => {
+    if (!token || !currentUser || currentUser?.role === 'Viewer') return;
+    try {
+      const res = await fetch('/api/notes/suggestions/pending', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingSuggestions(data);
+      }
+    } catch (err) {
+      console.error('Failed to load pending suggestions:', err);
+    }
+  };
 
   // Layout and view state
   const [activeTab, setActiveTab] = useState<'editor' | 'graph'>('editor');
@@ -172,6 +192,7 @@ export default function App() {
     // Load initial note index & version info
     loadNotes();
     fetchVersionInfo();
+    loadPendingSuggestions();
 
     // Setup Socket
     const socketInstance = io(window.location.origin);
@@ -252,6 +273,10 @@ export default function App() {
       });
     });
 
+    socketInstance.on('suggestion:changed', () => {
+      loadPendingSuggestions();
+    });
+
     return () => {
       socketInstance.disconnect();
     };
@@ -325,6 +350,11 @@ export default function App() {
 
     // Set browser hash silently
     window.history.replaceState(null, '', `#${path}`);
+  };
+
+  const handleNotificationClick = (suggestion: any) => {
+    openNote(suggestion.relative_path);
+    setAutoOpenSuggestion(suggestion);
   };
 
   // Save note file
@@ -580,6 +610,8 @@ export default function App() {
             activeUsers={activeUsers}
             currentUser={currentUser}
             onLogout={handleLogout}
+            pendingSuggestions={pendingSuggestions}
+            onNotificationClick={handleNotificationClick}
             onOpenExport={() => setExportModalOpen(true)}
             selectedParentFolder={selectedParentFolder}
             onSelectedParentFolderChange={setSelectedParentFolder}
@@ -716,6 +748,8 @@ export default function App() {
                       currentUser={currentUser}
                       allNotes={notes}
                       socket={socket}
+                      autoOpenSuggestion={autoOpenSuggestion}
+                      onClearAutoOpenSuggestion={() => setAutoOpenSuggestion(null)}
                     />
                   )}
                 </div>
@@ -740,45 +774,52 @@ export default function App() {
           </div>
 
           {/* Slide-out Version History Panel */}
-          {historyOpen && activeNotePath && activeTab === 'editor' && !selectedHistoryItem && (
-            <div className="w-80 h-full bg-background-panel border-l border-white/5 flex flex-col overflow-hidden animate-slide-in shrink-0">
-              <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/10 select-none">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">История версий</span>
-                <button
-                  onClick={() => setHistoryOpen(false)}
-                  className="p-1 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 select-none">
-                {historyList.length === 0 ? (
-                  <div className="text-center text-text-disabled text-xs mt-8">
-                    История пуста.
+          {historyOpen && activeNotePath && activeTab === 'editor' && !selectedHistoryItem && (() => {
+            const currentNote = notes.find(n => n.relative_path === activeNotePath);
+            const noteCreator = currentNote?.created_by || 'Внешняя система';
+            return (
+              <div className="w-80 h-full bg-background-panel border-l border-white/5 flex flex-col overflow-hidden animate-slide-in shrink-0">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/10 select-none">
+                  <div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">История версий</span>
+                    <div className="text-[10px] text-text-disabled mt-0.5">Владелец: <span className="text-primary font-semibold">{noteCreator}</span></div>
                   </div>
-                ) : (
-                  historyList.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleViewHistoryItem(item)}
-                      className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all active:scale-[0.98]"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-white">Версия #{item.id}</span>
-                        <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-1.5 rounded-full font-bold">
-                          {item.author_name}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-text-muted">
-                        {formatToMoscowTime(item.created_at)}
-                      </p>
+                  <button
+                    onClick={() => setHistoryOpen(false)}
+                    className="p-1 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 select-none">
+                  {historyList.length === 0 ? (
+                    <div className="text-center text-text-disabled text-xs mt-8">
+                      История пуста.
                     </div>
-                  ))
-                )}
+                  ) : (
+                    historyList.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleViewHistoryItem(item)}
+                        className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all active:scale-[0.98]"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-white">Версия #{item.id}</span>
+                          <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-1.5 rounded-full font-bold">
+                            {item.author_name}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-text-muted">
+                          {formatToMoscowTime(item.created_at)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       </div>
