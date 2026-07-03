@@ -6,6 +6,7 @@ npm-debug.log*
 # Database & local data
 _app/server/database.sqlite
 _app/server/database.sqlite-journal
+_app/server/.cache/
 assets/
 
 # Dependency directories

@@ -1712,10 +1712,10 @@ export const Editor: React.FC<EditorProps> = ({
     html = html
       // Horizontal Rules
       .replace(/^\s*([-*_])\s*(?:\1\s*){2,}$/gm, '<hr class="border-t border-white/10 my-6" />')
-      // Headers
-      .replace(/^# (.*?)$/gm, '<h1 class="visual-h1">$1</h1>')
-      .replace(/^## (.*?)$/gm, '<h2 class="visual-h2">$1</h2>')
-      .replace(/^### (.*?)$/gm, '<h3 class="visual-h3">$1</h3>')
+      // Headers (with id slugs for anchor navigation)
+      .replace(/^# (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h1 id="${slug}" class="visual-h1">${title}</h1>`; })
+      .replace(/^## (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h2 id="${slug}" class="visual-h2">${title}</h2>`; })
+      .replace(/^### (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h3 id="${slug}" class="visual-h3">${title}</h3>`; })
       // Unordered Lists
       .replace(/^\s*[-*+]\s+\[\s*\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="text-text-muted">$1</span></div>')
       .replace(/^\s*[-*+]\s+\[x\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" checked disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="line-through text-text-disabled">$1</span></div>')
@@ -1735,8 +1735,13 @@ export const Editor: React.FC<EditorProps> = ({
         const relativePath = `assets/${filename}`;
         return renderMediaHtml(relativePath, filename, options);
       })
-      // Standard links
-      .replace(/\[([^\]]+)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-primary hover:underline">$1</a>')
+      // Standard links (anchor links stay in-page, external links open in new tab)
+      .replace(/\[([^\]]+)\]\((.*?)\)/g, (_match: string, text: string, url: string) => {
+        if (url.startsWith('#')) {
+          return `<a href="${url}" data-anchor="true" class="text-primary hover:underline">${text}</a>`;
+        }
+        return `<a href="${url}" target="_blank" class="text-primary hover:underline">${text}</a>`;
+      })
       // Obsidian WikiLinks [[RelativePath]] or [[RelativePath|Label]]
       .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, path, label) => {
         const cleanPath = path.trim();
@@ -1760,6 +1765,22 @@ export const Editor: React.FC<EditorProps> = ({
   const handlePreviewClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     
+    // In-page anchor link scroll support
+    const anchorLink = target.closest('a[data-anchor="true"]') as HTMLAnchorElement | null;
+    if (anchorLink) {
+      e.preventDefault();
+      const hash = anchorLink.getAttribute('href');
+      if (hash && hash.startsWith('#')) {
+        const targetId = decodeURIComponent(hash.slice(1));
+        const previewContainer = anchorLink.closest('.markdown-preview, [class*="overflow-y-auto"]');
+        const targetEl = previewContainer?.querySelector(`[id="${targetId}"]`) || document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+      return;
+    }
+
     // Mermaid diagram zoom support
     const mermaidDiv = target.closest('.mermaid[data-processed="true"]');
     if (mermaidDiv) {
