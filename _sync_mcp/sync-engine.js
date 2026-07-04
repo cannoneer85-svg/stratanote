@@ -26,7 +26,7 @@ function getLocalFiles(dir, rootDir, excludePatterns) {
   for (const file of list) {
     const filePath = join(dir, file);
     const stat = fs.statSync(filePath);
-    const relPath = relative(rootDir, filePath);
+    const relPath = normalizePath(relative(rootDir, filePath));
 
     if (isExcluded(relPath, excludePatterns)) {
       continue;
