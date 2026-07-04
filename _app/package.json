@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "npm run install:all",
-    "install:all": "npm install --prefix client --omit=none && npm install --prefix server && npm install --prefix ../_sync_mcp",
+    "install:all": "npm install --prefix client --omit=none && npm install --prefix server && node -e \"const fs = require('fs'); if (fs.existsSync('../_sync_mcp')) { require('child_process').execSync('npm install --prefix ../_sync_mcp', {stdio: 'inherit'}); }\"",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
     "dev:server": "npm --prefix server run dev",
