@@ -1,6 +1,6 @@
 {
   "name": "stratanote-server",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Collaborative web-based StrataNote vault server",
   "main": "server.js",
   "type": "module",
