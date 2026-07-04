@@ -291,4 +291,30 @@ router.post('/trigger', authenticateJWT, async (req, res) => {
   });
 });
 
+// DEBUG ENDPOINT
+router.get('/debug-file', authenticateJWT, async (req, res) => {
+  const relPath = req.query.path || "assets/10934961046541_18.png";
+  const safePath = resolve(vaultPath, relPath);
+  try {
+    const exists = fs.existsSync(safePath);
+    if (!exists) {
+      return res.json({ exists: false, safePath, vaultPath });
+    }
+    const stat = fs.statSync(safePath);
+    const content = fs.readFileSync(safePath);
+    const hash = crypto.createHash('sha256').update(content).digest('hex');
+    return res.json({
+      exists: true,
+      safePath,
+      vaultPath,
+      statSize: stat.size,
+      bufferLength: content.length,
+      hash,
+      first32BytesHex: content.slice(0, 32).toString('hex')
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
