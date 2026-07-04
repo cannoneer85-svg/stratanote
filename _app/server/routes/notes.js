@@ -192,20 +192,20 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
       }
     }
 
-    // Write to physical disk
-    fs.writeFileSync(absolutePath, content, 'utf8');
-
-    // Create a new revision version
+    // Create a new revision version and update note info first, so that the Chokidar watcher
+    // sees that the latest database version already matches the new content and keeps the correct author name.
     await run(
       'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
       [normPath, content, req.user.username]
     );
 
-    // Update note info
     await run(
       'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
       [req.user.username, normPath]
     );
+
+    // Write to physical disk
+    fs.writeFileSync(absolutePath, content, 'utf8');
 
     // Calculate embedding in the background
     updateNoteEmbedding(normPath, content).catch(err => {
