@@ -138,6 +138,27 @@ export const initDb = async () => {
     )
   `);
 
+  // 6. Sync Status Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS sync_status (
+      user_id INTEGER PRIMARY KEY,
+      username TEXT NOT NULL,
+      device_name TEXT,
+      last_sync_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT,
+      sync_mode TEXT,
+      error_message TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  try {
+    await run('ALTER TABLE sync_status ADD COLUMN sync_mode TEXT');
+    console.log('[DB] Added sync_mode column to sync_status table');
+  } catch (err) {
+    // Column already exists, ignore
+  }
+
   // Seed default admin if table is empty
   const adminExists = await get('SELECT id FROM users WHERE username = ?', ['admin']);
   if (!adminExists) {

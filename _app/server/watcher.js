@@ -47,13 +47,17 @@ export const initWatcher = (io) => {
   let isReady = false;
 
   const watcher = chokidar.watch(vaultPath, {
-    ignored: [
-      /(^|[\/\\])\../,                     // Ignore hidden files and folders (.git, .obsidian, etc.)
-      join(vaultPath, '_app'),             // Ignore application folder
-      join(vaultPath, 'node_modules'),     // Ignore node_modules if any
-      '**/_app/**',
-      '**/assets/**'                       // Ignore asset folder from notes indexing
-    ],
+    ignored: (path) => {
+      const normPath = path.replace(/\\/g, '/');
+      return (
+        normPath.includes('/_app') ||
+        normPath.includes('/_sync_mcp') ||
+        normPath.includes('/node_modules') ||
+        normPath.includes('/.git') ||
+        normPath.includes('/.obsidian') ||
+        normPath.includes('/assets/')
+      );
+    },
     persistent: true,
     ignoreInitial: false,
     awaitWriteFinish: {

@@ -834,6 +834,7 @@ export default function App() {
         token={token}
         onVaultReload={loadNotes}
         versionInfo={versionInfo}
+        socket={socket}
       />
 
       <AboutModal

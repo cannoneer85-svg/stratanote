@@ -12,9 +12,12 @@ import { initWatcher, vaultPath } from './watcher.js';
 import authRouter, { authenticateJWT } from './routes/auth.js';
 import notesRouter, { rawHandler } from './routes/notes.js';
 import historyRouter from './routes/history.js';
+import syncRouter from './routes/sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
+
+export const activeSyncAgents = new Map();
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +29,7 @@ const io = new Server(server, {
 });
 
 app.set('io', io);
+app.set('activeSyncAgents', activeSyncAgents);
 
 // Middlewares
 app.use(cors());
@@ -47,6 +51,7 @@ app.use('/api/auth', authRouter);
 app.get('/api/raw/*', authenticateJWT, rawHandler);
 app.use('/api/notes', notesRouter);
 app.use('/api/history', historyRouter);
+app.use('/api/sync', syncRouter);
 
 // System Version and Changelog Endpoint
 app.get('/api/version', authenticateJWT, (req, res) => {
@@ -88,6 +93,41 @@ const broadcastActiveUsers = () => {
 // WebSocket Logic (Real-time synchronization and Locks)
 io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
+
+  // Register Sync Agent
+  socket.on('register-sync-agent', async ({ userId, username, deviceName, syncMode }) => {
+    socket.userId = userId;
+    socket.username = username;
+    socket.isSyncAgent = true;
+    socket.deviceName = deviceName;
+    socket.syncMode = syncMode;
+    activeSyncAgents.set(userId, socket);
+    console.log(`[Socket] Sync agent registered: User ${username} on ${deviceName} (${syncMode})`);
+    
+    try {
+      await run(`
+        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, sync_mode)
+        VALUES (?, ?, ?, datetime('now'), 'online', ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          username = excluded.username,
+          device_name = excluded.device_name,
+          last_sync_at = datetime('now'),
+          status = 'online',
+          sync_mode = excluded.sync_mode
+      `, [userId, username, deviceName, syncMode]);
+    } catch (err) {
+      console.error('[Socket] Failed to update status on register:', err);
+    }
+  });
+
+  // Forward sync agent progress to all client UIs
+  socket.on('sync-agent-progress', (data) => {
+    io.emit('sync-server-progress', {
+      userId: socket.userId,
+      username: socket.username || 'System',
+      ...data
+    });
+  });
 
   // User presence login
   socket.on('user-login', ({ username, role }) => {
@@ -147,6 +187,19 @@ io.on('connection', (socket) => {
 
   // Disconnect & cleanup locks and presence
   socket.on('disconnect', async () => {
+    if (socket.isSyncAgent && socket.userId) {
+      activeSyncAgents.delete(socket.userId);
+      console.log(`[Socket] Sync agent disconnected: User ID ${socket.userId}`);
+      try {
+        await run(`
+          UPDATE sync_status SET status = 'offline' WHERE user_id = ? AND status = 'online'
+        `, [socket.userId]);
+      } catch (err) {
+        console.error('[Socket] Failed to update status on disconnect:', err);
+      }
+      return;
+    }
+
     const user = activeUsers.get(socket.id);
     if (user) {
       console.log(`[Socket] User disconnected: ${user.username}`);

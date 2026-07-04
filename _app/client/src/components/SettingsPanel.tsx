@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 
 interface User {
@@ -27,6 +27,7 @@ interface SettingsPanelProps {
     }>;
     env?: string;
   };
+  socket?: any;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -36,9 +37,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   selectedParentFolder,
   token,
   onVaultReload,
-  versionInfo = { version: '1.0.0', history: [], env: 'Development' }
+  versionInfo = { version: '1.0.0', history: [], env: 'Development' },
+  socket
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media' | 'about'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media' | 'about' | 'sync'>('import');
   
   // ZIP / MD Upload State
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -70,22 +72,73 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'images' | 'videos' | 'others'>('all');
   const [mediaStatus, setMediaStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
+  // Sync Management State
+  const [syncStatuses, setSyncStatuses] = useState<{
+    user_id: number;
+    username: string;
+    device_name: string;
+    last_sync_at: string;
+    status: 'success' | 'error' | 'online' | 'offline';
+    sync_mode: 'auto' | 'manual' | null;
+    error_message: string | null;
+  }[]>([]);
+  const [loadingSync, setLoadingSync] = useState(false);
+  const [triggeringSync, setTriggeringSync] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<string[] | null>(null);
+  const [syncTriggerError, setSyncTriggerError] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{
+    stage: string;
+    current: number;
+    total: number;
+    message: string;
+  } | null>(null);
+
   useEffect(() => {
-    if (isOpen && currentUser.role === 'Admin') {
-      fetchUsers();
-      fetchMediaFiles();
+    if (socket) {
+      const handleProgress = (data: any) => {
+        if (currentUser && data.username === currentUser.username) {
+          setSyncProgress({
+            stage: data.stage,
+            current: data.current,
+            total: data.total,
+            message: data.message
+          });
+          
+          if (data.stage === 'done') {
+            setTimeout(() => setSyncProgress(null), 4000);
+          }
+        }
+      };
+
+      socket.on('sync-server-progress', handleProgress);
+
+      return () => {
+        socket.off('sync-server-progress', handleProgress);
+      };
+    }
+  }, [socket, currentUser]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (currentUser.role === 'Admin') {
+        fetchUsers();
+        fetchMediaFiles();
+      }
+      fetchSyncStatuses();
     }
   }, [isOpen, currentUser]);
 
   useEffect(() => {
-    if (isOpen && currentUser.role === 'Admin') {
-      if (activeTab === 'users') {
+    if (isOpen) {
+      if (activeTab === 'users' && currentUser.role === 'Admin') {
         fetchUsers();
-      } else if (activeTab === 'media') {
+      } else if (activeTab === 'media' && currentUser.role === 'Admin') {
         fetchMediaFiles();
+      } else if (activeTab === 'sync') {
+        fetchSyncStatuses();
       }
     }
-  }, [activeTab]);
+  }, [activeTab, isOpen]);
 
   const fetchUsers = async () => {
     try {
@@ -98,6 +151,48 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
+    }
+  };
+
+  const fetchSyncStatuses = async () => {
+    setLoadingSync(true);
+    try {
+      const res = await fetch('/api/sync/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncStatuses(data.statuses || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch sync statuses:', err);
+    } finally {
+      setLoadingSync(false);
+    }
+  };
+
+  const handleTriggerSync = async () => {
+    setTriggeringSync(true);
+    setSyncLogs(null);
+    setSyncTriggerError(null);
+    setSyncProgress(null);
+    try {
+      const res = await fetch('/api/sync/trigger', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncLogs(data.logs || ['Синхронизация завершена успешно, но логи отсутствуют.']);
+        fetchSyncStatuses();
+      } else {
+        setSyncTriggerError(data.error || 'Ошибка при запуске синхронизации.');
+      }
+    } catch (err: any) {
+      console.error('Failed to trigger sync:', err);
+      setSyncTriggerError('Ошибка сети при отправке команды синхронизации.');
+    } finally {
+      setTriggeringSync(false);
     }
   };
 
@@ -497,6 +592,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           >
             <Image className="w-3.5 h-3.5" />
             <span>Мультимедиа</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('sync')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'sync' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+            }`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Синхронизация</span>
           </button>
           <button
             onClick={() => setActiveTab('about')}
@@ -1043,6 +1147,179 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   })}
                 </div>
               )}
+            </div>
+          ) : activeTab === 'sync' ? (
+            <div className="space-y-6 text-left animate-fade-in select-none">
+              {/* Info card */}
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center text-primary text-lg">
+                    🔄
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Синхронизация локальной папки</h3>
+                    <p className="text-[10px] text-text-muted">Интеграция с локальным приложением Obsidian через MCP</p>
+                  </div>
+                </div>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Эта функция позволяет автоматически синхронизировать вашу локальную папку заметок с сервером StrataNote. Для работы необходимо запустить локальный агент синхронизации <code>stratanote-sync-mcp</code> на вашем компьютере.
+                </p>
+              </div>
+
+              {/* API Token Copy Card */}
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ваш API Токен (JWT)</h4>
+                <p className="text-[10px] text-text-muted">
+                  Скопируйте этот токен и вставьте в ваш локальный файл <code>config.json</code> в поле <code>STRATANOTE_API_TOKEN</code>.
+                </p>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="password"
+                    readOnly
+                    value={token || ''}
+                    className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-mono text-text-muted focus:outline-none"
+                    id="sync-token-input"
+                  />
+                  <button
+                    onClick={() => {
+                      if (token) {
+                        navigator.clipboard.writeText(token);
+                        alert('API Токен успешно скопирован в буфер обмена!');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-primary hover:bg-primary/80 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Скопировать
+                  </button>
+                </div>
+              </div>
+
+              {/* Status and logs */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Подключенные устройства</h4>
+                  <button 
+                    onClick={fetchSyncStatuses}
+                    className="p-1 hover:bg-white/5 rounded transition-colors text-text-muted hover:text-white cursor-pointer"
+                    title="Обновить"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingSync ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {loadingSync && syncStatuses.length === 0 ? (
+                  <p className="text-xs text-text-muted italic">Загрузка информации о синхронизации...</p>
+                ) : syncStatuses.length === 0 ? (
+                  <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl text-center">
+                    <p className="text-xs text-text-disabled">Нет подключенных локальных агентов</p>
+                    <p className="text-[10px] text-text-muted mt-1">Запустите агент на ПК для начала синхронизации</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {syncStatuses.map((status) => (
+                      <div key={status.user_id} className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-white">{status.device_name}</span>
+                            <span className="text-[10px] text-text-muted">({status.username})</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                            status.status === 'success' || status.status === 'online'
+                              ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                              : status.status === 'offline'
+                              ? 'bg-white/5 text-text-muted border border-white/10'
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          }`}>
+                            {status.status === 'success' 
+                              ? 'Синхронизировано' 
+                              : status.status === 'online'
+                              ? 'Подключен'
+                              : status.status === 'offline'
+                              ? 'Оффлайн'
+                              : 'Ошибка'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-text-disabled">
+                          <span>Режим: <strong className="text-white">{status.sync_mode === 'auto' ? 'Авто' : 'Ручной'}</strong></span>
+                          <span>Активность: {formatToMoscowTime(status.last_sync_at)}</span>
+                        </div>
+                        {status.error_message && (
+                          <div className="p-2 rounded bg-red-500/5 border border-red-500/10 text-[10px] text-red-400 font-mono whitespace-pre-wrap break-all">
+                            Ошибка: {status.error_message}
+                          </div>
+                        )}
+
+                        {status.status === 'online' && status.sync_mode === 'manual' && (
+                          <button
+                            onClick={handleTriggerSync}
+                            disabled={triggeringSync}
+                            className="w-full py-1.5 bg-primary hover:bg-primary/80 disabled:bg-primary/50 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${triggeringSync ? 'animate-spin' : ''}`} />
+                            <span>{triggeringSync ? 'Синхронизация...' : 'Синхронизировать сейчас'}</span>
+                          </button>
+                        )}
+
+                        {/* Progress Bar UI */}
+                        {syncProgress && status.status === 'online' && (
+                          <div className="mt-2.5 space-y-1.5 p-3 rounded-xl bg-black/30 border border-white/5 animate-fade-in text-left">
+                            <div className="flex justify-between items-center text-[10px] text-text-muted">
+                              <span className="font-semibold text-white truncate max-w-[170px]">{syncProgress.message}</span>
+                              {syncProgress.total > 0 && (
+                                <span>{syncProgress.current} / {syncProgress.total}</span>
+                              )}
+                            </div>
+                            {syncProgress.total > 0 && (
+                              <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-primary transition-all duration-300 rounded-full"
+                                  style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {status.status === 'online' && status.sync_mode === 'auto' && (
+                          <div className="p-2 rounded bg-green-500/5 border border-green-500/10 text-[10px] text-green-400 text-center">
+                            ℹ️ Фоновая синхронизация активна. Изменения передаются автоматически.
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {syncLogs && (
+                      <div className="p-4 bg-black/40 border border-white/5 rounded-xl space-y-2 animate-fade-in text-left">
+                        <h5 className="text-[11px] font-bold text-white uppercase tracking-wider">Лог последней синхронизации</h5>
+                        <div className="max-h-40 overflow-y-auto font-mono text-[10px] text-text-muted space-y-1 scrollbar-thin">
+                          {syncLogs.map((logLine, idx) => (
+                            <div key={idx} className="whitespace-pre-wrap">{logLine}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {syncTriggerError && (
+                      <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs flex items-start space-x-2 animate-fade-in text-left">
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{syncTriggerError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-white">Как запустить синхронизацию?</h4>
+                <ol className="list-decimal list-inside space-y-2 text-xs text-text-muted">
+                  <li>Убедитесь, что у вас установлен Node.js на компьютере.</li>
+                  <li>Перейдите в папку проекта <code>_sync_mcp</code> на вашем компьютере.</li>
+                  <li>Настройте подключение в файле <code>config.json</code>, указав адрес этого сервера и ваш API токен.</li>
+                  <li>Запустите команду: <code className="bg-black/30 px-1 py-0.5 rounded font-mono select-all">npm start</code></li>
+                  <li>Агент начнет отслеживать файлы в указанной локальной папке и синхронизировать их с сервером!</li>
+                </ol>
+              </div>
             </div>
           ) : activeTab === 'about' ? (
             <div className="space-y-6 text-left animate-fade-in select-none">

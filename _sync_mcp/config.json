@@ -1,0 +1,20 @@
+{
+  "STRATANOTE_SERVER_URL": "http://localhost:3001",
+  "STRATANOTE_API_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc4MzEyMjM1OCwiZXhwIjoxODE0NjU4MzU4fQ.07wYPZPQDjpb_A8k7OnA2EmFYl9x3dkJpO1xbJ0cO18",
+  "LOCAL_VAULT_PATH": "D:/YandexDisk/AWG/md_obsidian",
+  "SYNC_MODE": "manual",
+  "CONFLICT_RESOLUTION": "suggest",
+  "POLL_INTERVAL_MS": 10000,
+  "EXCLUDE_PATTERNS": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.obsidian/**",
+    "**/_app/**",
+    "**/_sync_mcp/**",
+    "**/database.sqlite",
+    "**/.sync_state.json",
+    "**/.agents/**",
+    "**/.sync_backup/**",
+    "**/.DS_Store"
+  ]
+}
