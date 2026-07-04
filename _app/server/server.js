@@ -282,8 +282,13 @@ const startServer = async () => {
     // 1. Initialize SQLite
     await initDb();
 
-    // Prune node_modules if they accidentally slipped into notes database
-    await run("DELETE FROM notes WHERE relative_path = 'node_modules' OR relative_path LIKE 'node_modules/%'");
+    // Prune system and repository directories if they accidentally slipped into notes database
+    const systemDirs = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
+    for (const dir of systemDirs) {
+      await run("DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+      await run("DELETE FROM versions WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+      await run("DELETE FROM note_embeddings WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+    }
 
     // 2. Start Chokidar watcher (watches files and handles live SQLite / Socket sync)
     const watcher = initWatcher(io);

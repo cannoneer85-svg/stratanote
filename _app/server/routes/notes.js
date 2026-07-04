@@ -614,7 +614,8 @@ router.get('/export', authenticateJWT, (req, res) => {
   // Read all files/folders in vaultPath and append to zip, excluding internal _app/ and system config files
   const items = fs.readdirSync(vaultPath);
   for (const item of items) {
-    if (item === '_app' || item === 'package.json' || item === 'package-lock.json' || item.startsWith('.')) continue;
+    const SYSTEM_DIRS = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
+    if (SYSTEM_DIRS.includes(item) || item === 'package.json' || item === 'package-lock.json' || item.startsWith('.')) continue;
 
     const fullPath = join(vaultPath, item);
     const stat = fs.statSync(fullPath);

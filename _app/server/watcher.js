@@ -49,13 +49,10 @@ export const initWatcher = (io) => {
   const watcher = chokidar.watch(vaultPath, {
     ignored: (path) => {
       const normPath = path.replace(/\\/g, '/');
+      const SYSTEM_DIRS = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
+      const parts = normPath.split('/');
       return (
-        normPath.includes('/_app') ||
-        normPath.includes('/_sync_mcp') ||
-        normPath.includes('/.agents') ||
-        normPath.includes('/node_modules') ||
-        normPath.includes('/.git') ||
-        normPath.includes('/.obsidian') ||
+        parts.some(part => SYSTEM_DIRS.includes(part) || part.startsWith('.')) ||
         normPath.includes('/assets/')
       );
     },
