@@ -52,6 +52,7 @@ export const initWatcher = (io) => {
       return (
         normPath.includes('/_app') ||
         normPath.includes('/_sync_mcp') ||
+        normPath.includes('/.agents') ||
         normPath.includes('/node_modules') ||
         normPath.includes('/.git') ||
         normPath.includes('/.obsidian') ||
