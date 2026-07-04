@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { run, get, all } from '../db.js';
 import { vaultPath } from '../watcher.js';
 import { authenticateJWT } from './auth.js';
+import { updateNoteEmbedding } from './notes.js';
 
 const router = express.Router();
 
@@ -165,6 +166,41 @@ router.post('/push', authenticateJWT, async (req, res) => {
 
     const isBinary = relPath.startsWith('assets/');
     const fileBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
+
+    // If it's a markdown note, update database versions first, so that the Chokidar file watcher
+    // sees that the latest database version already matches the new content and keeps the correct author name.
+    if (!isBinary && relPath.endsWith('.md')) {
+      try {
+        const contentStr = fileBuffer.toString('utf8');
+        const title = basename(relPath, '.md');
+        const parentPath = normalizePath(dirname(relPath)) === '.' ? '' : normalizePath(dirname(relPath));
+
+        const existingNote = await get('SELECT * FROM notes WHERE relative_path = ?', [relPath]);
+        if (!existingNote) {
+          await run(
+            'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            [relPath, title, 0, parentPath, req.user.username, req.user.username]
+          );
+        } else {
+          await run(
+            'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
+            [req.user.username, relPath]
+          );
+        }
+
+        await run(
+          'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+          [relPath, contentStr, req.user.username]
+        );
+
+        // Update embedding asynchronously
+        updateNoteEmbedding(relPath, contentStr).catch(err => {
+          console.error('[Sync] Failed to update note embedding during push:', err);
+        });
+      } catch (dbErr) {
+        console.error('[Sync] Database update failed during push:', dbErr);
+      }
+    }
 
     fs.writeFileSync(safePath, fileBuffer);
     

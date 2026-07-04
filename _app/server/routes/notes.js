@@ -12,7 +12,7 @@ import { getEmbedding, cosineSimilarity } from '../embeddings.js';
 import { threeWayMerge } from '../merge.js';
 
 // Helper to update note embedding in the background
-const updateNoteEmbedding = async (relPath, content) => {
+export const updateNoteEmbedding = async (relPath, content) => {
   try {
     const contentHash = crypto.createHash('sha256').update(content).digest('hex');
 
