@@ -1249,7 +1249,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                           </div>
                         )}
 
-                        {status.status === 'online' && status.sync_mode === 'manual' && (
+                        {status.status !== 'offline' && status.sync_mode === 'manual' && (
                           <button
                             onClick={handleTriggerSync}
                             disabled={triggeringSync}
@@ -1261,7 +1261,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         )}
 
                         {/* Progress Bar UI */}
-                        {syncProgress && status.status === 'online' && (
+                        {syncProgress && status.status !== 'offline' && (
                           <div className="mt-2.5 space-y-1.5 p-3 rounded-xl bg-black/30 border border-white/5 animate-fade-in text-left">
                             <div className="flex justify-between items-center text-[10px] text-text-muted">
                               <span className="font-semibold text-white truncate max-w-[170px]">{syncProgress.message}</span>
