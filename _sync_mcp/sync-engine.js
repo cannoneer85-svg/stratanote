@@ -14,6 +14,14 @@ const normalizePath = (p) => p.replace(/\\/g, '/');
 // Check if a path should be excluded
 function isExcluded(relPath, excludePatterns) {
   const norm = normalizePath(relPath);
+
+  // Strict system folder and dotfile check to prevent scanning/modifying project internals
+  const SYSTEM_DIRS = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
+  const parts = norm.split('/');
+  if (parts.some(part => SYSTEM_DIRS.includes(part) || part.startsWith('.'))) {
+    return true;
+  }
+
   return excludePatterns.some(pattern => minimatch(norm, pattern, { dot: true }));
 }
 
@@ -49,7 +57,7 @@ export class SyncEngine {
     this.config = config;
     this.stateFilePath = join(__dirname, '.sync_state.json');
     this.backupDir = join(__dirname, '.sync_backup');
-    this.onProgress = onProgress || (() => {});
+    this.onProgress = onProgress || (() => { });
   }
 
   // Load last sync state from .sync_state.json
@@ -116,8 +124,8 @@ export class SyncEngine {
       // 2. Generate local manifest
       this.onProgress('manifest', 0, 0, 'Сканирование локальной папки...');
       const localFiles = getLocalFiles(
-        this.config.LOCAL_VAULT_PATH, 
-        this.config.LOCAL_VAULT_PATH, 
+        this.config.LOCAL_VAULT_PATH,
+        this.config.LOCAL_VAULT_PATH,
         this.config.EXCLUDE_PATTERNS
       );
       log(`Generated local manifest (${localFiles.length} items)`);
@@ -176,7 +184,7 @@ export class SyncEngine {
           } else {
             nextSyncState[path] = { hash: local.hash, mtime: local.mtime, serverHash: server.hash };
           }
-        } 
+        }
         // File exists only locally
         else if (local) {
           if (base) {
@@ -184,7 +192,7 @@ export class SyncEngine {
           } else {
             pushQueue.push({ path, local, base });
           }
-        } 
+        }
         // File exists only on server
         else if (server) {
           if (base) {
@@ -272,8 +280,8 @@ export class SyncEngine {
               lastKnownServerHash: item.base ? item.base.serverHash : undefined
             });
 
-            nextSyncState[item.path] = { 
-              hash: item.local.hash, 
+            nextSyncState[item.path] = {
+              hash: item.local.hash,
               mtime: item.local.mtime,
               serverHash: response.data.hash
             };
@@ -305,15 +313,15 @@ export class SyncEngine {
             log(`Pulling file from server: ${item.path}`);
             const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
             fs.writeFileSync(fullLocalPath, Buffer.from(res.data));
-            
+
             if (item.server.mtime) {
               const atime = Date.now() / 1000;
               fs.utimesSync(fullLocalPath, atime, item.server.mtime / 1000);
             }
 
             const localStat = fs.statSync(fullLocalPath);
-            nextSyncState[item.path] = { 
-              hash: item.server.hash, 
+            nextSyncState[item.path] = {
+              hash: item.server.hash,
               mtime: localStat.mtimeMs,
               serverHash: item.server.hash
             };
@@ -331,11 +339,11 @@ export class SyncEngine {
           this.onProgress('process', processedTasks, totalTasks, `Разрешение конфликта: ${item.path}`);
           const fullLocalPath = join(this.config.LOCAL_VAULT_PATH, item.path);
           log(`Conflict detected in ${item.path}. Resolution strategy: ${this.config.CONFLICT_RESOLUTION}`);
-          
+
           if (this.config.CONFLICT_RESOLUTION === 'suggest') {
             log(`Sending local changes for ${item.path} as Suggestion to server...`);
             const fileContent = fs.readFileSync(fullLocalPath, 'utf8');
-            
+
             const resPull = await api.post('/api/sync/pull', { path: item.path });
             const baseContent = resPull.data;
 
@@ -347,12 +355,12 @@ export class SyncEngine {
             });
 
             log(`Successfully created review suggestion for: ${item.path}`);
-            nextSyncState[item.path] = { 
-              hash: item.local.hash, 
+            nextSyncState[item.path] = {
+              hash: item.local.hash,
               mtime: item.local.mtime,
               serverHash: item.server.hash
             };
-          } 
+          }
           else if (this.config.CONFLICT_RESOLUTION === 'local-wins') {
             log(`Forcing local version for: ${item.path}`);
             const isBinary = item.path.startsWith('assets/');
@@ -367,15 +375,15 @@ export class SyncEngine {
               force: true
             });
 
-            nextSyncState[item.path] = { 
-              hash: item.local.hash, 
+            nextSyncState[item.path] = {
+              hash: item.local.hash,
               mtime: item.local.mtime,
               serverHash: response.data.hash
             };
-          } 
+          }
           else if (this.config.CONFLICT_RESOLUTION === 'server-wins') {
             log(`Forcing server version for: ${item.path}`);
-            
+
             if (fs.existsSync(fullLocalPath)) {
               if (!fs.existsSync(this.backupDir)) fs.mkdirSync(this.backupDir, { recursive: true });
               const backupPath = join(this.backupDir, item.path);
@@ -386,24 +394,24 @@ export class SyncEngine {
 
             const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
             fs.writeFileSync(fullLocalPath, Buffer.from(res.data));
-            
-            nextSyncState[item.path] = { 
-              hash: item.server.hash, 
+
+            nextSyncState[item.path] = {
+              hash: item.server.hash,
               mtime: fs.statSync(fullLocalPath).mtimeMs,
               serverHash: item.server.hash
             };
-          } 
+          }
           else if (this.config.CONFLICT_RESOLUTION === 'interactive') {
             log(`Saving interactive conflict copy for: ${item.path}`);
             const ext = extname(item.path);
             const baseName = item.path.substring(0, item.path.length - ext.length);
             const conflictPath = `${baseName}.conflict-${Date.now()}${ext}`;
             const conflictFilePath = join(this.config.LOCAL_VAULT_PATH, conflictPath);
-            
+
             const res = await api.post('/api/sync/pull', { path: item.path });
             fs.writeFileSync(conflictFilePath, res.data);
             log(`Saved server copy as: ${relative(this.config.LOCAL_VAULT_PATH, conflictFilePath)}. Please merge manually.`);
-            
+
             if (item.base) nextSyncState[item.path] = item.base;
           }
         } catch (err) {

@@ -138,7 +138,7 @@ function setupSocketConnection(config) {
       
       console.error('[Socket] Remote sync finished. Sending response callback...');
       if (typeof callback === 'function') {
-        callback(null, { success: true, logs: result.logs });
+        callback({ success: true, logs: result.logs });
         console.error('[Socket] Response callback sent.');
       } else {
         console.error('[Socket] Warning: Callback is not a function! Ack skipped.');
@@ -146,7 +146,7 @@ function setupSocketConnection(config) {
     } catch (err) {
       console.error('[Socket] Remote sync failed:', err);
       if (typeof callback === 'function') {
-        callback({ message: err.message });
+        callback({ success: false, error: err.message });
       }
     }
   });

@@ -22,19 +22,11 @@ const getFilesRecursive = (dir, rootDir) => {
     
     const rel = normalizePath(relative(rootDir, filePath));
     // Ignore hidden files/folders, backend code, node_modules, and sync configs on any level
+    const SYSTEM_DIRS = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup', '_sources'];
+    const parts = rel.split('/');
     if (
       file.startsWith('.') || 
-      file === '_app' || 
-      file === '_sync_mcp' ||
-      file === 'node_modules' ||
-      rel.startsWith('_app/') ||
-      rel.startsWith('_sync_mcp/') ||
-      rel.startsWith('node_modules/') ||
-      rel.includes('/_app/') ||
-      rel.includes('/_sync_mcp/') ||
-      rel.includes('/node_modules/') ||
-      rel.includes('/.git/') ||
-      rel.includes('/.obsidian/') ||
+      parts.some(part => SYSTEM_DIRS.includes(part) || part.startsWith('.')) ||
       file === 'database.sqlite' ||
       file === '.sync_state.json'
     ) {
