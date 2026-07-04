@@ -294,6 +294,36 @@ router.post('/trigger', authenticateJWT, async (req, res) => {
 // DEBUG ENDPOINT
 router.get('/debug-file', authenticateJWT, async (req, res) => {
   const relPath = req.query.path || "assets/10934961046541_18.png";
+  const doCleanup = req.query.cleanup === 'true';
+
+  if (doCleanup) {
+    try {
+      const deletedFiles = [];
+      const cleanRecursive = (dir) => {
+        if (!fs.existsSync(dir)) return;
+        const list = fs.readdirSync(dir);
+        for (const file of list) {
+          const filePath = join(dir, file);
+          const stat = fs.statSync(filePath);
+          if (file.includes('\\')) {
+            if (stat.isDirectory()) {
+              fs.rmSync(filePath, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(filePath);
+            }
+            deletedFiles.push(file);
+          } else if (stat.isDirectory()) {
+            cleanRecursive(filePath);
+          }
+        }
+      };
+      cleanRecursive(vaultPath);
+      return res.json({ success: true, message: 'Cleanup complete', deletedFiles });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   const safePath = resolve(vaultPath, relPath);
   try {
     const exists = fs.existsSync(safePath);
