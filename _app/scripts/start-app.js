@@ -38,6 +38,16 @@ async function main() {
     console.log('Фронтенд уже собран. Если вы хотите обновить сборку, удалите папку "_app/client/dist" или выполните "npm run build" вручную.');
   }
 
+  // Check if sync agent has dependencies
+  const syncMcpDir = path.resolve(projectRoot, '_sync_mcp');
+  if (fs.existsSync(syncMcpDir)) {
+    const syncNodeModules = path.join(syncMcpDir, 'node_modules');
+    if (!fs.existsSync(syncNodeModules)) {
+      console.log('Зависимости для локального агента _sync_mcp не найдены. Установка (это может занять около 10-15 секунд)...');
+      await runCommand('npm', ['install'], syncMcpDir);
+    }
+  }
+
   console.log(`Запуск сервера на порту ${port}...`);
   
   // Start server
@@ -47,6 +57,21 @@ async function main() {
     shell: true,
     stdio: 'inherit'
   });
+
+  // Start Sync Agent
+  let syncProcess = null;
+  if (fs.existsSync(syncMcpDir)) {
+    console.log('Запуск локального агента синхронизации MCP...');
+    syncProcess = spawn('npm', ['start'], {
+      cwd: syncMcpDir,
+      shell: true,
+      stdio: 'inherit'
+    });
+
+    syncProcess.on('close', (code) => {
+      console.log(`Процесс локального агента синхронизации завершился с кодом ${code}`);
+    });
+  }
 
   // Open browser after a small delay (1.5 seconds) to let server bind
   setTimeout(() => {
@@ -61,8 +86,28 @@ async function main() {
     });
   }, 1500);
 
+  // Clean up child processes on exit
+  const cleanUp = () => {
+    if (serverProcess) {
+      try { serverProcess.kill(); } catch (e) {}
+    }
+    if (syncProcess) {
+      try { syncProcess.kill(); } catch (e) {}
+    }
+  };
+
+  process.on('SIGINT', () => {
+    cleanUp();
+    process.exit(0);
+  });
+
+  process.on('exit', () => {
+    cleanUp();
+  });
+
   serverProcess.on('close', (code) => {
     console.log(`Процесс сервера завершился с кодом ${code}`);
+    cleanUp();
     process.exit(code);
   });
 }

@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "postinstall": "npm run install:all",
-    "install:all": "npm install --prefix client --omit=none && npm install --prefix server",
+    "install:all": "npm install --prefix client --omit=none && npm install --prefix server && npm install --prefix ../_sync_mcp",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:sync": "npm --prefix ../_sync_mcp start",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:sync\"",
     "test:media": "node scripts/test_media_features.mjs",
     "test:mobile": "node scripts/test-mobile-ui.js"
   },
