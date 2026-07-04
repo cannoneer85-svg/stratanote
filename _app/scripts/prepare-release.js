@@ -45,7 +45,8 @@ function getRepoPath() {
   } catch (e) {
     // If open remote doesn't exist
   }
-  return repoPath;
+  // Strip trailing slashes to prevent API double-slash 404s
+  return repoPath.replace(/\/+$/, '');
 }
 
 function makeGithubRelease(repoPath, token, tag, title, body) {
