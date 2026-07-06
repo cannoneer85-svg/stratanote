@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.0] - 2026-07-06
+### Bilingual Support (RU/EN) and Centralized Localization System
+
+- Added full interface translation support for Russian and English languages.
+- Introduced a centralized type-safe translations dictionary (translations.ts) for easy integration of future languages.
+- Updated repository documentation with a comprehensive English README.md including Mermaid architecture diagrams.
+- Added a language selector dropdown inside the settings panel.
+- Handled dynamic translation of external system authors and localized CRUD operation warnings.
+
 ## [1.5.0] - 2026-07-06
 ### Генератор API токенов и WebSocket-безопасность
 
