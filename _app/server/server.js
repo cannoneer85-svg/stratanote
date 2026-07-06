@@ -234,7 +234,7 @@ io.on('connection', (socket) => {
       console.log(`[Socket] Sync agent disconnected: User ID ${socket.userId}`);
       try {
         await run(`
-          UPDATE sync_status SET status = 'offline' WHERE user_id = ? AND status = 'online'
+          UPDATE sync_status SET status = 'offline' WHERE user_id = ? AND status != 'offline'
         `, [socket.userId]);
         io.emit('sync-status-changed');
       } catch (err) {
@@ -324,6 +324,9 @@ const startServer = async () => {
   try {
     // 1. Initialize SQLite
     await initDb();
+
+    // Reset all sync statuses to offline on startup
+    await run("UPDATE sync_status SET status = 'offline' WHERE status != 'offline'");
 
     // Prune system and repository directories if they accidentally slipped into notes database
     const systemDirs = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
