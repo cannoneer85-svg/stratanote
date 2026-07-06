@@ -32,6 +32,7 @@ desktop.ini
 !/.gitignore
 !/start.bat
 !/README.md
+!/README.ru.md
 !/.agents/
 !/CHANGELOG.md
 

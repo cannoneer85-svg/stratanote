@@ -10,65 +10,74 @@
 - Handled dynamic translation of external system authors and localized CRUD operation warnings.
 
 ## [1.5.0] - 2026-07-06
-### Генератор API токенов и WebSocket-безопасность
+### API Token Generator and WebSocket Security Updates
 
-- Добавлена генерация API токенов с выбором срока действия (от 1 дня до бессрочного) в настройках синхронизации.
-- Срок жизни стандартной сессии пользователя увеличен с 24 часов до 7 дней.
-- Внедрена строгая JWT-проверка токена из handshake при WebSocket-регистрации локального агента.
-- Реализовано мгновенное реалтайм-обновление статусов устройств в списке подключений.
-- Исправлена ошибка, при которой статус устройства не переходил в оффлайн при отключении сокета.
+- Added custom API token generator with selectable lifespan (from 1 day to 10 years) in sync settings.
+- Extended default user session lifetime from 24 hours to 7 days.
+- Implemented strict JWT verification for local sync agent connections via WebSockets.
+- Added instant real-time device status updates using Socket.io broadcasting.
+- Fixed a bug where device status was not updated to 'offline' when socket disconnected.
 
 ## [1.4.1] - 2026-07-04
-### Исправление пути к репозиторию в скрипте автопубликации
+### Fix repository path in auto-publish script
 
-- Исправлен парсинг URL-адресов с завершающим слэшем в скрипте публикации релизов на GitHub.
+- Fixed GitHub API release publication URL parsing by stripping trailing slashes.
 
 ## [1.4.0] - 2026-07-04
-### MCP-интеграция, локальный граф связей, режим рецензирования и безопасная синхронизация
+### MCP Integration, Local Graph, Review Mode, and Secure Sync
 
-- Полноценный Model Context Protocol (MCP) сервер в папке _sync_mcp для интеграции c локальными файлами и двусторонней онлайн-синхронизации.
-- Интерактивный прогресс-бар в реальном времени и отображение логов ручной синхронизации в админке.
-- Нормализация путей файлов на Windows для 100% совместимости с Linux-сервером.
-- Жесткое исключение и очистка системных папок (_sync_mcp, node_modules, .agents) из синхронизации и ZIP-экспорта.
-- Режим рецензирования (Suggest Mode) с ролями доступа и реалтайм-уведомлениями.
-- Адаптивный мобильный интерфейс и плавная регулировка боковой панели (Ghost Line).
-- Оптимизация семантических связей графа по алгоритму KNN Top-3 и порогу схожести 85%.
-- Исправление гонки потоков при локальном редактировании для сохранения авторства вошедшего пользователя.
-- Авто-индексация векторных эмбеддингов при запуске на пустой базе данных.
+- Full Model Context Protocol (MCP) server in _sync_mcp folder for local file integration and two-way sync.
+- Interactive real-time progress bar and manual sync execution logs in administration panel.
+- Windows file path normalization for 100% compatibility with Linux server.
+- Strict directory exclusions (_sync_mcp, node_modules, .agents) for synchronization and ZIP export.
+- Review Mode (Suggest Mode) with roles authorization and real-time notifications.
+- Responsive mobile UI layout and smooth sidebar resizing (Ghost Line).
+- Graph semantic connections optimization with KNN Top-3 filter and default 85% similarity threshold.
+- Fixed race condition in local file edits to preserve correct user authorship.
+- Auto-indexing vector embeddings on startup if database is empty.
 
 ## [1.3.0] - 2026-07-01
-### Локальные семантические связи, интерактивные Mermaid-диаграммы и улучшения UX
+### Local Semantic Connections, Interactive Mermaid Diagrams, and UX Improvements
 
-- Локальный расчёт логического (семантического) сходства заметок с помощью векторных эмбеддингов (Transformers.js) без внешних API
-- Интерактивный граф с логарифмическим масштабированием узлов, стабильной фокусировкой камеры, счётчиками и древовидным фильтром каталогов
-- Интерактивное модальное окно просмотра Mermaid-диаграмм с поддержкой pan & zoom
-- Пакетная автоматическая синхронизация прокрутки (Scroll Sync) в редакторе
-- Кнопка быстрого скачивания текущей заметки в формате Markdown
-- Экспорт архива заметок в ZIP с московским временем файлов (UTC+3)
-- Исправления рендеринга цитат (blockquote), sequence-диаграмм Mermaid и экранирования ID подграфов
+- Local semantic similarity calculation using vector embeddings (Transformers.js) without external APIs.
+- Interactive graph with logarithmic node scaling, camera focus stability, counter badges, and folder tree filter.
+- Interactive Mermaid diagram viewer modal with full pan & zoom support.
+- Automatic editorial scroll synchronization in editor mode.
+- Quick action button to download current note as Markdown.
+- ZIP archive export with Moscow time zone (UTC+3) file metadata timestamps.
+- Fixed blockquote rendering, Mermaid sequence diagrams, and subgraph ID escaping.
 
 ## [1.2.1] - 2026-06-29
-### Ребрендинг StrataNote и автоматизация релизов на GitHub
+### StrataNote Rebranding and GitHub Release Automation
 
-- Выполнен полный ребрендинг проекта в StrataNote на уровне кода, настроек и интерфейса.
-- Добавлен новый фиолетовый логотип и высококачественная прозрачная иконка.
-- Настроена автоматическая отправка релизов на GitHub API с защитой ключей доступа.
+- Completed full project rebranding to StrataNote across codebase, configs, and UI.
+- Added new purple logo and high-quality transparent icon.
+- Configured automated release publishing on GitHub API with secure token loading.
 
 ## [1.2.0] - 2026-06-28
-### Фильтрация медиафайлов и новые правила сборки
+### Media File Filtering and New Build Rules
 
-- Добавлена удобная панель быстрых фильтров («Все», «Изображения», «Видео», «Другие») в раздел мультимедиа панели администратора.
-- Реализован автоматический расчет и отображение количества файлов для каждой категории медиафайлов.
-- Внедрено новое обязательное правило автоматической сборки фронтенда силами ИИ-помощника для поддержания актуальности рабочей копии на диске.
-- Очищен белый список файлов .gitignore от лишних проектных документов для повышения конфиденциальности репозитория.
+- Added quick category filters (All, Images, Videos, Others) in administrative media manager.
+- Implemented automatic item count calculation for each media category.
+- Introduced mandatory AI auto-build guidelines to keep local dev builds up-to-date.
+- Cleaned up .gitignore rules to prevent committing personal config files.
 
 ## [1.1.0] - 2026-06-28
-### Оптимизация репозитория и динамическое окружение
+### Repository Optimization and Dynamic Environment
 
-- Оптимизация структуры репозитория: очистка корня от конфигурационных файлов Node.js и перенос служебных скриптов в _app/scripts/
-- Автоматизация развёртывания: внедрение хука postinstall в package.json для автоматической сборки подпапок на серверах CI/CD
-- Исправление сборки в production: принудительная установка dev-зависимостей клиента для корректной компиляции TypeScript (tsc) и Vite
-- Динамическое определение среды выполнения (Production / Development) в панели настроек на основе переменной NODE_ENV бэкенда
-- Добавление подробного руководства по облачному деплою и настройки переменной DATABASE_PATH для постоянного хранения данных в README.md
-- Настройка правил автоматического чтения текущего статуса проекта для ИИ-помощников в AGENTS.md
+- Repository structure optimization: moved scripts to _app/scripts/ and cleaned up root.
+- Deployment automation: postinstall hook in package.json to build subfolders on CI/CD platforms.
+- Fixed production build by ensuring client devDependencies are installed for TypeScript compiler (tsc).
+- Dynamic server runtime environment determination (Production / Development) based on server NODE_ENV.
+- Added deployment guidelines and DATABASE_PATH configure instructions in README.md.
+- Configured project-scoped status reading guidelines for AI agents in AGENTS.md.
 
+## [1.0.0] - 2026-06-28
+### First Stable Release
+
+- CodeMirror 6 based Markdown editor with wikilinks syntax highlighting.
+- Canvas-based interactive 2D graph of note connections using D3.js.
+- Real-time user presence sync and document lock conflict prevention via WebSockets.
+- Chunked ZIP archive exports supporting 300MB+ vault downloads with flexible configurations.
+- User administration panel (approvals, role management) and physical media assets deletion.
+- Obsidian Callouts rendering (note, tip, warning, important, caution) and Mermaid diagrams.
