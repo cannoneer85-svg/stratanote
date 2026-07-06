@@ -1,0 +1,20 @@
+{
+  "STRATANOTE_SERVER_URL": "http://localhost:3001",
+  "STRATANOTE_API_TOKEN": "",
+  "LOCAL_VAULT_PATH": "D:/YandexDisk/AWG/md_obsidian",
+  "SYNC_MODE": "manual",
+  "CONFLICT_RESOLUTION": "suggest",
+  "POLL_INTERVAL_MS": 10000,
+  "EXCLUDE_PATTERNS": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.obsidian/**",
+    "**/_app/**",
+    "**/_sync_mcp/**",
+    "**/database.sqlite",
+    "**/.sync_state.json",
+    "**/.agents/**",
+    "**/.sync_backup/**",
+    "**/.DS_Store"
+  ]
+}

@@ -1,0 +1,323 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-text font-sans antialiased overflow-hidden selection:bg-primary/30 selection:text-white;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(24, 24, 24, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Glowing Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(157, 78, 221, 0.5);
+  }
+}
+
+.glow-active {
+  animation: pulse-glow 2s infinite ease-in-out;
+  border-color: rgba(157, 78, 221, 0.4);
+}
+
+/* CodeMirror Custom Styling to integrate with our Dark Glass theme */
+.cm-editor {
+  height: 100% !important;
+  background-color: transparent !important;
+}
+
+.cm-scroller {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+.cm-gutters {
+  background-color: transparent !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Custom visual markdown styles in Live Preview */
+.markdown-preview h1, .visual-h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview h2, .visual-h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f3f4f6;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-preview h3, .visual-h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-preview h4, .visual-h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #d1d5db;
+  margin-top: 0.875rem;
+  margin-bottom: 0.375rem;
+}
+
+.markdown-preview h5, .visual-h5 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.markdown-preview h6, .visual-h6 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.markdown-preview p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+.markdown-preview strong, .visual-bold {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.markdown-preview blockquote, .visual-blockquote {
+  border-left: 4px solid #9d4edd;
+  background: rgba(157, 78, 221, 0.05);
+  padding: 0.75rem 1rem;
+  margin: 1.25rem 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Callouts / Alerts styling */
+.visual-callout {
+  border-left: 4px solid #4b5563;
+  background: rgba(156, 163, 175, 0.04);
+  padding: 0.85rem 1.15rem;
+  margin: 1.25rem 0;
+  border-radius: 0.5rem;
+}
+
+.visual-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.visual-callout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.visual-callout-content {
+  font-size: 0.925rem;
+  line-height: 1.6;
+  color: #d1d5db;
+}
+
+.visual-callout-content p {
+  margin-bottom: 0.75rem;
+}
+
+.visual-callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Callout variations */
+.visual-callout-info {
+  border-color: #3b82f6; /* Blue */
+  background: rgba(59, 130, 246, 0.05);
+}
+.visual-callout-info .visual-callout-header {
+  color: #60a5fa;
+}
+
+.visual-callout-success {
+  border-color: #10b981; /* Green */
+  background: rgba(16, 185, 129, 0.05);
+}
+.visual-callout-success .visual-callout-header {
+  color: #34d399;
+}
+
+.visual-callout-important {
+  border-color: #a78bfa; /* Purple/Violet */
+  background: rgba(167, 139, 250, 0.05);
+}
+.visual-callout-important .visual-callout-header {
+  color: #c084fc;
+}
+
+.visual-callout-warning {
+  border-color: #f59e0b; /* Amber */
+  background: rgba(245, 158, 11, 0.05);
+}
+.visual-callout-warning .visual-callout-header {
+  color: #fbbf24;
+}
+
+.visual-callout-danger {
+  border-color: #ef4444; /* Red */
+  background: rgba(239, 68, 68, 0.05);
+}
+.visual-callout-danger .visual-callout-header {
+  color: #f87171;
+}
+
+.visual-callout-quote {
+  border-color: #9ca3af; /* Gray */
+  background: rgba(156, 163, 175, 0.04);
+}
+.visual-callout-quote .visual-callout-header {
+  color: #d1d5db;
+}
+
+/* Styled fallback for failed Mermaid diagrams */
+.mermaid[data-processed="failed"] {
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.03);
+  border: 1px dashed rgba(239, 68, 68, 0.25);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  margin: 1.25rem 0;
+  text-align: left;
+  line-height: 1.5;
+  box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.02);
+}
+
+/* Custom scrollable styling for Mermaid diagrams */
+.markdown-preview .mermaid {
+  width: 100%;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1.25rem 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.markdown-preview .mermaid[data-processed="true"] {
+  position: relative;
+  cursor: zoom-in;
+}
+
+.markdown-preview .mermaid[data-processed="true"]:hover {
+  border-color: rgba(167, 139, 250, 0.3); /* Purple accent border */
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.1);
+}
+
+/* Badge overlay on hover */
+.markdown-preview .mermaid[data-processed="true"]::after {
+  content: '🔍 Клик для увеличения';
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(24, 24, 24, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.markdown-preview .mermaid[data-processed="true"]:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.markdown-preview .mermaid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.markdown-preview .mermaid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.markdown-preview .mermaid svg {
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+}
