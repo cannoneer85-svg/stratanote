@@ -59,37 +59,108 @@ function makeGithubRelease(repoPath, token, tag, title, body) {
       prerelease: false
     });
 
-    const options = {
-      hostname: 'api.github.com',
-      port: 443,
-      path: `/repos/${repoPath}/releases`,
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'User-Agent': 'StrataNote-Release-Script',
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData)
-      }
+    const createRelease = () => {
+      const options = {
+        hostname: 'api.github.com',
+        port: 443,
+        path: `/repos/${repoPath}/releases`,
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': 'StrataNote-Release-Script',
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if (res.statusCode === 201) {
+            resolve(JSON.parse(data));
+          } else if (res.statusCode === 422) {
+            // Already exists - fetch and update
+            log(`Релиз для тега ${tag} уже существует. Обновляем описание через PATCH...`);
+            getReleaseByTag().then(releaseId => {
+              updateRelease(releaseId).then(resolve).catch(reject);
+            }).catch(reject);
+          } else {
+            reject(new Error(`GitHub API returned status ${res.statusCode}: ${data}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
     };
 
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        if (res.statusCode === 201) {
-          resolve(JSON.parse(data));
-        } else {
-          reject(new Error(`GitHub API returned status ${res.statusCode}: ${data}`));
-        }
+    const getReleaseByTag = () => {
+      return new Promise((resResolve, resReject) => {
+        const options = {
+          hostname: 'api.github.com',
+          port: 443,
+          path: `/repos/${repoPath}/releases/tags/${tag}`,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'User-Agent': 'StrataNote-Release-Script'
+          }
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              const release = JSON.parse(data);
+              resResolve(release.id);
+            } else {
+              resReject(new Error(`Failed to get release by tag ${tag}: GitHub status ${res.statusCode}`));
+            }
+          });
+        });
+
+        req.on('error', resReject);
+        req.end();
       });
-    });
+    };
 
-    req.on('error', (e) => {
-      reject(e);
-    });
+    const updateRelease = (releaseId) => {
+      return new Promise((upResolve, upReject) => {
+        const options = {
+          hostname: 'api.github.com',
+          port: 443,
+          path: `/repos/${repoPath}/releases/${releaseId}`,
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'User-Agent': 'StrataNote-Release-Script',
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
 
-    req.write(postData);
-    req.end();
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              upResolve(JSON.parse(data));
+            } else {
+              upReject(new Error(`Failed to update release ${releaseId}: GitHub status ${res.statusCode}`));
+            }
+          });
+        });
+
+        req.on('error', upReject);
+        req.write(postData);
+        req.end();
+      });
+    };
+
+    createRelease();
   });
 }
 

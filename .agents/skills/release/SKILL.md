@@ -20,15 +20,18 @@ This skill automates the release process for StrataNote.
       - `PATCH` if there are only bugfixes/chores/docs (e.g. `fix:`, `docs:`, `chore:`).
 3.  **Collect Bilingual Keynotes**:
     - Summarize the commits since the last release into bullet points in both English and Russian.
-4.  **Propose release package**:
-    - Show the recommended new version (e.g. `1.5.0`), titles, and keynotes for both languages (English and Russian).
+4.  **Review and Update Documentation**:
+    - Analyze if the release commits contain changes affecting the repository structure, project stack, local sync configuration, APIs, or installation flow.
+    - If so, the agent **MUST** proactively update both `README.md` (English) and `README.ru.md` (Russian) to match the new architecture before proceeding.
+5.  **Propose release package**:
+    - Show the recommended new version (e.g. `1.5.0`), titles, keynotes for both languages, and any proposed README modifications.
     - Ask the user to confirm.
-5.  **Run release script**:
+6.  **Run release script**:
     - If approved, run the release script to update `package.json` files, `releases.json`, and `CHANGELOG.md` with bilingual details:
       ```bash
       node _app/scripts/prepare-release.js <new_version> <date> --title_en "<title_en>" --title_ru "<title_ru>" --keynotes_en "EN Keynote 1" "EN Keynote 2" --keynotes_ru "RU Keynote 1" "RU Keynote 2"
       ```
-6.  **Create release commit, tag, and push**:
+7.  **Create release commit, tag, and push**:
     - Present the file modifications.
     - Ask confirmation to commit, tag, and push to both private (origin) and public (open) remotes.
     - **Crucial Security Rule:** To prevent pushing private development history and drafts to the public repository, the push to `open` remote MUST be done as a flat squashed release commit using a temporary orphan branch.
@@ -55,7 +58,7 @@ This skill automates the release process for StrataNote.
       git checkout master
       git branch -D temp-open-release
       ```
-7.  **Publish to GitHub Releases**:
+8.  **Publish to GitHub Releases**:
     - Run the API release publication script:
       ```bash
       node _app/scripts/prepare-release.js --publish <new_version>
