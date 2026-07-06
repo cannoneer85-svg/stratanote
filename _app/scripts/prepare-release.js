@@ -131,15 +131,34 @@ function publishRelease(version) {
 
   const repoPath = getRepoPath();
   const tag = `v${version}`;
-  const title = `v${version}: ${releaseEntry.title}`;
+
+  const title_en = releaseEntry.title_en || releaseEntry.title || '';
+  const title_ru = releaseEntry.title_ru || releaseEntry.title || '';
+  const keynotes_en = releaseEntry.keynotes_en || releaseEntry.keynotes || [];
+  const keynotes_ru = releaseEntry.keynotes_ru || [];
+
+  const title = `v${version}: ${title_en}`;
   
-  let body = `### ${releaseEntry.title}\n\n`;
-  if (releaseEntry.keynotes && releaseEntry.keynotes.length > 0) {
-    releaseEntry.keynotes.forEach(note => {
+  let body = `### ${title_en}\n\n`;
+  if (keynotes_en.length > 0) {
+    keynotes_en.forEach(note => {
       body += `- ${note}\n`;
     });
   } else {
-    body += `- Релиз версии v${version}\n`;
+    body += `- Release v${version}\n`;
+  }
+
+  if (title_ru || keynotes_ru.length > 0) {
+    body += `\n---\n\n<details>\n<summary>🇷🇺 Описание изменений на русском языке</summary>\n\n`;
+    body += `### ${title_ru}\n\n`;
+    if (keynotes_ru.length > 0) {
+      keynotes_ru.forEach(note => {
+        body += `- ${note}\n`;
+      });
+    } else {
+      body += `- Релиз версии v${version}\n`;
+    }
+    body += `\n</details>\n`;
   }
 
   log(`Connecting to GitHub API for repo: ${repoPath}...`);
@@ -167,11 +186,39 @@ if (arg2 === '--publish') {
 } else {
   const newVersion = arg2;
   const releaseDate = process.argv[3];
-  const releaseTitle = process.argv[4];
-  const keynotes = process.argv.slice(5);
 
-  if (!newVersion || !releaseDate || !releaseTitle) {
-    console.error('Usage: node prepare-release.js <version> <date> <title> [keynote1] [keynote2] ...');
+  let title_en = '';
+  let title_ru = '';
+  let keynotes_en = [];
+  let keynotes_ru = [];
+
+  let currentFlag = null;
+
+  for (let i = 4; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    if (arg === '--title_en') {
+      currentFlag = 'title_en';
+    } else if (arg === '--title_ru') {
+      currentFlag = 'title_ru';
+    } else if (arg === '--keynotes_en') {
+      currentFlag = 'keynotes_en';
+    } else if (arg === '--keynotes_ru') {
+      currentFlag = 'keynotes_ru';
+    } else {
+      if (currentFlag === 'title_en') {
+        title_en = arg;
+      } else if (currentFlag === 'title_ru') {
+        title_ru = arg;
+      } else if (currentFlag === 'keynotes_en') {
+        keynotes_en.push(arg);
+      } else if (currentFlag === 'keynotes_ru') {
+        keynotes_ru.push(arg);
+      }
+    }
+  }
+
+  if (!newVersion || !releaseDate || !title_en || !title_ru) {
+    console.error('Usage: node prepare-release.js <version> <date> --title_en <title_en> --title_ru <title_ru> [--keynotes_en <k1> <k2> ...] [--keynotes_ru <k1> <k2> ...]');
     console.error('Or for publishing: node prepare-release.js --publish <version>');
     process.exit(1);
   }
@@ -215,8 +262,10 @@ if (arg2 === '--publish') {
   const newRelease = {
     version: newVersion,
     date: releaseDate,
-    title: releaseTitle,
-    keynotes: keynotes
+    title_ru: title_ru,
+    title_en: title_en,
+    keynotes_ru: keynotes_ru,
+    keynotes_en: keynotes_en
   };
 
   // Check if version already exists to update it, or prepend new
@@ -231,7 +280,7 @@ if (arg2 === '--publish') {
 
   fs.writeFileSync(releasesPath, JSON.stringify(releasesList, null, 2) + '\n', 'utf8');
 
-  // 3. Prepend to CHANGELOG.md in root
+  // 3. Prepend to CHANGELOG.md in root (English for changelog)
   const changelogPath = path.join(rootDir, 'CHANGELOG.md');
   let changelogContent = '';
 
@@ -240,13 +289,13 @@ if (arg2 === '--publish') {
   }
 
   // Build the new markdown entry
-  let newMarkdownEntry = `## [${newVersion}] - ${releaseDate}\n### ${releaseTitle}\n\n`;
-  if (keynotes.length > 0) {
-    keynotes.forEach(note => {
+  let newMarkdownEntry = `## [${newVersion}] - ${releaseDate}\n### ${title_en}\n\n`;
+  if (keynotes_en.length > 0) {
+    keynotes_en.forEach(note => {
       newMarkdownEntry += `- ${note}\n`;
     });
   } else {
-    newMarkdownEntry += `- Релиз версии v${newVersion}\n`;
+    newMarkdownEntry += `- Release version v${newVersion}\n`;
   }
   newMarkdownEntry += `\n`;
 

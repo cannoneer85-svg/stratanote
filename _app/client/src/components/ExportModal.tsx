@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { X, Download, AlertTriangle, FileText, FolderArchive } from 'lucide-react';
+import { t, type Lang } from '../utils/translations';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onExport: (includeMD: boolean, includeAssets: boolean) => void;
+  lang: Lang;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
   isOpen,
   onClose,
   onExport,
+  lang,
 }) => {
   const [includeMD, setIncludeMD] = useState(true);
   const [includeAssets, setIncludeAssets] = useState(true);
@@ -35,8 +38,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               📦
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Экспорт хранилища</h2>
-              <span className="text-[10px] text-text-disabled">Настройка компонентов ZIP-архива</span>
+              <h2 className="text-sm font-bold text-white">{t('sidebar_export_vault', lang)}</h2>
+              <span className="text-[10px] text-text-disabled">
+                {lang === 'en' ? 'Setup ZIP archive components' : 'Настройка компонентов ZIP-архива'}
+              </span>
             </div>
           </div>
           <button
@@ -50,7 +55,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-4">
           <p className="text-xs text-text-muted">
-            Выберите, какие данные необходимо включить в экспортируемый архив. Для больших хранилищ исключение папки с медиафайлами значительно ускорит скачивание.
+            {lang === 'en' 
+              ? 'Select which data should be included in the exported archive. For large vaults, excluding the assets folder will significantly speed up the download.' 
+              : 'Выберите, какие данные необходимо включить в экспортируемый архив. Для больших хранилищ исключение папки с медиафайлами значительно ускорит скачивание.'}
           </p>
 
           <div className="space-y-3">
@@ -65,8 +72,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <div className="flex items-center space-x-2">
                 <FileText className="w-4 h-4 text-primary" />
                 <div className="text-left">
-                  <div className="text-xs font-semibold text-white">MD файлы заметок</div>
-                  <div className="text-[10px] text-text-muted">Все текстовые документы Markdown во всех папках</div>
+                  <div className="text-xs font-semibold text-white">
+                    {lang === 'en' ? 'MD Note Files' : 'MD файлы заметок'}
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    {lang === 'en' ? 'All Markdown text documents in all folders' : 'Все текстовые документы Markdown во всех папках'}
+                  </div>
                 </div>
               </div>
             </label>
@@ -82,8 +93,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <div className="flex items-center space-x-2">
                 <FolderArchive className="w-4 h-4 text-primary" />
                 <div className="text-left">
-                  <div className="text-xs font-semibold text-white">Папка assets</div>
-                  <div className="text-[10px] text-text-muted">Медиафайлы (изображения, видео и вложения)</div>
+                  <div className="text-xs font-semibold text-white">
+                    {lang === 'en' ? 'Assets Folder' : 'Папка assets'}
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    {lang === 'en' ? 'Media files (images, videos, and attachments)' : 'Медиафайлы (изображения, видео и вложения)'}
+                  </div>
                 </div>
               </div>
             </label>
@@ -93,7 +108,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {isButtonDisabled && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-[10.5px] flex items-start space-x-2 animate-fade-in">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>Необходимо выбрать хотя бы один компонент для экспорта.</span>
+              <span>
+                {lang === 'en' ? 'At least one component must be selected for export.' : 'Необходимо выбрать хотя бы один компонент для экспорта.'}
+              </span>
             </div>
           )}
         </div>
@@ -104,7 +121,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold rounded-lg transition-all border border-white/5 cursor-pointer"
           >
-            Отмена
+            {t('users_modal_btn_cancel', lang)}
           </button>
           <button
             onClick={handleExportClick}
@@ -112,7 +129,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             className="px-4 py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] disabled:opacity-30 disabled:pointer-events-none text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all border border-primary/20 shadow-glow cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            <span>Экспортировать</span>
+            <span>{lang === 'en' ? 'Export' : 'Экспортировать'}</span>
           </button>
         </div>
       </div>

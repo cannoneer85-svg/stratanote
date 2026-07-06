@@ -10,6 +10,7 @@ import {
   Download, GitBranch, GitPullRequest, Check, X, MessageSquare, ArrowLeft
 } from 'lucide-react';
 import { DiffViewer } from './DiffViewer';
+import { t, type Lang } from '../utils/translations';
 import mermaid from 'mermaid';
 
 console.log('Mermaid object:', mermaid);
@@ -157,7 +158,7 @@ interface Note {
   created_by?: string;
 }
 
-const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ svgHtml, onClose }) => {
+const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: Lang }> = ({ svgHtml, onClose, lang }) => {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -374,12 +375,12 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md select-none transition-opacity duration-300">
       {/* Header controls */}
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-white z-10">
-        <h3 className="text-sm font-semibold text-white/80">Интерактивный просмотр диаграммы</h3>
+        <h3 className="text-sm font-semibold text-white/80">{lang === 'en' ? 'Interactive Diagram Viewer' : 'Интерактивный просмотр диаграммы'}</h3>
         <div className="flex items-center space-x-2 bg-black/60 border border-white/10 rounded-lg p-1">
           <button 
             onClick={handleZoomIn}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
-            title="Увеличить"
+            title={lang === 'en' ? "Zoom In" : "Увеличить"}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -388,7 +389,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
           <button 
             onClick={handleZoomOut}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
-            title="Уменьшить"
+            title={lang === 'en' ? "Zoom Out" : "Уменьшить"}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -397,7 +398,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
           <button 
             onClick={handleReset}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
-            title="Сбросить масштаб и положение"
+            title={lang === 'en' ? "Reset scale & position" : "Сбросить масштаб и положение"}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" />
@@ -408,7 +409,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
           <button 
             onClick={onClose}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
-            title="Закрыть (Esc)"
+            title={lang === 'en' ? "Close (Esc)" : "Закрыть (Esc)"}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -444,7 +445,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void }> = ({ 
 
       {/* Footer tips */}
       <div className="absolute bottom-4 text-xs text-white/40 pointer-events-none">
-        Используйте колесо мыши для масштабирования, перетаскивайте мышкой для перемещения.
+        {lang === 'en' ? 'Use mouse wheel to zoom, drag to move.' : 'Используйте колесо мыши для масштабирования, перетаскивайте мышкой для перемещения.'}
       </div>
     </div>
   );
@@ -461,6 +462,7 @@ interface EditorProps {
   socket: any;
   autoOpenSuggestion?: any | null;
   onClearAutoOpenSuggestion?: () => void;
+  lang: Lang;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -473,7 +475,8 @@ export const Editor: React.FC<EditorProps> = ({
   allNotes,
   socket,
   autoOpenSuggestion = null,
-  onClearAutoOpenSuggestion
+  onClearAutoOpenSuggestion,
+  lang
 }) => {
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<'edit' | 'preview'>(() => {
@@ -524,8 +527,11 @@ export const Editor: React.FC<EditorProps> = ({
   }
 
   const currentNote = useMemo(() => allNotes.find(n => n.relative_path === notePath), [allNotes, notePath]);
-  const noteCreator = currentNote?.created_by || 'Внешняя система';
-  const canReview = currentUser.username === noteCreator || currentUser.role === 'Admin';
+  const rawNoteCreator = currentNote?.created_by || 'system';
+  const noteCreator = rawNoteCreator === 'system' || rawNoteCreator === 'Внешняя система'
+    ? t('system_external', lang)
+    : rawNoteCreator;
+  const canReview = currentUser.username === rawNoteCreator || currentUser.role === 'Admin';
   
   const filteredDropdownNotes = useMemo(() => {
     return allNotes
@@ -1108,9 +1114,11 @@ export const Editor: React.FC<EditorProps> = ({
         setContent(data.mergedText);
         setSelectedSuggestion(null);
         setMode('edit');
-        alert('Обнаружены конфликты слияния! Они отмечены в редакторе символами <<<<<<< и >>>>>>>. Пожалуйста, разрешите конфликты вручную и сохраните файл.');
+        alert(lang === 'en' 
+          ? 'Merge conflicts detected! They are marked in the editor with <<<<<<< and >>>>>>> symbols. Please resolve conflicts manually and save the file.' 
+          : 'Обнаружены конфликты слияния! Они отмечены в редакторе символами <<<<<<< и >>>>>>>. Пожалуйста, разрешите конфликты вручную и сохраните файл.');
       } else {
-        alert(data.error || 'Не удалось принять предложение');
+        alert(data.error || (lang === 'en' ? 'Failed to accept suggestion' : 'Не удалось принять предложение'));
       }
     } catch (err) {
       console.error('Failed to accept suggestion:', err);
@@ -1120,7 +1128,7 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const handleRejectSuggestion = async (id: number) => {
-    if (!confirm('Вы уверены, что хотите отклонить это предложение?')) return;
+    if (!confirm(t('suggest_reject_confirm', lang))) return;
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -1135,7 +1143,7 @@ export const Editor: React.FC<EditorProps> = ({
         loadSuggestions();
       } else {
         const data = await res.json();
-        alert(data.error || 'Не удалось отклонить предложение');
+        alert(data.error || (lang === 'en' ? 'Failed to reject suggestion' : 'Не удалось отклонить предложение'));
       }
     } catch (err) {
       console.error('Failed to reject suggestion:', err);
@@ -1192,7 +1200,7 @@ export const Editor: React.FC<EditorProps> = ({
           // (assuming there's a dirty state check)
           console.log('Suggestion saved successfully');
         } else {
-          alert('Не удалось сохранить предложение');
+          alert(lang === 'en' ? 'Failed to save suggestion' : 'Не удалось сохранить предложение');
         }
       } else {
         await onSave(content);
@@ -2126,7 +2134,7 @@ export const Editor: React.FC<EditorProps> = ({
                   suggestionViewMode === 'original' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
-                <span>Оригинал</span>
+                <span>{lang === 'en' ? 'Original' : 'Оригинал'}</span>
               </button>
               <button
                 onClick={() => setSuggestionViewMode('preview')}
@@ -2134,7 +2142,7 @@ export const Editor: React.FC<EditorProps> = ({
                   suggestionViewMode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
-                <span>Результат</span>
+                <span>{lang === 'en' ? 'Result' : 'Результат'}</span>
               </button>
               <button
                 onClick={() => setSuggestionViewMode('diff')}
@@ -2142,7 +2150,7 @@ export const Editor: React.FC<EditorProps> = ({
                   suggestionViewMode === 'diff' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
-                <span>Разница</span>
+                <span>{lang === 'en' ? 'Diff' : 'Разница'}</span>
               </button>
             </div>
 
@@ -2152,19 +2160,19 @@ export const Editor: React.FC<EditorProps> = ({
                   onClick={() => handleAcceptSuggestion(selectedSuggestion.id)}
                   disabled={saving}
                   className="p-1 px-3 bg-green-500/20 border border-green-500/30 hover:bg-green-500/40 text-green-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-30"
-                  title="Принять предложение"
+                  title={lang === 'en' ? 'Accept suggestion' : 'Принять предложение'}
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Принять</span>
+                  <span>{lang === 'en' ? 'Accept' : 'Принять'}</span>
                 </button>
                 <button
                   onClick={() => handleRejectSuggestion(selectedSuggestion.id)}
                   disabled={saving}
                   className="p-1 px-3 bg-red-500/20 border border-red-500/30 hover:bg-red-500/40 text-red-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-30"
-                  title="Отклонить предложение"
+                  title={lang === 'en' ? 'Reject suggestion' : 'Отклонить предложение'}
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span>Отклонить</span>
+                  <span>{lang === 'en' ? 'Reject' : 'Отклонить'}</span>
                 </button>
               </div>
             )}
@@ -2172,7 +2180,7 @@ export const Editor: React.FC<EditorProps> = ({
             <button
               onClick={() => setSelectedSuggestion(null)}
               className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="Закрыть просмотр"
+              title={lang === 'en' ? 'Close view' : 'Закрыть просмотр'}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -2187,7 +2195,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('# ', '')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Заголовок H1"
+              title={lang === 'en' ? 'Heading 1' : 'Заголовок H1'}
             >
               <Heading1 className="w-4 h-4" />
             </button>
@@ -2195,7 +2203,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('## ', '')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Заголовок H2"
+              title={lang === 'en' ? 'Heading 2' : 'Заголовок H2'}
             >
               <Heading2 className="w-4 h-4" />
             </button>
@@ -2203,7 +2211,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('### ', '')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Заголовок H3"
+              title={lang === 'en' ? 'Heading 3' : 'Заголовок H3'}
             >
               <Heading3 className="w-4 h-4" />
             </button>
@@ -2212,7 +2220,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('**', '**')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Жирный текст"
+              title={lang === 'en' ? 'Bold text' : 'Жирный текст'}
             >
               <Bold className="w-4 h-4" />
             </button>
@@ -2220,7 +2228,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('*', '*')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Курсив"
+              title={lang === 'en' ? 'Italic text' : 'Курсив'}
             >
               <Italic className="w-4 h-4" />
             </button>
@@ -2229,7 +2237,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('- ', '')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Маркированный список"
+              title={lang === 'en' ? 'Bullet list' : 'Маркированный список'}
             >
               <List className="w-4 h-4" />
             </button>
@@ -2237,7 +2245,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('- [ ] ', '')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Чек-лист"
+              title={lang === 'en' ? 'Task checklist' : 'Чек-лист'}
             >
               <CheckSquare className="w-4 h-4" />
             </button>
@@ -2245,7 +2253,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('[[', ']]')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Вставить Вики-ссылку"
+              title={lang === 'en' ? 'Insert Wiki Link' : 'Вставить Вики-ссылку'}
             >
               [[ ]]
             </button>
@@ -2253,7 +2261,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={() => insertText('[ссылка](', ')') }
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Вставить ссылку"
+              title={lang === 'en' ? 'Insert standard link' : 'Вставить ссылку'}
             >
               <LinkIcon className="w-4 h-4" />
             </button>
@@ -2261,7 +2269,7 @@ export const Editor: React.FC<EditorProps> = ({
               onClick={handleMediaUpload}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-              title="Загрузить медиафайл (Изображение или Видео)"
+              title={lang === 'en' ? 'Upload media file (Image or Video)' : 'Загрузить медиафайл (Изображение или Видео)'}
             >
               <ImageIcon className="w-4 h-4" />
             </button>
@@ -2284,10 +2292,10 @@ export const Editor: React.FC<EditorProps> = ({
                     ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]' 
                     : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
                 }`}
-                title={isSuggestMode ? "Режим предложений активен. Сохранение запишет изменения как предложение." : "Включить режим предложений (рецензирование)"}
+                title={isSuggestMode ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
               >
                 <GitBranch className="w-3.5 h-3.5 text-primary" />
-                <span className="text-[11px] hidden md:inline">Рецензирование</span>
+                <span className="text-[11px] hidden md:inline">{lang === 'en' ? 'Review' : 'Рецензирование'}</span>
               </button>
             )}
 
@@ -2300,10 +2308,10 @@ export const Editor: React.FC<EditorProps> = ({
                     ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]' 
                     : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
                 }`}
-                title="Показать список предложений"
+                title={lang === 'en' ? "Show suggestions list" : "Показать список предложений"}
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                <span className="text-[11px] hidden md:inline">Предложения</span>
+                <span className="text-[11px] hidden md:inline">{lang === 'en' ? 'Suggestions' : 'Предложения'}</span>
                 <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[9px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-background-editor shadow-glow animate-pulse">
                   {suggestions.length}
                 </span>
@@ -2314,26 +2322,26 @@ export const Editor: React.FC<EditorProps> = ({
             {isSuggestMode ? (
               <div className="flex items-center space-x-1.5 text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 shrink-0">
                 <GitBranch className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Режим рецензирования</span>
-                <span className="inline sm:hidden">Рецензия</span>
+                <span className="hidden sm:inline">{lang === 'en' ? 'Reviewing Mode' : 'Режим рецензирования'}</span>
+                <span className="inline sm:hidden">{lang === 'en' ? 'Review' : 'Рецензия'}</span>
               </div>
             ) : lockedBy ? (
               <div className="flex items-center space-x-1.5 text-xs text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20 shrink-0">
                 <FileLock className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Редактирует: {lockedBy} (ReadOnly)</span>
-                <span className="inline sm:hidden">Блок: {lockedBy}</span>
+                <span className="hidden sm:inline">{lang === 'en' ? `Editing: ${lockedBy} (ReadOnly)` : `Редактирует: ${lockedBy} (ReadOnly)`}</span>
+                <span className="inline sm:hidden">{lang === 'en' ? `Lock: ${lockedBy}` : `Блок: ${lockedBy}`}</span>
               </div>
             ) : isReadOnly ? (
               <div className="flex items-center space-x-1.5 text-xs text-text-muted bg-white/5 px-2.5 py-1 rounded-full shrink-0">
                 <User className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Режим чтения (ReadOnly)</span>
-                <span className="inline sm:hidden">Чтение</span>
+                <span className="hidden sm:inline">{lang === 'en' ? 'Reading Mode (ReadOnly)' : 'Режим чтения (ReadOnly)'}</span>
+                <span className="inline sm:hidden">{lang === 'en' ? 'Read' : 'Чтение'}</span>
               </div>
             ) : (
               <div className="flex items-center space-x-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shrink-0">
                 <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
-                <span className="hidden sm:inline">Синхронизация активна</span>
-                <span className="inline sm:hidden">Синхронизация</span>
+                <span className="hidden sm:inline">{lang === 'en' ? 'Sync is active' : 'Синхронизация активна'}</span>
+                <span className="inline sm:hidden">{lang === 'en' ? 'Sync' : 'Синхронизация'}</span>
               </div>
             )}
 
@@ -2341,29 +2349,29 @@ export const Editor: React.FC<EditorProps> = ({
               <button
                 onClick={switchToEdit}
                 disabled={selectedSuggestion !== null}
-                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
+                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
                   mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
                 <Code className="w-3.5 h-3.5" />
-                <span>Код</span>
+                <span>{lang === 'en' ? 'Code' : 'Код'}</span>
               </button>
               <button
                 onClick={switchToPreview}
                 disabled={selectedSuggestion !== null}
-                className={`p-1 px-3.5 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
+                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
                   mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Просмотр</span>
+                <span>{lang === 'en' ? 'Preview' : 'Просмотр'}</span>
               </button>
             </div>
 
             <button
               onClick={handleDownload}
               className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-              title="Скачать файл в формате MD"
+              title={t('editor_btn_download', lang)}
             >
               <Download className="w-4 h-4" />
             </button>
@@ -2374,10 +2382,10 @@ export const Editor: React.FC<EditorProps> = ({
                 onClick={handleResolveConflict}
                 disabled={saving}
                 className="p-1.5 bg-green-600/35 border border-green-500/50 hover:bg-green-500/60 text-green-300 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shrink-0 font-semibold text-xs animate-pulse"
-                title="Сохранить разрешение конфликтов"
+                title={lang === 'en' ? 'Save conflict resolution' : 'Сохранить разрешение конфликтов'}
               >
                 <Check className="w-4 h-4" />
-                <span className="hidden sm:inline">Слить конфликты</span>
+                <span className="hidden sm:inline">{lang === 'en' ? 'Merge Conflicts' : 'Слить конфликты'}</span>
               </button>
             ) : (
               (!isReadOnly && (!lockedBy || isSuggestMode) && (
@@ -2385,7 +2393,7 @@ export const Editor: React.FC<EditorProps> = ({
                   onClick={handleSave}
                   disabled={saving || content === initialContent}
                   className="p-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/40 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-30 shrink-0"
-                  title="Сохранить (Ctrl + S)"
+                  title={lang === 'en' ? 'Save (Ctrl + S)' : 'Сохранить (Ctrl + S)'}
                 >
                   <Save className="w-4 h-4" />
                 </button>
@@ -2399,7 +2407,7 @@ export const Editor: React.FC<EditorProps> = ({
                   setContent(initialContent);
                 }}
                 className="p-1.5 bg-red-600/20 border border-red-500/30 hover:bg-red-500/40 text-red-400 rounded-lg transition-colors cursor-pointer shrink-0"
-                title="Отменить разрешение"
+                title={lang === 'en' ? 'Cancel resolution' : 'Отменить разрешение'}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2449,7 +2457,7 @@ export const Editor: React.FC<EditorProps> = ({
               })}
               {filteredDropdownNotes.length === 0 && (
                 <div className="p-3 text-center text-xs text-text-disabled">
-                  Ничего не найдено
+                  {t('sidebar_no_notes', lang)}
                 </div>
               )}
             </div>
@@ -2469,6 +2477,7 @@ export const Editor: React.FC<EditorProps> = ({
                 onClose={() => setSelectedSuggestion(null)}
                 onRestore={() => handleAcceptSuggestion(selectedSuggestion.id)}
                 isReadOnly={!canReview}
+                lang={lang}
               />
             ) : suggestionViewMode === 'original' ? (
               <div 
@@ -2513,7 +2522,7 @@ export const Editor: React.FC<EditorProps> = ({
           <div className="w-72 border-l border-white/5 bg-black/30 backdrop-blur-md flex flex-col h-full select-none shrink-0 overflow-y-auto p-4 space-y-3">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-white/5 pb-2 flex items-center space-x-1.5">
               <GitPullRequest className="w-4 h-4 text-primary" />
-              <span>Предложенные правки</span>
+              <span>{lang === 'en' ? 'Proposed Edits' : 'Предложенные правки'}</span>
             </h3>
             <div className="space-y-2">
               {suggestions.map((s) => (
@@ -2539,7 +2548,7 @@ export const Editor: React.FC<EditorProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-text-muted truncate">
-                    Кликните для просмотра разницы и принятия правок.
+                    {lang === 'en' ? 'Click to view diff and approve.' : 'Кликните для просмотра разницы и принятия правок.'}
                   </p>
                   {canReview && (
                     <div className="flex items-center justify-end space-x-2 mt-2 pt-2 border-t border-white/5">
@@ -2551,7 +2560,7 @@ export const Editor: React.FC<EditorProps> = ({
                         className="px-2 py-0.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded text-[9px] font-semibold flex items-center space-x-0.5 transition-colors cursor-pointer"
                       >
                         <Check className="w-2.5 h-2.5" />
-                        <span>Принять</span>
+                        <span>{lang === 'en' ? 'Accept' : 'Принять'}</span>
                       </button>
                       <button
                         onClick={(e) => {
@@ -2561,7 +2570,7 @@ export const Editor: React.FC<EditorProps> = ({
                         className="px-2 py-0.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded text-[9px] font-semibold flex items-center space-x-0.5 transition-colors cursor-pointer"
                       >
                         <X className="w-2.5 h-2.5" />
-                        <span>Отклонить</span>
+                        <span>{lang === 'en' ? 'Reject' : 'Отклонить'}</span>
                       </button>
                     </div>
                   )}
@@ -2574,8 +2583,8 @@ export const Editor: React.FC<EditorProps> = ({
 
       {/* Footer Info */}
       <div className="px-4 py-1.5 border-t border-white/5 bg-black/20 text-[10px] text-text-disabled flex justify-between select-none">
-        <span>Путь: {notePath} | Владелец: <span className="text-primary font-semibold">{noteCreator}</span></span>
-        <span>Символов: {content.length} | Строк: {content.split('\n').length}</span>
+        <span>{lang === 'en' ? 'Path' : 'Путь'}: {notePath} | {lang === 'en' ? 'Owner' : 'Владелец'}: <span className="text-primary font-semibold">{noteCreator}</span></span>
+        <span>{lang === 'en' ? 'Characters' : 'Символов'}: {content.length} | {lang === 'en' ? 'Lines' : 'Строк'}: {content.split('\n').length}</span>
       </div>
 
       {lightboxSrc && (
@@ -2603,6 +2612,7 @@ export const Editor: React.FC<EditorProps> = ({
         <MermaidZoomModal 
           svgHtml={activeMermaidSvg} 
           onClose={() => setActiveMermaidSvg(null)} 
+          lang={lang}
         />
       )}
     </div>

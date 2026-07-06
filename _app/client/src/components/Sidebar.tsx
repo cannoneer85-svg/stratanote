@@ -3,6 +3,7 @@ import {
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
   Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell, X
 } from 'lucide-react';
+import { t, type Lang } from '../utils/translations';
 
 interface Note {
   relative_path: string;
@@ -36,6 +37,7 @@ interface SidebarProps {
   onOpenAbout?: () => void;
   pendingSuggestions?: any[];
   onNotificationClick?: (suggestion: any) => void;
+  lang: Lang;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -55,7 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   systemVersion = '1.0.0',
   onOpenAbout,
   pendingSuggestions = [],
-  onNotificationClick
+  onNotificationClick,
+  lang
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -109,9 +112,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleCreate = (isDir: boolean) => {
     if (currentUser.role === 'Viewer') return;
     
+    const rootLabel = lang === 'en' ? 'Root' : 'Корень';
     const promptMsg = isDir 
-      ? `Введите название папки в каталоге "${selectedParentFolder || 'Корень'}":`
-      : `Введите название файла в каталоге "${selectedParentFolder || 'Корень'}":`;
+      ? (lang === 'en' ? `Enter folder name in folder "${selectedParentFolder || rootLabel}":` : `Введите название папки в каталоге "${selectedParentFolder || rootLabel}":`)
+      : (lang === 'en' ? `Enter file name in folder "${selectedParentFolder || rootLabel}":` : `Введите название файла в каталоге "${selectedParentFolder || rootLabel}":`);
     
     const name = prompt(promptMsg);
     if (!name || name.trim() === '') return;
@@ -121,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Block illegal OS filesystem characters (\ / : * ? " < > |)
     const illegalChars = /[\\/:*?"<>|]/;
     if (illegalChars.test(trimmedName)) {
-      alert("Название не может содержать специальные символы файловой системы: \\ / : * ? \" < > |");
+      alert(lang === 'en' ? "Name cannot contain filesystem special characters: \\ / : * ? \" < > |" : "Название не может содержать специальные символы файловой системы: \\ / : * ? \" < > |");
       return;
     }
 
@@ -143,8 +147,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentUser.role === 'Viewer') return;
 
     const confirmMsg = isDir 
-      ? `Вы действительно хотите удалить папку "${path}" и ВСЕ входящие файлы? Это действие необратимо!`
-      : `Вы действительно хотите удалить заметку "${path}"?`;
+      ? t('sidebar_confirm_delete_folder', lang, { name: path })
+      : t('sidebar_confirm_delete_note', lang, { name: path });
     
     if (confirm(confirmMsg)) {
       onDeleteResource(path);
@@ -157,14 +161,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentUser.role === 'Viewer') return;
 
     const currentName = path.split('/').pop()?.replace('.md', '') || '';
-    const newName = prompt(`Введите новое имя для ${isDir ? 'папки' : 'файла'}:`, currentName);
+    const newName = prompt(
+      lang === 'en' ? `Enter new name for ${isDir ? 'folder' : 'file'}:` : `Введите новое имя для ${isDir ? 'папки' : 'файла'}:`, 
+      currentName
+    );
     if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
 
     const trimmedName = newName.trim();
     // Block illegal OS filesystem characters (\ / : * ? " < > |)
     const illegalChars = /[\\/:*?"<>|]/;
     if (illegalChars.test(trimmedName)) {
-      alert("Название не может содержать специальные символы файловой системы: \\ / : * ? \" < > |");
+      alert(lang === 'en' ? "Name cannot contain filesystem special characters: \\ / : * ? \" < > |" : "Название не может содержать специальные символы файловой системы: \\ / : * ? \" < > |");
       return;
     }
 
@@ -410,10 +417,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                           </div>
                           <span className="text-[10px] text-text-disabled truncate">
-                            Путь: {s.relative_path}
+                            {lang === 'en' ? 'Path' : 'Путь'}: {s.relative_path}
                           </span>
                           <span className="text-[9px] text-primary/80 uppercase font-semibold">
-                            Кликните для перехода к рецензии
+                            {lang === 'en' ? 'Click to review changes' : 'Кликните для перехода к рецензии'}
                           </span>
                         </button>
                       ))
@@ -428,7 +435,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onOpenSettings}
               className="p-1.5 hover:bg-white/5 hover:text-primary text-text-disabled rounded-lg transition-colors cursor-pointer"
-              title="Настройки"
+              title={t('sidebar_settings', lang)}
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -436,7 +443,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onLogout}
             className="p-1.5 hover:bg-white/5 hover:text-red-400 text-text-disabled rounded-lg transition-colors cursor-pointer"
-            title="Выйти"
+            title={t('sidebar_logout', lang)}
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -451,14 +458,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="flex items-center justify-center space-x-1 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs text-white rounded-lg transition-all cursor-pointer border border-white/5"
           >
             <Plus className="w-3.5 h-3.5 text-primary" />
-            <span>Новый файл</span>
+            <span>{t('sidebar_new_note', lang)}</span>
           </button>
           <button
             onClick={() => handleCreate(true)}
             className="flex items-center justify-center space-x-1 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs text-white rounded-lg transition-all cursor-pointer border border-white/5"
           >
             <FolderPlus className="w-3.5 h-3.5 text-primary" />
-            <span>Новая папка</span>
+            <span>{t('sidebar_new_folder', lang)}</span>
           </button>
         </div>
       )}
@@ -469,7 +476,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
-            placeholder="Поиск по названию..."
+            placeholder={t('sidebar_search_placeholder', lang)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50 transition-colors"
@@ -480,19 +487,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mirrored File Tree Root */}
       <div className="flex-1 overflow-y-auto px-2 py-1">
         <div className="flex items-center justify-between px-2 py-1.5 rounded text-[10px] font-bold text-text-disabled uppercase tracking-wider select-none">
-          <span>Проводник заметок</span>
+          <span>{t('sidebar_explorer', lang)}</span>
           <div className="flex items-center space-x-2.5 normal-case font-medium">
             <button
               onClick={expandAllFolders}
               className="hover:text-white text-text-disabled transition-colors cursor-pointer flex items-center"
-              title="Развернуть все папки"
+              title={lang === 'en' ? 'Expand all folders' : 'Развернуть все папки'}
             >
               <FolderOpen className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={collapseAllFolders}
               className="hover:text-white text-text-disabled transition-colors cursor-pointer flex items-center"
-              title="Свернуть все папки"
+              title={lang === 'en' ? 'Collapse all folders' : 'Свернуть все папки'}
             >
               <Folder className="w-3.5 h-3.5" />
             </button>
@@ -500,20 +507,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button 
                 onClick={() => onSelectedParentFolderChange('')}
                 className="text-primary hover:underline hover:text-white cursor-pointer border-l border-white/10 pl-2 ml-1"
-                title="Сбросить выбор папки на Корень"
+                title={lang === 'en' ? 'Reset folder filter to Root' : 'Сбросить выбор папки на Корень'}
               >
-                Корень
+                {lang === 'en' ? 'Root' : 'Корень'}
               </button>
             )}
           </div>
         </div>
         {notes.length === 0 ? (
           <div className="text-center text-text-disabled text-xs mt-8">
-            Хранилище пусто. <br /> Создайте свой первый файл!
+            {lang === 'en' ? 'Vault is empty.' : 'Хранилище пусто.'} <br /> {lang === 'en' ? 'Create your first file!' : 'Создайте свой первый файл!'}
           </div>
         ) : filteredNotes.length === 0 ? (
           <div className="text-center text-text-disabled text-xs mt-8 font-medium">
-            Ничего не найдено
+            {t('sidebar_no_notes', lang)}
           </div>
         ) : (
           renderTree('')
@@ -524,7 +531,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="border-t border-white/5 bg-black/10 p-3 max-h-36 overflow-y-auto">
         <div className="flex items-center space-x-1 text-[10px] font-bold text-text-disabled uppercase tracking-wider mb-2">
           <Users className="w-3.5 h-3.5 text-primary" />
-          <span>В сети ({activeUsers.length})</span>
+          <span>{lang === 'en' ? `Online (${activeUsers.length})` : `В сети (${activeUsers.length})`}</span>
         </div>
         <div className="space-y-1.5">
           {activeUsers.map((user, idx) => (
@@ -536,7 +543,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {user.currentNote && (
                 <span className="text-[10px] text-primary/70 italic truncate max-w-[100px]" title={user.currentNote}>
-                  ред: {user.currentNote.split('/').pop()?.replace('.md', '')}
+                  {lang === 'en' ? 'edit: ' : 'ред: '}{user.currentNote.split('/').pop()?.replace('.md', '')}
                 </span>
               )}
             </div>
@@ -551,7 +558,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white text-xs font-semibold rounded-lg flex items-center justify-center space-x-2 transition-all border border-primary/20 shadow-glow cursor-pointer"
         >
           <Download className="w-4 h-4" />
-          <span>Экспорт хранилища (.zip)</span>
+          <span>{t('sidebar_export_vault', lang)} (.zip)</span>
         </button>
       </div>
 
@@ -562,7 +569,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onOpenAbout}
             className="hover:text-primary transition-colors cursor-pointer underline font-bold"
-            title="О системе и история обновлений"
+            title={t('sidebar_about', lang)}
           >
             v{systemVersion}
           </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
+import { t, type Lang } from '../utils/translations';
 
 interface User {
   id: number;
@@ -22,12 +23,18 @@ interface SettingsPanelProps {
     history: Array<{
       version: string;
       date: string;
-      title: string;
-      keynotes: string[];
+      title_ru?: string;
+      title_en?: string;
+      title?: string;
+      keynotes_ru?: string[];
+      keynotes_en?: string[];
+      keynotes?: string[];
     }>;
     env?: string;
   };
   socket?: any;
+  lang: Lang;
+  onLangChange: (lang: Lang) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -38,9 +45,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   token,
   onVaultReload,
   versionInfo = { version: '1.0.0', history: [], env: 'Development' },
-  socket
+  socket,
+  lang,
+  onLangChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'users' | 'media' | 'about' | 'sync'>('import');
+  const [activeTab, setActiveTab] = useState<'general' | 'import' | 'users' | 'media' | 'about' | 'sync'>('general');
   
   // ZIP / MD Upload State
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -584,8 +593,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               ⚙️
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Панель управления администратора</h2>
-              <span className="text-[10px] text-text-disabled">Импорт документов и настройки доступа</span>
+              <h2 className="text-sm font-bold text-white">{t('settings_header_title', lang)}</h2>
+              <span className="text-[10px] text-text-disabled">{t('settings_header_subtitle', lang)}</span>
             </div>
           </div>
           <button
@@ -599,13 +608,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {/* Tabs switcher */}
         <div className="flex border-b border-white/5 bg-black/10 px-6 py-2 space-x-2 overflow-x-auto scrollbar-none flex-nowrap shrink-0">
           <button
+            onClick={() => setActiveTab('general')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'general' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{t('settings_tab_general', lang)}</span>
+          </button>
+          <button
             onClick={() => setActiveTab('import')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
               activeTab === 'import' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Импорт & Загрузка</span>
+            <span>{t('settings_tab_import', lang)}</span>
           </button>
           <button
             onClick={() => setActiveTab('users')}
@@ -614,7 +632,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Пользователи и Роли</span>
+            <span>{t('settings_tab_users', lang)}</span>
           </button>
           <button
             onClick={() => setActiveTab('media')}
@@ -623,7 +641,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }`}
           >
             <Image className="w-3.5 h-3.5" />
-            <span>Мультимедиа</span>
+            <span>{t('settings_tab_media', lang)}</span>
           </button>
           <button
             onClick={() => setActiveTab('sync')}
@@ -632,7 +650,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }`}
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Синхронизация</span>
+            <span>{t('settings_tab_sync', lang)}</span>
           </button>
           <button
             onClick={() => setActiveTab('about')}
@@ -641,13 +659,40 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }`}
           >
             <Info className="w-3.5 h-3.5" />
-            <span>О системе</span>
+            <span>{t('settings_tab_system', lang)}</span>
           </button>
         </div>
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {activeTab === 'import' ? (
+          {activeTab === 'general' ? (
+            <div className="space-y-6">
+              {/* Language Settings Card */}
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                <div className="flex items-center space-x-2 text-primary">
+                  <Globe className="w-5 h-5" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">{t('settings_tab_general', lang)}</h3>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-text-muted">
+                    {t('settings_lang_label', lang)}
+                  </label>
+                  <select
+                    value={lang}
+                    onChange={(e) => onLangChange(e.target.value as Lang)}
+                    className="w-full max-w-xs px-3 py-2 bg-black/45 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-primary/50 transition-colors"
+                  >
+                    <option value="en">{t('settings_lang_en', lang)}</option>
+                    <option value="ru">{t('settings_lang_ru', lang)}</option>
+                  </select>
+                  <p className="text-[10px] text-text-disabled">
+                    {t('settings_lang_hint', lang)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : activeTab === 'import' ? (
             <div className="space-y-6">
               {uploadStatus && (
                 <div className={`p-4 rounded-xl text-xs flex items-start space-x-2.5 border ${
@@ -1385,24 +1430,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">StrataNote</h3>
-                    <p className="text-[10px] text-text-muted">Разработка системы ведения заметок и совместного редактирования</p>
+                    <p className="text-[10px] text-text-muted">{t('settings_about_desc', lang)}</p>
                   </div>
                 </div>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Платформа предназначена для командной работы с базой знаний StrataNote на основе Markdown. Данный раздел настроек показывает текущую установленную версию системы и подробный Changelog доработок и улучшений.
+                  {t('system_intro_desc', lang)}
                 </p>
               </div>
 
               {/* Version info details */}
               <div className="space-y-4">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Информация о сборке</h4>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">{t('settings_build_info', lang)}</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col space-y-1">
-                    <span className="text-[10px] text-text-disabled uppercase">Установленная версия</span>
+                    <span className="text-[10px] text-text-disabled uppercase">{t('settings_installed_version', lang)}</span>
                     <span className="text-lg font-extrabold text-primary">v{versionInfo.version}</span>
                   </div>
                   <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col space-y-1">
-                    <span className="text-[10px] text-text-disabled uppercase">Среда выполнения</span>
+                    <span className="text-[10px] text-text-disabled uppercase">{t('system_env', lang)}</span>
                     <span className="text-lg font-extrabold text-white">{versionInfo.env || 'Development'}</span>
                   </div>
                 </div>
@@ -1410,38 +1455,49 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
               {/* Release Timeline */}
               <div className="space-y-4 pt-2">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">История версий</h4>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">{t('system_history_title', lang)}</h4>
                 {versionInfo.history.length === 0 ? (
-                  <p className="text-xs text-text-disabled italic py-2">История релизов пуста</p>
+                  <p className="text-xs text-text-disabled italic py-2">{t('system_no_history', lang)}</p>
                 ) : (
                   <div className="relative pl-5 border-l border-white/5 space-y-6 py-1">
-                    {versionInfo.history.map((release) => (
-                      <div key={release.version} className="relative">
-                        {/* Timeline dot */}
-                        <span className="absolute -left-[27px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background-panel border-2 border-primary shrink-0">
-                          <span className="h-1 w-1 rounded-full bg-primary" />
-                        </span>
-                        
-                        <div className="space-y-1.5">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-bold text-white">v{release.version}</span>
-                            <span className="text-[10px] text-text-muted">({release.date})</span>
-                            <span className="text-[10px] text-primary font-medium">— {release.title}</span>
-                          </div>
+                    {versionInfo.history.map((release) => {
+                      const releaseTitle = lang === 'en' 
+                        ? (release.title_en || release.title || '') 
+                        : (release.title_ru || release.title || '');
+                      const releaseKeynotes = lang === 'en' 
+                        ? (release.keynotes_en || release.keynotes || []) 
+                        : (release.keynotes_ru || release.keynotes || []);
+
+                      return (
+                        <div key={release.version} className="relative">
+                          {/* Timeline dot */}
+                          <span className="absolute -left-[27px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background-panel border-2 border-primary shrink-0">
+                            <span className="h-1 w-1 rounded-full bg-primary" />
+                          </span>
                           
-                          {release.keynotes && release.keynotes.length > 0 && (
-                            <ul className="space-y-1 pl-1">
-                              {release.keynotes.map((note, nIdx) => (
-                                <li key={nIdx} className="flex items-start text-[11px] text-text-muted">
-                                  <span className="text-primary mr-1.5">•</span>
-                                  <span>{note}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-bold text-white">v{release.version}</span>
+                              <span className="text-[10px] text-text-muted">({release.date})</span>
+                              {releaseTitle && (
+                                <span className="text-[10px] text-primary font-medium">— {releaseTitle}</span>
+                              )}
+                            </div>
+                            
+                            {releaseKeynotes && releaseKeynotes.length > 0 && (
+                              <ul className="space-y-1 pl-1">
+                                {releaseKeynotes.map((note, nIdx) => (
+                                  <li key={nIdx} className="flex items-start text-[11px] text-text-muted">
+                                    <span className="text-primary mr-1.5">•</span>
+                                    <span>{note}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1451,7 +1507,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         {/* Footer info bar */}
         <div className="px-6 py-2.5 border-t border-white/5 bg-black/20 text-[10px] text-text-disabled text-right">
-          <span>Ваша роль: <strong>{currentUser.role}</strong></span>
+          <span>{t('settings_role_label', lang)}: <strong>{currentUser.role === 'Admin' ? t('settings_role_admin', lang) : currentUser.role === 'Editor' ? t('settings_role_editor', lang) : t('settings_role_viewer', lang)}</strong></span>
         </div>
 
       </div>

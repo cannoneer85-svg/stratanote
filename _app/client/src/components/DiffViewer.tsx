@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
+import { type Lang } from '../utils/translations';
 
 interface DiffViewerProps {
   versionId: number;
@@ -11,6 +12,7 @@ interface DiffViewerProps {
   onClose: () => void;
   onRestore: () => void;
   isReadOnly: boolean;
+  lang: Lang;
 }
 
 interface DiffLine {
@@ -26,7 +28,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   currentContent,
   onClose,
   onRestore,
-  isReadOnly
+  isReadOnly,
+  lang
 }) => {
   // Helper: line-by-line LCS (Longest Common Subsequence) Diff Algorithm
   const getDiff = (oldText: string, newText: string): DiffLine[] => {
@@ -81,14 +84,18 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors cursor-pointer"
-            title="Назад"
+            title={lang === 'en' ? 'Back' : 'Назад'}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-sm font-semibold text-white">Просмотр изменений</h2>
+            <h2 className="text-sm font-semibold text-white">
+              {lang === 'en' ? 'View Changes' : 'Просмотр изменений'}
+            </h2>
             <p className="text-xs text-text-muted">
-              Версия #{versionId} от {formatToMoscowTime(versionDate)} ({authorName})
+              {lang === 'en' 
+                ? `Version #${versionId} from ${formatToMoscowTime(versionDate)} (${authorName})` 
+                : `Версия #${versionId} от ${formatToMoscowTime(versionDate)} (${authorName})`}
             </p>
           </div>
         </div>
@@ -99,7 +106,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             className="px-3 py-1.5 bg-primary hover:bg-primary-hover hover:opacity-90 active:scale-95 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer shadow-glow border border-primary/20"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Восстановить версию</span>
+            <span>{lang === 'en' ? 'Restore version' : 'Восстановить версию'}</span>
           </button>
         )}
       </div>

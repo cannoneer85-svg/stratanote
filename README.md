@@ -1,114 +1,121 @@
 # StrataNote
 
+🌐 [English](README.md) | [Русский](README.ru.md)
+
 <p align="center">
   <img src="_app/client/public/logo.jpg" alt="StrataNote Logo" width="320"/>
 </p>
 
-**StrataNote** — это современное веб-приложение для совместной работы с базами знаний на основе Markdown. Проект сочетает визуальный опыт классического Obsidian (двусторонние вики-ссылки, интерактивный граф связей, папки и файлы) с возможностями многопользовательского редактирования в реальном времени, контролем версий (ревизиями) и администрированием.
+**StrataNote** is a modern collaborative Markdown knowledge base and note-taking web application. The project combines the visual experience of classic Obsidian (bidirectional wiki-links, interactive graph view, folders and files) with real-time multi-user editing, version control (revisions), and administration features.
 
 ---
 
-## 📁 Структура проекта
+## 📁 Project Structure
 
-*   `_app/` — основной каталог веб-приложения:
-    *   `client/` — клиентская часть (React + TypeScript + Vite + CodeMirror 6)
-    *   `server/` — серверная часть (Node.js + Express + Socket.io + SQLite + Chokidar)
-    *   `scripts/` — служебные скрипты (запуск, тесты, релизы)
-*   `_sync_mcp/` — локальный MCP-агент синхронизации (Node.js + WebSockets):
-    *   Позволяет редактировать файлы локально (в Obsidian/VS Code) с автоматической или ручной фоновой синхронизацией с сервером.
-*   `start.bat` — скрипт быстрого запуска для Windows (запускает приложение одной кнопкой)
-*   `.agents/` — конфигурация и правила для ИИ-агентов (Antigravity/Claude/Gemini)
+*   `_app/` — main web application directory:
+    *   `client/` — frontend client part (React + TypeScript + Vite + CodeMirror 6)
+    *   `server/` — backend server part (Node.js + Express + Socket.io + SQLite + Chokidar)
+    *   `scripts/` — utility and deployment scripts (startup, testing, releases)
+*   `_sync_mcp/` — local Model Context Protocol (MCP) sync agent (Node.js + WebSockets):
+    *   Allows editing files locally (in Obsidian / VS Code) with automatic or manual background synchronization with the server.
+*   `start.bat` — quick startup batch script for Windows (starts the application with a single click).
+*   `.agents/` — configuration and rules for AI coding assistants (Antigravity/Claude/Gemini).
 
-Все личные заметки и медиафайлы (`assets/`) исключены из репозитория Git по умолчанию (настроено в `.gitignore`).
-
----
-
-## 🛠 Требования
-
-Для запуска проекта вам понадобятся:
-*   [Node.js](https://nodejs.org/) (рекомендуется версия LTS 20+)
-*   Установленный Git
+Personal notes and media assets (`assets/`) are excluded from the Git repository by default (configured in `.gitignore`).
 
 ---
 
-## 🚀 Установка и запуск
+## 🛠 Requirements
 
-### Шаг 1. Клонирование репозитория
+To run this project, you will need:
+*   [Node.js](https://nodejs.org/) (version LTS 20+ recommended)
+*   Git installed on your system
+
+---
+
+## 🚀 Setup and Run
+
+### Step 1. Clone the Repository
 ```bash
 git clone https://github.com/cannoneer85-svg/stratanote.git
 cd stratanote
 ```
 
-### Шаг 2. Установка зависимостей
-Перейдите в папку `_app` и запустите скрипт пакетной установки:
+### Step 2. Install Dependencies
+Navigate to the `_app` folder and run the package installation script:
 ```bash
 cd _app
 npm run install:all
 ```
-Этот скрипт автоматически установит необходимые пакеты для корневой папки веб-приложения, а также для папок `client/`, `server/` и папки локального агента синхронизации `_sync_mcp/`.
+This script will automatically install all required packages for the root monorepo, client (`client/`), server (`server/`), and local sync agent (`_sync_mcp/`).
 
-### Шаг 3. Запуск приложения
+### Step 3. Start the Application
 
-Вы можете выбрать один из трех способов запуска:
+You can choose one of three startup modes:
 
-#### А. Быстрый запуск на Windows (Рекомендуется)
-Просто запустите файл `start.bat` в корневом каталоге. Скрипт:
-1. Автоматически найдет свободный порт (начиная с 3001).
-2. Скомпилирует клиентские файлы фронтенда (если папка сборки отсутствует).
-3. Запустит сервер.
-4. Откроет приложение в вашем веб-браузере по умолчанию на адресе `http://localhost:<порт>`.
+#### A. Quick Windows Launch (Recommended)
+Simply run the `start.bat` file in the root directory of the repository. The script will:
+1. Automatically find a free local port (starting from 3001).
+2. Compile frontend client assets (if build folder is missing).
+3. Start the backend server.
+4. Open the application in your default web browser at `http://localhost:<port>`.
 
-#### Б. Запуск собранной Production-версии (Вручную)
-1. Выполните сборку фронтенда из папки `_app`:
+#### B. Start Production Build (Manually)
+1. Build the frontend client assets from the `_app` folder:
    ```bash
    npm run build
    ```
-2. Запустите сервер:
+2. Start the server:
    ```bash
    npm start
    ```
-3. Откройте в браузере: **http://localhost:3001**
+3. Open in your browser: **http://localhost:3001**
 
-#### В. Режим разработки (с горячей перезагрузкой кода)
-Для внесения изменений в код в реальном времени запустите dev-сервер из папки `_app`:
-1. Выполните команду:
+#### C. Development Mode (with Hot Reloading)
+To make changes to the code in real-time, start the dev server from the `_app` folder:
+1. Run the dev command:
    ```bash
    npm run dev
    ```
-   *Фронтенд Vite запустится на порту `5173`, а API-сервер на порту `3001` (с проксированием запросов).*
-2. Откройте в браузере: **http://localhost:5173**
+   *Frontend Vite server will start on port `5173`, and the API server will run on port `3001` (requests will be automatically proxied).*
+2. Open in your browser: **http://localhost:5173**
 
 ---
 
-## 🧪 Тестирование
+## 🧪 Testing
 
-Для запуска интеграционных тестов поддержки мультимедиа выполните следующую команду из папки `_app` (при запущенном сервере на порту 3001):
+To run integration media tests, run the following command from the `_app` folder (ensure the server is running on port 3001):
 ```bash
 npm run test:media
 ```
 
----
-
-## ⚙ Настройки окружения (Environment Variables)
-
-Поведение сервера можно настроить с помощью переменных окружения (или создав файл `.env` в папке `_app/server/`):
-*   `PORT` — порт, на котором запускается сервер бэкенда (по умолчанию `3001`).
-*   `VAULT_PATH` — путь к папке хранилища заметок, которую приложение должно обслуживать. По умолчанию используется родительский каталог папки `_app` (корень репозитория).
-*   `DATABASE_PATH` — абсолютный путь к файлу базы данных SQLite. По умолчанию создается локальный файл `database.sqlite` в папке `_app/server/`. В production-среде эту переменную следует направить на смонтированный постоянный диск (например, `/data/database.sqlite`), чтобы данные не пропадали при перезапусках контейнеров.
+To run mobile UI layout E2E tests:
+```bash
+npm run test:mobile
+```
 
 ---
 
-## ☁ Деплой в облачную инфраструктуру (Production Deployment)
+## ⚙ Environment Variables
 
-В production-средах (например, Railway, Render, Fly.io) контейнеры по умолчанию являются эфемерными (их файловая система стирается при каждом новом деплое или перезапуске). Чтобы база данных пользователей и медиафайлы заметок сохранялись, необходимо настроить постоянный диск (Persistent Volume).
+You can configure the server behavior using environment variables (or by creating a `.env` file in the `_app/server/` folder):
+*   `PORT` — port on which the backend server starts (default is `3001`).
+*   `VAULT_PATH` — path to the notes vault directory that the application should serve. Default is the parent directory of `_app` (repository root).
+*   `DATABASE_PATH` — absolute path to the SQLite database file. Default is `_app/server/database.sqlite`. In production environments, point this variable to a mounted persistent volume (e.g. `/data/database.sqlite`) to prevent data loss on container restarts.
 
-### Пример настройки для Railway:
-1.  **Настройка папки сборки**: В настройках сервиса (**Settings**) добавьте или измените поле **Root Directory** на значение `_app`. Это укажет Railway собирать проект из подпапки приложения.
-2.  **Подключение диска (Volume)**:
-    *   Создайте новый **Volume** (например, `stratanote-volume` размером 5 GB) в панели вашего проекта Railway.
-    *   Примонтируйте его к сервису приложения в точку монтирования (Mount Path): `/data`.
-3.  **Настройка переменных окружения (Variables)**:
-    На вкладке **Variables** добавьте следующие переменные:
-    *   `DATABASE_PATH` = `/data/database.sqlite` (направляет БД на постоянный диск).
-    *   `VAULT_PATH` = `/data/vault` (направляет папку с заметками на постоянный диск).
-4.  **Разделение папок**: После подключения диска бэкенд автоматически инициализирует базу данных на примонтированном диске и будет хранить ваши файлы и картинки в `/data/vault/assets/` в полной безопасности между перезапусками.
+---
+
+## ☁ Production Deployment
+
+In production environments (e.g., Railway, Render, Fly.io), containers are ephemeral by default. To preserve user database entries and uploaded media assets, you must attach a persistent volume.
+
+### Example Configuration for Railway:
+1.  **Configure Build Path**: In your Railway service settings (**Settings**), set or change the **Root Directory** field to `_app`. This tells Railway to compile and run the project from the application subfolder.
+2.  **Attach a Persistent Volume**:
+    *   Create a new **Volume** (e.g., `stratanote-volume` with size of 5 GB) in your Railway project panel.
+    *   Mount it to the application service at the mount path: `/data`.
+3.  **Configure Environment Variables**:
+    Add the following variables in the **Variables** tab:
+    *   `DATABASE_PATH` = `/data/database.sqlite` (redirects the DB to the persistent volume).
+    *   `VAULT_PATH` = `/data/vault` (redirects the notes vault folder to the persistent volume).
+4.  **Automatic Partitioning**: Once mounted, the backend server will automatically initialize the database on the persistent volume and safely store your notes and images in `/data/vault/assets/` between deployments.

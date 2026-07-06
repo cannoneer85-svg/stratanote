@@ -18,15 +18,15 @@ This skill automates the release process for StrataNote.
       - `MAJOR` if there are breaking changes (e.g. `feat!:` or `BREAKING CHANGE:`).
       - `MINOR` if there are feature commits (e.g. `feat:`).
       - `PATCH` if there are only bugfixes/chores/docs (e.g. `fix:`, `docs:`, `chore:`).
-3.  **Collect Russian Keynotes**:
-    - Summarize the commits since the last release into bullet points in Russian (Keynotes).
+3.  **Collect Bilingual Keynotes**:
+    - Summarize the commits since the last release into bullet points in both English and Russian.
 4.  **Propose release package**:
-    - Show the recommended new version (e.g. `1.3.0`), title, and list of Keynotes.
+    - Show the recommended new version (e.g. `1.5.0`), titles, and keynotes for both languages (English and Russian).
     - Ask the user to confirm.
 5.  **Run release script**:
-    - If approved, run the release script to update `package.json` files, `releases.json`, and `CHANGELOG.md`:
+    - If approved, run the release script to update `package.json` files, `releases.json`, and `CHANGELOG.md` with bilingual details:
       ```bash
-      node _app/scripts/prepare-release.js <new_version> <date> <title> "Фича 1" "Фикс 2" ...
+      node _app/scripts/prepare-release.js <new_version> <date> --title_en "<title_en>" --title_ru "<title_ru>" --keynotes_en "EN Keynote 1" "EN Keynote 2" --keynotes_ru "RU Keynote 1" "RU Keynote 2"
       ```
 6.  **Create release commit, tag, and push**:
     - Present the file modifications.

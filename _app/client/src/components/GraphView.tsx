@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { Search, ZoomIn, ZoomOut, Maximize2, Minimize2, Focus } from 'lucide-react';
+import { t, type Lang } from '../utils/translations';
 
 interface Note {
   relative_path: string;
@@ -14,12 +15,14 @@ interface GraphViewProps {
   notes: Note[];
   onNoteSelect: (path: string) => void;
   activeNotePath: string | null;
+  lang: Lang;
 }
 
 export const GraphView: React.FC<GraphViewProps> = ({
   notes,
   onNoteSelect,
-  activeNotePath
+  activeNotePath,
+  lang
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const graphRef = useRef<any>(null);
@@ -68,7 +71,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Helper to extract display folder names (with subfolders support for _sources)
   const getDisplayFolder = (id: string): string => {
     const parts = id.split('/');
-    if (parts.length <= 1) return 'Корень';
+    if (parts.length <= 1) return lang === 'en' ? 'Root' : 'Корень';
     if (parts[0] === '_sources' && parts.length > 2) {
       return `_sources/${parts[1]}`;
     }
@@ -442,7 +445,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
-            placeholder="Поиск заметок на графе..."
+            placeholder={lang === 'en' ? 'Search notes on graph...' : 'Поиск заметок на графе...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-black/40 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50 transition-colors"
@@ -451,7 +454,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
         {/* Semantic Graph Settings */}
         <div className="bg-black/60 backdrop-blur-md border border-white/5 p-3 rounded-lg flex flex-col space-y-2 w-64 text-xs text-text">
-          <div className="font-semibold text-text-muted border-b border-white/5 pb-1 select-none">Связи на графе:</div>
+          <div className="font-semibold text-text-muted border-b border-white/5 pb-1 select-none">
+            {lang === 'en' ? 'Connections on graph:' : 'Связи на графе:'}
+          </div>
           
           <label className="flex items-center space-x-2 cursor-pointer select-none">
             <input
@@ -460,7 +465,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
               onChange={(e) => setShowWikiLinks(e.target.checked)}
               className="accent-primary rounded cursor-pointer"
             />
-            <span>Вики-ссылки (сплошные)</span>
+            <span>{t('graph_toggle_wiki', lang)}</span>
           </label>
 
           <label className="flex items-center space-x-2 cursor-pointer select-none">
@@ -470,13 +475,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
               onChange={(e) => setShowSemanticLinks(e.target.checked)}
               className="accent-purple-500 rounded cursor-pointer"
             />
-            <span>Логические связи (пунктир)</span>
+            <span>{t('graph_toggle_semantic', lang)}</span>
           </label>
 
           {showSemanticLinks && (
             <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-white/5">
               <div className="flex justify-between text-[10px] text-text-muted select-none">
-                <span>Порог сходства:</span>
+                <span>{t('graph_threshold', lang)}:</span>
                 <span className="font-mono text-purple-400 font-semibold">{(similarityThreshold * 100).toFixed(0)}%</span>
               </div>
               <input
@@ -494,20 +499,22 @@ export const GraphView: React.FC<GraphViewProps> = ({
           {/* Folders Filter Section */}
           <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-white/5">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-text-muted select-none">Каталоги:</span>
+              <span className="font-semibold text-text-muted select-none">
+                {lang === 'en' ? 'Folders:' : 'Каталоги:'}
+              </span>
               <div className="flex items-center space-x-2 text-[10px]">
                 <button
                   onClick={handleSelectAllFolders}
                   className="text-primary hover:underline cursor-pointer font-medium"
                 >
-                  выбрать все
+                  {t('graph_select_all', lang)}
                 </button>
                 <span className="text-white/20 select-none">|</span>
                 <button
                   onClick={handleDeselectAllFolders}
                   className="text-text-muted hover:text-white hover:underline cursor-pointer font-medium"
                 >
-                  снять все
+                  {t('graph_deselect_all', lang)}
                 </button>
               </div>
             </div>
@@ -627,8 +634,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
           {/* Statistics Info */}
           <div className="flex justify-between items-center text-[10px] text-text-muted pt-2 border-t border-white/5 select-none font-mono">
-            <span>Узлов: <strong className="text-white">{filteredNodes.length}</strong></span>
-            <span>Связей: <strong className="text-purple-400">{filteredLinks.length}</strong></span>
+            <span>{lang === 'en' ? 'Nodes' : 'Узлов'}: <strong className="text-white">{filteredNodes.length}</strong></span>
+            <span>{lang === 'en' ? 'Links' : 'Связей'}: <strong className="text-purple-400">{filteredLinks.length}</strong></span>
           </div>
         </div>
       </div>
@@ -637,28 +644,28 @@ export const GraphView: React.FC<GraphViewProps> = ({
         <button
           onClick={() => graphRef.current?.zoom(graphRef.current.zoom() * 1.3, 300)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
-          title="Приблизить"
+          title={lang === 'en' ? 'Zoom In' : 'Приблизить'}
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={() => graphRef.current?.zoom(graphRef.current.zoom() / 1.3, 300)}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
-          title="Отдалить"
+          title={lang === 'en' ? 'Zoom Out' : 'Отдалить'}
         >
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
           onClick={() => triggerClampedFit()}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer"
-          title="По размеру (Сбросить зум)"
+          title={lang === 'en' ? 'Fit to Canvas (Reset Zoom)' : 'По размеру (Сбросить зум)'}
         >
           <Focus className="w-4 h-4" />
         </button>
         <button
           onClick={toggleFullscreen}
           className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer border-l border-white/10 pl-2 ml-1"
-          title={isFullscreen ? "Свернуть" : "Развернуть на весь экран"}
+          title={isFullscreen ? (lang === 'en' ? 'Exit Fullscreen' : 'Свернуть') : (lang === 'en' ? 'Fullscreen' : 'Развернуть на весь экран')}
         >
           {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
@@ -668,7 +675,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       <div className="flex-1 w-full h-full relative cursor-grab active:cursor-grabbing select-none">
         {graphData.nodes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center text-text-muted text-sm">
-            Нет заметок для отображения графа связей.
+            {lang === 'en' ? 'No notes to display connections graph.' : 'Нет заметок для отображения графа связей.'}
           </div>
         ) : (
           <ForceGraph2D

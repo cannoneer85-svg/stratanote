@@ -9,6 +9,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { AboutModal } from './components/AboutModal';
 import { ExportModal } from './components/ExportModal';
 import { formatToMoscowTime } from './utils/date';
+import { t, type Lang } from './utils/translations';
 import { 
   Network, FileText, History, X, HelpCircle, Menu
 } from 'lucide-react';
@@ -164,6 +165,16 @@ export default function App() {
     history: [],
     env: 'Development'
   });
+
+  // System Language
+  const [lang, setLang] = useState<Lang>(() => {
+    return (localStorage.getItem('stratanote_lang') as Lang) || 'en';
+  });
+
+  const handleSetLang = (newLang: Lang) => {
+    setLang(newLang);
+    localStorage.setItem('stratanote_lang', newLang);
+  };
 
   // Auto hash navigation for external link clicks
   useEffect(() => {
@@ -373,7 +384,7 @@ export default function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Ошибка при сохранении заметки');
+        throw new Error(data.error || (lang === 'en' ? 'Failed to save note' : 'Ошибка при сохранении заметки'));
       }
 
       setNoteContents(prev => ({ ...prev, [activeNotePath]: content }));
@@ -419,7 +430,7 @@ export default function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Ошибка создания');
+        throw new Error(data.error || (lang === 'en' ? 'Failed to create resource' : 'Ошибка создания'));
       }
 
       await loadNotes();
@@ -441,7 +452,7 @@ export default function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Ошибка удаления');
+        throw new Error(data.error || (lang === 'en' ? 'Failed to delete resource' : 'Ошибка удаления'));
       }
 
       await loadNotes();
@@ -464,7 +475,7 @@ export default function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Ошибка переименования');
+        throw new Error(data.error || (lang === 'en' ? 'Failed to rename resource' : 'Ошибка переименования'));
       }
 
       // If active note was renamed, update it reactively
@@ -543,7 +554,7 @@ export default function App() {
   const handleRestoreHistory = async () => {
     if (!selectedHistoryItem || !activeNotePath) return;
 
-    if (confirm(`Вы действительно хотите восстановить версию от ${formatToMoscowTime(selectedHistoryItem.created_at)}?`)) {
+    if (confirm(lang === 'en' ? `Are you sure you want to restore the version from ${formatToMoscowTime(selectedHistoryItem.created_at)}?` : `Вы действительно хотите восстановить версию от ${formatToMoscowTime(selectedHistoryItem.created_at)}?`)) {
       await saveNote(historicContent);
       setHistoryOpen(false);
       setSelectedHistoryItem(null);
@@ -574,7 +585,7 @@ export default function App() {
 
   // Render Auth overlay if not authenticated
   if (!token || !currentUser) {
-    return <Auth onLoginSuccess={handleLoginSuccess} />;
+    return <Auth onLoginSuccess={handleLoginSuccess} lang={lang} />;//
   }
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background relative">
@@ -626,6 +637,7 @@ export default function App() {
               setAboutOpen(true);
               if (window.innerWidth < 768) setSidebarOpen(false);
             }}
+            lang={lang}
           />
         </div>
 
@@ -633,7 +645,7 @@ export default function App() {
         <div
           onMouseDown={startResizing}
           className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/40 active:bg-primary transition-colors z-50 hidden md:block"
-          title="Перетащите для изменения ширины"
+          title={lang === 'en' ? "Drag to resize sidebar" : "Перетащите для изменения ширины"}
         />
       </div>
 
@@ -647,7 +659,10 @@ export default function App() {
             <button
               onClick={() => setSidebarOpen(prev => !prev)}
               className="p-1.5 hover:bg-white/5 rounded-lg text-text-muted hover:text-white transition-colors cursor-pointer mr-1"
-              title={sidebarOpen ? "Скрыть панель" : "Показать панель"}
+              title={sidebarOpen 
+                ? (lang === 'en' ? "Collapse sidebar" : "Скрыть панель") 
+                : (lang === 'en' ? "Expand sidebar" : "Показать панель")
+              }
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -680,7 +695,7 @@ export default function App() {
             })}
 
             {openedTabs.length === 0 && (
-              <span className="text-xs text-text-disabled italic">Нет открытых вкладок</span>
+              <span className="text-xs text-text-disabled italic">{lang === 'en' ? 'No open tabs' : 'Нет открытых вкладок'}</span>
             )}
           </div>
 
@@ -694,7 +709,7 @@ export default function App() {
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Заметки</span>
+                <span className="hidden sm:inline">{t('tab_notes', lang)}</span>
               </button>
               <button
                 onClick={() => setActiveTab('graph')}
@@ -703,7 +718,7 @@ export default function App() {
                 }`}
               >
                 <Network className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Граф</span>
+                <span className="hidden sm:inline">{t('tab_graph', lang)}</span>
               </button>
             </div>
 
@@ -713,7 +728,7 @@ export default function App() {
                 className={`p-1.5 border rounded-lg text-text-muted hover:text-white cursor-pointer transition-colors ${
                   historyOpen ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-black/30 border-white/10'
                 }`}
-                title="История изменений"
+                title={t('btn_history', lang)}
               >
                 <History className="w-4 h-4" />
               </button>
@@ -739,6 +754,7 @@ export default function App() {
                       onClose={() => setSelectedHistoryItem(null)}
                       onRestore={handleRestoreHistory}
                       isReadOnly={currentUser.role === 'Viewer'}
+                      lang={lang}
                     />
                   ) : (
                     <Editor
@@ -752,6 +768,7 @@ export default function App() {
                       socket={socket}
                       autoOpenSuggestion={autoOpenSuggestion}
                       onClearAutoOpenSuggestion={() => setAutoOpenSuggestion(null)}
+                      lang={lang}
                     />
                   )}
                 </div>
@@ -759,9 +776,9 @@ export default function App() {
                 <div className="w-full h-full flex flex-col items-center justify-center text-center space-y-4">
                   <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl max-w-sm glass-card">
                     <HelpCircle className="w-12 h-12 text-primary/70 mx-auto mb-3 animate-pulse" />
-                    <h2 className="text-lg font-bold text-white mb-1">Совместная база StrataNote</h2>
+                    <h2 className="text-lg font-bold text-white mb-1">{t('app_title', lang)}</h2>
                     <p className="text-xs text-text-muted">
-                      Выберите существующий markdown-документ в левом сайдбаре или создайте новый, чтобы приступить к редактированию.
+                      {t('editor_select_note', lang)}
                     </p>
                   </div>
                 </div>
@@ -771,6 +788,7 @@ export default function App() {
                 notes={notes}
                 onNoteSelect={openNote}
                 activeNotePath={activeNotePath}
+                lang={lang}
               />
             )}
           </div>
@@ -778,13 +796,16 @@ export default function App() {
           {/* Slide-out Version History Panel */}
           {historyOpen && activeNotePath && activeTab === 'editor' && !selectedHistoryItem && (() => {
             const currentNote = notes.find(n => n.relative_path === activeNotePath);
-            const noteCreator = currentNote?.created_by || 'Внешняя система';
+            const rawNoteCreator = currentNote?.created_by || 'system';
+            const noteCreator = rawNoteCreator === 'system' || rawNoteCreator === 'Внешняя система'
+              ? t('system_external', lang)
+              : rawNoteCreator;
             return (
               <div className="w-80 h-full bg-background-panel border-l border-white/5 flex flex-col overflow-hidden animate-slide-in shrink-0">
                 <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/10 select-none">
                   <div>
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">История версий</span>
-                    <div className="text-[10px] text-text-disabled mt-0.5">Владелец: <span className="text-primary font-semibold">{noteCreator}</span></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">{t('history_title', lang)}</span>
+                    <div className="text-[10px] text-text-disabled mt-0.5">{t('history_owner', lang)}: <span className="text-primary font-semibold">{noteCreator}</span></div>
                   </div>
                   <button
                     onClick={() => setHistoryOpen(false)}
@@ -797,7 +818,7 @@ export default function App() {
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 select-none">
                   {historyList.length === 0 ? (
                     <div className="text-center text-text-disabled text-xs mt-8">
-                      История пуста.
+                      {t('history_empty', lang)}
                     </div>
                   ) : (
                     historyList.map((item) => (
@@ -807,9 +828,11 @@ export default function App() {
                         className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all active:scale-[0.98]"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold text-white">Версия #{item.id}</span>
+                          <span className="text-xs font-semibold text-white">{t('history_version', lang, { id: item.id })}</span>
                           <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-1.5 rounded-full font-bold">
-                            {item.author_name}
+                            {item.author_name === 'Внешняя система' || item.author_name === 'system' 
+                              ? t('system_external', lang) 
+                              : item.author_name}
                           </span>
                         </div>
                         <p className="text-[10px] text-text-muted">
@@ -835,18 +858,22 @@ export default function App() {
         onVaultReload={loadNotes}
         versionInfo={versionInfo}
         socket={socket}
+        lang={lang}
+        onLangChange={handleSetLang}
       />
 
       <AboutModal
         isOpen={aboutOpen}
         onClose={() => setAboutOpen(false)}
         versionInfo={versionInfo}
+        lang={lang}
       />
 
       <ExportModal
         isOpen={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         onExport={handleExportVault}
+        lang={lang}
       />
     </div>
   );
