@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 import { initDb, run, get, all } from './db.js';
 import { initWatcher, vaultPath } from './watcher.js';
 
-import authRouter, { authenticateJWT } from './routes/auth.js';
+import jwt from 'jsonwebtoken';
+import authRouter, { authenticateJWT, JWT_SECRET } from './routes/auth.js';
 import notesRouter, { rawHandler } from './routes/notes.js';
 import historyRouter from './routes/history.js';
 import syncRouter from './routes/sync.js';
@@ -96,6 +97,45 @@ io.on('connection', (socket) => {
 
   // Register Sync Agent
   socket.on('register-sync-agent', async ({ userId, username, deviceName, syncMode }) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      console.error('[Socket] Sync agent registration rejected: No token provided');
+      socket.emit('register-failed', { error: 'No token provided' });
+      socket.disconnect();
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded.id !== userId || decoded.username !== username) {
+        throw new Error('Token payload mismatch');
+      }
+    } catch (jwtErr) {
+      console.error(`[Socket] Sync agent registration rejected: ${jwtErr.message}`);
+      socket.emit('register-failed', { error: `Invalid or expired token: ${jwtErr.message}` });
+      
+      // Update sync status in DB to reflect the error
+      try {
+        await run(`
+          INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode)
+          VALUES (?, ?, ?, datetime('now'), 'error', ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            username = excluded.username,
+            device_name = excluded.device_name,
+            last_sync_at = datetime('now'),
+            status = 'error',
+            error_message = excluded.error_message,
+            sync_mode = excluded.sync_mode
+        `, [userId, username, deviceName || 'Unknown Device', `Ошибка авторизации сокета: ${jwtErr.message}`, syncMode || null]);
+      } catch (dbErr) {
+        console.error('[Socket] Failed to log socket auth error to DB:', dbErr);
+      }
+      
+      io.emit('sync-status-changed');
+      socket.disconnect();
+      return;
+    }
+
     socket.userId = userId;
     socket.username = username;
     socket.isSyncAgent = true;
@@ -106,15 +146,17 @@ io.on('connection', (socket) => {
     
     try {
       await run(`
-        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, sync_mode)
-        VALUES (?, ?, ?, datetime('now'), 'online', ?)
+        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode)
+        VALUES (?, ?, ?, datetime('now'), 'online', NULL, ?)
         ON CONFLICT(user_id) DO UPDATE SET
           username = excluded.username,
           device_name = excluded.device_name,
           last_sync_at = datetime('now'),
           status = 'online',
+          error_message = NULL,
           sync_mode = excluded.sync_mode
       `, [userId, username, deviceName, syncMode]);
+      io.emit('sync-status-changed');
     } catch (err) {
       console.error('[Socket] Failed to update status on register:', err);
     }
@@ -194,6 +236,7 @@ io.on('connection', (socket) => {
         await run(`
           UPDATE sync_status SET status = 'offline' WHERE user_id = ? AND status = 'online'
         `, [socket.userId]);
+        io.emit('sync-status-changed');
       } catch (err) {
         console.error('[Socket] Failed to update status on disconnect:', err);
       }

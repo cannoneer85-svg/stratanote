@@ -10,7 +10,7 @@ const configPath = join(__dirname, 'config.json');
 
 const DEFAULT_CONFIG = {
   STRATANOTE_SERVER_URL: process.env.STRATANOTE_SERVER_URL || 'http://localhost:3001',
-  STRATANOTE_API_TOKEN: process.env.STRATANOTE_API_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc4MzEyMjM1OCwiZXhwIjoxODE0NjU4MzU4fQ.07wYPZPQDjpb_A8k7OnA2EmFYl9x3dkJpO1xbJ0cO18',
+  STRATANOTE_API_TOKEN: process.env.STRATANOTE_API_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc4MzMzNzUzMywiZXhwIjoyMDk4Njk3NTMzfQ.TzTKEIUBlYrvAZyZTZ84ZZLsstoFyU4b7J5iqQehE5k',
   LOCAL_VAULT_PATH: process.env.LOCAL_VAULT_PATH || 'D:/YandexDisk/AWG/md_obsidian',
   SYNC_MODE: 'manual', // 'auto' or 'manual'
   CONFLICT_RESOLUTION: 'suggest', // 'suggest', 'local-wins', 'server-wins', 'interactive'

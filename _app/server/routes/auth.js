@@ -107,7 +107,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.json({
@@ -127,6 +127,26 @@ router.post('/login', async (req, res) => {
 // Validate token route
 router.get('/me', authenticateJWT, (req, res) => {
   res.json({ user: req.user });
+});
+
+// Generate custom lifetime token route
+router.post('/generate-custom-token', authenticateJWT, async (req, res) => {
+  const { expiresIn } = req.body;
+  if (!expiresIn || !['1d', '7d', '30d', '90d', '3650d'].includes(expiresIn)) {
+    return res.status(400).json({ error: 'Неверный период действия токена' });
+  }
+
+  try {
+    const token = jwt.sign(
+      { id: req.user.id, username: req.user.username, role: req.user.role },
+      JWT_SECRET,
+      { expiresIn }
+    );
+    res.json({ token });
+  } catch (err) {
+    console.error('Failed to generate custom token:', err);
+    res.status(500).json({ error: 'Не удалось сгенерировать токен' });
+  }
 });
 
 // Admin Route: Get all users

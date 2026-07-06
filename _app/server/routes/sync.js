@@ -268,6 +268,12 @@ router.post('/status', authenticateJWT, async (req, res) => {
         error_message = excluded.error_message
     `, [req.user.id, req.user.username, deviceName || 'Unknown Device', status, syncMode || null, errorMessage || null]);
 
+    // Broadcast sync status update to all connected clients
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('sync-status-changed');
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('[Sync] Error saving sync status:', err);

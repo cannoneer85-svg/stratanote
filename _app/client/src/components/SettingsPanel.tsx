@@ -93,6 +93,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     message: string;
   } | null>(null);
 
+  const [customTokenDuration, setCustomTokenDuration] = useState('7d');
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+
   useEffect(() => {
     if (socket) {
       const handleProgress = (data: any) => {
@@ -110,10 +113,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         }
       };
 
+      const handleStatusChange = () => {
+        fetchSyncStatuses();
+      };
+
       socket.on('sync-server-progress', handleProgress);
+      socket.on('sync-status-changed', handleStatusChange);
 
       return () => {
         socket.off('sync-server-progress', handleProgress);
+        socket.off('sync-status-changed', handleStatusChange);
       };
     }
   }, [socket, currentUser]);
@@ -139,6 +148,29 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     }
   }, [activeTab, isOpen]);
+
+  const handleGenerateCustomToken = async () => {
+    try {
+      const res = await fetch('/api/auth/generate-custom-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ expiresIn: customTokenDuration })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedToken(data.token);
+        alert('Новый API Токен успешно сгенерирован!');
+      } else {
+        alert(data.error || 'Не удалось сгенерировать токен');
+      }
+    } catch (err) {
+      console.error('Failed to generate custom token:', err);
+      alert('Ошибка сети при генерации токена');
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -1176,20 +1208,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <input
                     type="password"
                     readOnly
-                    value={token || ''}
+                    value={generatedToken || token || ''}
                     className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-mono text-text-muted focus:outline-none"
                     id="sync-token-input"
                   />
                   <button
                     onClick={() => {
-                      if (token) {
-                        navigator.clipboard.writeText(token);
+                      const t = generatedToken || token;
+                      if (t) {
+                        navigator.clipboard.writeText(t);
                         alert('API Токен успешно скопирован в буфер обмена!');
                       }
                     }}
                     className="px-3 py-1.5 bg-primary hover:bg-primary/80 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     Скопировать
+                  </button>
+                </div>
+                
+                <div className="flex items-center space-x-2 pt-2 border-t border-white/5">
+                  <span className="text-[10px] text-text-muted">Время жизни:</span>
+                  <select
+                    value={customTokenDuration}
+                    onChange={(e) => setCustomTokenDuration(e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+                  >
+                    <option value="1d">1 сутки</option>
+                    <option value="7d">7 дней</option>
+                    <option value="30d">30 дней</option>
+                    <option value="90d">90 дней</option>
+                    <option value="3650d">Бессрочно (10 лет)</option>
+                  </select>
+                  <button
+                    onClick={handleGenerateCustomToken}
+                    className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-semibold rounded transition-colors cursor-pointer"
+                  >
+                    Сгенерировать новый токен
                   </button>
                 </div>
               </div>

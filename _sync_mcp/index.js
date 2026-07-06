@@ -124,6 +124,10 @@ function setupSocketConnection(config) {
     console.error('[Socket] Connection error:', err.message);
   });
 
+  socket.on('register-failed', (data) => {
+    console.error('[Socket] Registration failed on server:', data.error);
+  });
+
   // Handle remote sync trigger from server admin panel
   socket.on('trigger-sync-request', async (callback) => {
     console.error('[Socket] Received remote sync trigger command from server.');
