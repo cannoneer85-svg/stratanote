@@ -274,14 +274,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         onClick={(e) => handleRename(item.relative_path, true, e)}
                         className="p-0.5 hover:bg-white/5 hover:text-primary text-text-disabled rounded cursor-pointer transition-colors"
-                        title="Переименовать папку"
+                        title={lang === 'en' ? 'Rename folder' : 'Переименовать папку'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={(e) => handleDelete(item.relative_path, true, e)}
                         className="p-0.5 hover:bg-red-500/20 hover:text-red-400 text-text-disabled rounded cursor-pointer transition-colors"
-                        title="Удалить папку"
+                        title={lang === 'en' ? 'Delete folder' : 'Удалить папку'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -317,14 +317,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         onClick={(e) => handleRename(item.relative_path, false, e)}
                         className="p-0.5 hover:bg-white/5 hover:text-primary text-text-disabled rounded cursor-pointer transition-colors"
-                        title="Переименовать файл"
+                        title={lang === 'en' ? 'Rename file' : 'Переименовать файл'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={(e) => handleDelete(item.relative_path, false, e)}
                         className="p-0.5 hover:bg-red-500/20 hover:text-red-400 text-text-disabled rounded cursor-pointer transition-colors"
-                        title="Удалить файл"
+                        title={lang === 'en' ? 'Delete file' : 'Удалить файл'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -363,7 +363,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={`p-1.5 hover:bg-white/5 rounded-lg transition-colors cursor-pointer relative ${
                   pendingSuggestions.length > 0 ? 'text-primary animate-pulse' : 'text-text-disabled hover:text-white'
                 }`}
-                title="Уведомления о рецензиях"
+                title={t('sidebar_notifications_tooltip', lang)}
               >
                 <Bell className="w-4 h-4" />
                 {pendingSuggestions.length > 0 && (
@@ -374,7 +374,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {showNotifications && (
                 <div className="absolute right-[-85px] mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
                   <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                    <span className="font-bold text-white">Рецензии на согласование</span>
+                    <span className="font-bold text-white">{t('sidebar_notifications_title', lang)}</span>
                     <div className="flex items-center space-x-2">
                       {pendingSuggestions.length > 0 && (
                         <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
@@ -387,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           setShowNotifications(false);
                         }}
                         className="p-1 hover:bg-white/10 hover:text-white text-text-disabled rounded transition-colors cursor-pointer"
-                        title="Закрыть"
+                        title={t('sidebar_notifications_close', lang)}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -396,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="max-h-60 overflow-y-auto divide-y divide-white/5">
                     {pendingSuggestions.length === 0 ? (
                       <div className="p-4 text-center text-text-disabled">
-                        Нет предложений, ожидающих вашей рецензии.
+                        {t('sidebar_notifications_empty', lang)}
                       </div>
                     ) : (
                       pendingSuggestions.map((s: any) => (
@@ -417,10 +417,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                           </div>
                           <span className="text-[10px] text-text-disabled truncate">
-                            {lang === 'en' ? 'Path' : 'Путь'}: {s.relative_path}
+                            {t('sidebar_notifications_path', lang)}: {s.relative_path}
                           </span>
                           <span className="text-[9px] text-primary/80 uppercase font-semibold">
-                            {lang === 'en' ? 'Click to review changes' : 'Кликните для перехода к рецензии'}
+                            {t('sidebar_notifications_click_tip', lang)}
                           </span>
                         </button>
                       ))
