@@ -567,6 +567,30 @@ export const Editor: React.FC<EditorProps> = ({
     setPendingScrollPct(null);
   }, [notePath]);
 
+  // Save preview scroll position
+  const handlePreviewScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target && mode === 'preview') {
+      if (!(window as any).__previewScrollPositions) {
+        (window as any).__previewScrollPositions = {};
+      }
+      (window as any).__previewScrollPositions[notePath] = target.scrollTop;
+    }
+  };
+
+  // Restore preview scroll position on tab switch or content load
+  useEffect(() => {
+    if (mode === 'preview' && previewRef.current && pendingPreviewScrollText === null && pendingScrollPct === null) {
+      const savedScroll = (window as any).__previewScrollPositions?.[notePath] || 0;
+      const timer = setTimeout(() => {
+        if (previewRef.current && pendingPreviewScrollText === null && pendingScrollPct === null) {
+          previewRef.current.scrollTop = savedScroll;
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [notePath, mode, content, pendingPreviewScrollText, pendingScrollPct]);
+
   // Handle editor instance creation from CodeMirror and restore scroll position
   const handleCreateEditor = (view: any) => {
     console.log('[ScrollSync] CodeMirror created, restoring scroll. Pos:', pendingEditorScrollPos, 'Pct:', pendingScrollPct);
@@ -1296,6 +1320,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   const parseMarkdown = (md: string) => {
     const placeholders: string[] = [];
+    const documentIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text inline-block mr-1.5 align-middle opacity-70"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>`;
     const renderMediaHtml = (path: string, alt: string, options: string[]) => {
       const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
       const lowercasePath = path.toLowerCase();
@@ -1908,11 +1933,31 @@ export const Editor: React.FC<EditorProps> = ({
       .replace(/^## (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h2 id="${slug}" class="visual-h2">${title}</h2>`; })
       .replace(/^# (.*?)$/gm, (_m: string, title: string) => { const slug = title.replace(/<[^>]*>/g, '').replace(/[^\w\u0400-\u04FF\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-'); return `<h1 id="${slug}" class="visual-h1">${title}</h1>`; })
       // Unordered Lists
-      .replace(/^\s*[-*+]\s+\[\s*\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="text-text-muted">$1</span></div>')
-      .replace(/^\s*[-*+]\s+\[x\]\s+(.*?)$/gm, '<div class="flex items-center space-x-2 my-1"><input type="checkbox" checked disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="line-through text-text-disabled">$1</span></div>')
-      .replace(/^\s*[-*+]\s+(.*?)$/gm, '<li class="list-disc list-inside ml-4 text-text">$1</li>')
+      .replace(/^(\s*)[-*+]\s+\[\s*\]\s+(.*?)$/gm, (_match, spaces, content) => {
+        const spaceCount = spaces.replace(/\t/g, '    ').length;
+        const indentLevel = Math.floor(spaceCount / 2);
+        const marginStyle = indentLevel > 0 ? ` style="margin-left: ${indentLevel * 1.25 + 1}rem;"` : ' class="ml-4"';
+        return `<div class="flex items-center space-x-2 my-1"${marginStyle.startsWith(' class') ? marginStyle : marginStyle}><input type="checkbox" disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="text-text-muted">${content}</span></div>`;
+      })
+      .replace(/^(\s*)[-*+]\s+\[x\]\s+(.*?)$/gm, (_match, spaces, content) => {
+        const spaceCount = spaces.replace(/\t/g, '    ').length;
+        const indentLevel = Math.floor(spaceCount / 2);
+        const marginStyle = indentLevel > 0 ? ` style="margin-left: ${indentLevel * 1.25 + 1}rem;"` : ' class="ml-4"';
+        return `<div class="flex items-center space-x-2 my-1"${marginStyle.startsWith(' class') ? marginStyle : marginStyle}><input type="checkbox" checked disabled class="rounded bg-black/40 border-white/10 text-primary focus:ring-0" /> <span class="line-through text-text-disabled">${content}</span></div>`;
+      })
+      .replace(/^(\s*)[-*+]\s+(.*?)$/gm, (_match, spaces, content) => {
+        const spaceCount = spaces.replace(/\t/g, '    ').length;
+        const indentLevel = Math.floor(spaceCount / 2);
+        const marginStyle = indentLevel > 0 ? ` style="margin-left: ${indentLevel * 1.25 + 1}rem;"` : ' class="ml-4"';
+        return `<li class="list-disc list-inside text-text"${marginStyle.startsWith(' class') ? marginStyle : marginStyle}>${content}</li>`;
+      })
       // Ordered Lists
-      .replace(/^\s*(\d+)\.\s+(.*?)$/gm, '<li class="list-decimal list-inside ml-4 text-text" value="$1">$2</li>')
+      .replace(/^(\s*)(\d+)\.\s+(.*?)$/gm, (_match, spaces, num, content) => {
+        const spaceCount = spaces.replace(/\t/g, '    ').length;
+        const indentLevel = Math.floor(spaceCount / 2);
+        const marginStyle = indentLevel > 0 ? ` style="margin-left: ${indentLevel * 1.25 + 1}rem;"` : ' class="ml-4"';
+        return `<li class="list-decimal list-inside text-text"${marginStyle.startsWith(' class') ? marginStyle : marginStyle} value="${num}">${content}</li>`;
+      })
       // Bold & Italic
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -1931,13 +1976,17 @@ export const Editor: React.FC<EditorProps> = ({
         if (url.startsWith('#')) {
           return `<a href="${url}" data-anchor="true" class="text-primary hover:underline">${text}</a>`;
         }
+        const isExternal = /^https?:\/\//i.test(url);
+        if (!isExternal && (url.endsWith('.md') || !url.includes('.'))) {
+          return `<a href="#" data-wikilink="${url}" class="text-primary hover:underline">${documentIconSvg}${text}</a>`;
+        }
         return `<a href="${url}" target="_blank" class="text-primary hover:underline">${text}</a>`;
       })
       // Obsidian WikiLinks [[RelativePath]] or [[RelativePath|Label]]
       .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, path, label) => {
         const cleanPath = path.trim();
         const displayLabel = label ? label.trim() : cleanPath.replace(/\.md$/, '');
-        return `<a href="#" data-wikilink="${cleanPath}" class="text-primary hover:underline border-b border-primary/20">${displayLabel}</a>`;
+        return `<a href="#" data-wikilink="${cleanPath}" class="text-primary hover:underline">${documentIconSvg}${displayLabel}</a>`;
       })
       // Paragraph line breaks (double newline = new paragraph)
       .replace(/\n\n/g, '</p><p>')
@@ -1994,20 +2043,23 @@ export const Editor: React.FC<EditorProps> = ({
       }
     }
 
-    const wikilink = target.getAttribute('data-wikilink');
-    if (wikilink) {
+    const wikilinkEl = target.closest('a[data-wikilink]') as HTMLAnchorElement | null;
+    if (wikilinkEl) {
       e.preventDefault();
-      // Auto resolve paths and find matching note
-      let targetPath = wikilink.endsWith('.md') ? wikilink : `${wikilink}.md`;
-      let note = allNotes.find(n => n.relative_path.toLowerCase() === targetPath.toLowerCase());
-      if (!note) {
-        note = allNotes.find(n => n.title.toLowerCase() === wikilink.toLowerCase());
-      }
-      if (note) {
-        socket.emit('unlock-note', { relative_path: notePath });
-        window.location.hash = `#${note.relative_path}`; // Fallback or route reload
-      } else {
-        alert(`Заметка "${wikilink}" не найдена. Создайте её в боковом меню.`);
+      const wikilink = wikilinkEl.getAttribute('data-wikilink');
+      if (wikilink) {
+        // Auto resolve paths and find matching note
+        let targetPath = wikilink.endsWith('.md') ? wikilink : `${wikilink}.md`;
+        let note = allNotes.find(n => n.relative_path.toLowerCase() === targetPath.toLowerCase());
+        if (!note) {
+          note = allNotes.find(n => n.title.toLowerCase() === wikilink.toLowerCase());
+        }
+        if (note) {
+          socket.emit('unlock-note', { relative_path: notePath });
+          window.location.hash = `#${note.relative_path}`; // Fallback or route reload
+        } else {
+          alert(`Заметка "${wikilink}" не найдена. Создайте её в боковом меню.`);
+        }
       }
     }
   };
@@ -2510,6 +2562,7 @@ export const Editor: React.FC<EditorProps> = ({
               <div 
                 ref={previewRef}
                 onClick={handlePreviewClick}
+                onScroll={handlePreviewScroll}
                 className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
               />
