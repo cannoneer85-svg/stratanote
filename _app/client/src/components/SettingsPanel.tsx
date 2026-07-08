@@ -171,13 +171,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const data = await res.json();
       if (res.ok) {
         setGeneratedToken(data.token);
-        alert('Новый API Токен успешно сгенерирован!');
+        alert(t('sync_generate_success', lang));
       } else {
-        alert(data.error || 'Не удалось сгенерировать токен');
+        alert(data.error || t('sync_generate_failed', lang));
       }
     } catch (err) {
       console.error('Failed to generate custom token:', err);
-      alert('Ошибка сети при генерации токена');
+      alert(t('sync_network_error', lang));
     }
   };
 
@@ -224,14 +224,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       });
       const data = await res.json();
       if (res.ok) {
-        setSyncLogs(data.logs || ['Синхронизация завершена успешно, но логи отсутствуют.']);
+        setSyncLogs(data.logs || [lang === 'en' ? 'Synchronization completed successfully, but no logs are available.' : 'Синхронизация завершена успешно, но логи отсутствуют.']);
         fetchSyncStatuses();
       } else {
-        setSyncTriggerError(data.error || 'Ошибка при запуске синхронизации.');
+        setSyncTriggerError(data.error || (lang === 'en' ? 'Error starting synchronization.' : 'Ошибка при запуске синхронизации.'));
       }
     } catch (err: any) {
       console.error('Failed to trigger sync:', err);
-      setSyncTriggerError('Ошибка сети при отправке команды синхронизации.');
+      setSyncTriggerError(lang === 'en' ? 'Network error during synchronization command.' : 'Ошибка сети при отправке команды синхронизации.');
     } finally {
       setTriggeringSync(false);
     }
@@ -247,18 +247,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (res.ok) {
         setMediaFiles(data);
       } else {
-        setMediaStatus({ type: 'error', message: data.error || 'Ошибка при загрузке медиафайлов' });
+        setMediaStatus({ type: 'error', message: data.error || (lang === 'en' ? 'Error loading media files' : 'Ошибка при загрузке медиафайлов') });
       }
     } catch (err) {
       console.error('Failed to fetch media files:', err);
-      setMediaStatus({ type: 'error', message: 'Ошибка сети при получении медиафайлов' });
+      setMediaStatus({ type: 'error', message: lang === 'en' ? 'Network error during media files fetch' : 'Ошибка сети при получении медиафайлов' });
     } finally {
       setLoadingMedia(false);
     }
   };
 
   const handleDeleteMedia = async (filename: string) => {
-    const confirmed = confirm(`Вы уверены, что хотите удалить файл "${filename}"? Это действие необратимо и может сломать ссылки на этот файл в ваших заметках.`);
+    const confirmed = confirm(t('media_confirm_delete', lang, { name: filename }) + (lang === 'en' ? ' This action is irreversible and may break links in your notes.' : ' Это действие необратимо и может сломать ссылки на этот файл в ваших заметках.'));
     if (!confirmed) return;
 
     try {
@@ -268,14 +268,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       });
       const data = await res.json();
       if (res.ok) {
-        setMediaStatus({ type: 'success', message: `Файл "${filename}" успешно удален` });
+        setMediaStatus({ type: 'success', message: lang === 'en' ? `File "${filename}" deleted successfully` : `Файл "${filename}" успешно удален` });
         fetchMediaFiles();
       } else {
-        setMediaStatus({ type: 'error', message: data.error || 'Не удалось удалить файл' });
+        setMediaStatus({ type: 'error', message: data.error || t('media_delete_failed', lang) });
       }
     } catch (err) {
       console.error('Failed to delete media file:', err);
-      setMediaStatus({ type: 'error', message: 'Ошибка сети при удалении файла' });
+      setMediaStatus({ type: 'error', message: lang === 'en' ? 'Network error during file deletion' : 'Ошибка сети при удалении файла' });
     }
   };
 
@@ -313,7 +313,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
     if (overwrite) {
       const confirmed = confirm(
-        'ВНИМАНИЕ! Вы выбрали опцию "Перезаписать все". Это БЕЗВОЗВРАТНО удалит все ваши текущие markdown-файлы и папки с ними на сервере перед распаковкой архива. Продолжить?'
+        lang === 'en'
+          ? 'WARNING! You selected the "Overwrite all" option. This will PERMANENTLY delete all your current markdown files and folders on the server before extracting the archive. Continue?'
+          : 'ВНИМАНИЕ! Вы выбрали опцию "Перезаписать все". Это БЕЗВОЗВРАТНО удалит все ваши текущие markdown-файлы и папки с ними на сервере перед распаковкой архива. Продолжить?'
       );
       if (!confirmed) return;
     }
@@ -321,7 +323,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setUploading(true);
     setUploadProgress(0);
     setUploadProgressBytes({ loaded: 0, total: zipFile.size });
-    setUploadStatus({ type: 'info', message: 'Подготовка к загрузке архива...' });
+    setUploadStatus({ type: 'info', message: lang === 'en' ? 'Preparing archive for upload...' : 'Подготовка к загрузке архива...' });
 
     try {
       const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks
@@ -360,7 +362,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               setUploadProgressBytes({ loaded: currentLoaded, total: totalSize });
               setUploadStatus({
                 type: 'info',
-                message: `Загрузка архива: ${pct}% (${(currentLoaded / (1024 * 1024)).toFixed(1)} МБ из ${(totalSize / (1024 * 1024)).toFixed(1)} МБ)...`
+                message: lang === 'en'
+                  ? `Uploading archive: ${pct}% (${(currentLoaded / (1024 * 1024)).toFixed(1)} MB of ${(totalSize / (1024 * 1024)).toFixed(1)} MB)...`
+                  : `Загрузка архива: ${pct}% (${(currentLoaded / (1024 * 1024)).toFixed(1)} МБ из ${(totalSize / (1024 * 1024)).toFixed(1)} МБ)...`
               });
             }
           });
@@ -371,15 +375,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             } else {
               try {
                 const res = JSON.parse(xhr.responseText);
-                rejectPromise(new Error(res.error || `Ошибка сервера: ${xhr.status}`));
+                rejectPromise(new Error(res.error || (lang === 'en' ? `Server error: ${xhr.status}` : `Ошибка сервера: ${xhr.status}`)));
               } catch {
-                rejectPromise(new Error(`Ошибка сервера: ${xhr.status}`));
+                rejectPromise(new Error(lang === 'en' ? `Server error: ${xhr.status}` : `Ошибка сервера: ${xhr.status}`));
               }
             }
           };
 
-          xhr.onerror = () => rejectPromise(new Error('Сетевой сбой при отправке части файла'));
-          xhr.onabort = () => rejectPromise(new Error('Загрузка прервана'));
+          xhr.onerror = () => rejectPromise(new Error(lang === 'en' ? 'Network error during chunk upload' : 'Сетевой сбой при отправке части файла'));
+          xhr.onabort = () => rejectPromise(new Error(lang === 'en' ? 'Upload aborted' : 'Загрузка прервана'));
 
           xhr.send(chunk);
         });
@@ -394,7 +398,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           // For the last chunk, update message in advance since server processing takes time
           setUploadStatus({
             type: 'info',
-            message: 'Загрузка завершена! Сервер распаковывает и индексирует файлы (это может занять некоторое время)...'
+            message: lang === 'en' ? 'Upload complete! Server is extracting and indexing files (this may take some time)...' : 'Загрузка завершена! Сервер распаковывает и индексирует файлы (это может занять некоторое время)...'
           });
         }
 
@@ -405,14 +409,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       // Success
       setUploadProgress(100);
       setUploadProgressBytes({ loaded: totalSize, total: totalSize });
-      setUploadStatus({ type: 'success', message: 'Хранилище успешно импортировано!' });
+      setUploadStatus({ type: 'success', message: t('settings_import_success', lang) });
       setZipFile(null);
       onVaultReload();
     } catch (err: any) {
       console.error(err);
       setUploadStatus({ 
         type: 'error', 
-        message: err.message || 'Ошибка сети при импорте архива' 
+        message: err.message || t('settings_import_err_network', lang) 
       });
     } finally {
       setUploading(false);
@@ -424,8 +428,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     e.preventDefault();
     if (!mdFile) return;
 
-    setUploading(true);
-    setUploadStatus({ type: 'info', message: 'Загрузка MD-документа...' });
+    setUploadStatus({ type: 'info', message: lang === 'en' ? 'Uploading MD document...' : 'Загрузка MD-документа...' });
 
     try {
       const content = await mdFile.text();
@@ -445,15 +448,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
       const data = await res.json();
       if (res.ok) {
-        setUploadStatus({ type: 'success', message: `Файл "${mdFile.name}" успешно загружен!` });
+        setUploadStatus({ type: 'success', message: lang === 'en' ? `File "${mdFile.name}" uploaded successfully!` : `Файл "${mdFile.name}" успешно загружен!` });
         setMdFile(null);
         onVaultReload();
       } else {
-        setUploadStatus({ type: 'error', message: data.error || 'Ошибка при загрузке MD' });
+        setUploadStatus({ type: 'error', message: data.error || (lang === 'en' ? 'Error uploading MD' : 'Ошибка при загрузке MD') });
       }
     } catch (err) {
       console.error(err);
-      setUploadStatus({ type: 'error', message: 'Ошибка сети при загрузке файла' });
+      setUploadStatus({ type: 'error', message: lang === 'en' ? 'Network error during file upload' : 'Ошибка сети при загрузке файла' });
     } finally {
       setUploading(false);
     }
@@ -480,17 +483,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
       const data = await res.json();
       if (res.ok) {
-        setUserStatus({ type: 'success', message: `Пользователь "${newUsername}" успешно создан!` });
+        setUserStatus({ type: 'success', message: lang === 'en' ? `User "${newUsername}" successfully created!` : `Пользователь "${newUsername}" успешно создан!` });
         setNewUsername('');
         setNewPassword('');
         setNewRole('Viewer');
         fetchUsers();
       } else {
-        setUserStatus({ type: 'error', message: data.error || 'Ошибка создания пользователя' });
+        setUserStatus({ type: 'error', message: data.error || (lang === 'en' ? 'Error creating user' : 'Ошибка создания пользователя') });
       }
     } catch (err) {
       console.error(err);
-      setUserStatus({ type: 'error', message: 'Ошибка сети при создании пользователя' });
+      setUserStatus({ type: 'error', message: lang === 'en' ? 'Network error during user creation' : 'Ошибка сети при создании пользователя' });
     }
   };
 
@@ -528,11 +531,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         setEditingUserId(null);
         fetchUsers();
       } else {
-        alert(data.error || 'Ошибка при сохранении изменений');
+        alert(data.error || (lang === 'en' ? 'Error saving changes' : 'Ошибка при сохранении изменений'));
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка сети при сохранении изменений');
+      alert(lang === 'en' ? 'Network error during save' : 'Ошибка сети при сохранении изменений');
     }
   };
 
@@ -551,17 +554,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (res.ok) {
         fetchUsers();
       } else {
-        alert(data.error || 'Ошибка при одобрении пользователя');
+        alert(data.error || (lang === 'en' ? 'Error approving user' : 'Ошибка при одобрении пользователя'));
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка сети при одобрении пользователя');
+      alert(lang === 'en' ? 'Network error during user approval' : 'Ошибка сети при одобрении пользователя');
     }
   };
 
   // Handle Delete User
   const handleDeleteUser = async (userId: number, username: string) => {
-    const confirmed = confirm(`Вы действительно хотите БЕЗВОЗВРАТНО удалить пользователя "${username}"?`);
+    const confirmed = confirm(t('settings_users_confirm_delete', lang, { username }));
     if (!confirmed) return;
 
     try {
@@ -574,11 +577,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (res.ok) {
         fetchUsers();
       } else {
-        alert(data.error || 'Ошибка при удалении пользователя');
+        alert(data.error || (lang === 'en' ? 'Error deleting user' : 'Ошибка при удалении пользователя'));
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка сети при удалении пользователя');
+      alert(lang === 'en' ? 'Network error during user deletion' : 'Ошибка сети при удалении пользователя');
     }
   };
 
@@ -710,9 +713,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {/* ZIP Import Card */}
               <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4 text-left">
                 <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Импортировать хранилище (.ZIP)</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">{t('settings_import_zip_title', lang)}</h3>
                   <p className="text-[11px] text-text-muted">
-                    Загрузите архив `.zip` с вашим деревом заметок. Система распакует его в хранилище.
+                    {t('settings_import_zip_desc', lang)}
                   </p>
                 </div>
 
@@ -737,10 +740,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         uploading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
-                      Выбрать ZIP-файл
+                      {t('settings_import_zip_select', lang)}
                     </label>
                     <span className="text-xs text-text-muted truncate max-w-xs">
-                      {zipFile ? zipFile.name : 'Файл не выбран'}
+                      {zipFile ? zipFile.name : t('settings_import_zip_no_file', lang)}
                     </span>
                   </div>
 
@@ -755,7 +758,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       className="rounded bg-black/40 border-white/10 text-primary focus:ring-0 cursor-pointer"
                     />
                     <label htmlFor="overwrite-vault-checkbox" className="text-xs font-medium text-text cursor-pointer select-none">
-                      Перезаписать все (удалить все текущие md-файлы и папки перед импортом)
+                      {t('settings_import_zip_overwrite', lang)}
                     </label>
                   </div>
 
@@ -763,14 +766,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-lg text-[10.5px] flex items-start space-x-2 animate-fade-in">
                       <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
                       <span>
-                        <strong>Внимание:</strong> При импорте все существующие заметки и папки в корневом каталоге будут <strong>полностью и навсегда удалены</strong> перед распаковкой новых файлов. Служебная папка `_app` и картинки из `assets` будут сохранены.
+                        {t('settings_import_zip_warning_overwrite', lang)}
                       </span>
                     </div>
                   ) : (
                     <div className="p-3 bg-primary/10 border border-primary/20 text-primary rounded-lg text-[10.5px] flex items-start space-x-2 animate-fade-in">
                       <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
                       <span>
-                        <strong>Режим слияния:</strong> новые файлы из архива будут добавлены, а существующие перезапишутся. Текущие заметки, которых нет в архиве, не пострадают.
+                        {t('settings_import_zip_warning_merge', lang)}
                       </span>
                     </div>
                   )}
@@ -780,11 +783,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <div className="flex justify-between text-[10.5px]">
                         <span className="text-text-muted font-medium">
                           {uploadProgress < 100 
-                            ? `Загрузка архива: ${uploadProgress}%` 
-                            : 'Распаковка и индексирование на сервере...'}
+                            ? t('settings_import_zip_status_uploading', lang, { pct: uploadProgress }) 
+                            : t('settings_import_zip_status_extracting', lang)}
                         </span>
                         <span className="text-white font-semibold">
-                          {(uploadProgressBytes.loaded / (1024 * 1024)).toFixed(1)} МБ из {(uploadProgressBytes.total / (1024 * 1024)).toFixed(1)} МБ
+                          {t('settings_import_zip_status_progress', lang, {
+                            loaded: (uploadProgressBytes.loaded / (1024 * 1024)).toFixed(1),
+                            total: (uploadProgressBytes.total / (1024 * 1024)).toFixed(1)
+                          })}
                         </span>
                       </div>
                       <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
@@ -802,7 +808,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     className="w-full py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white text-xs font-semibold rounded-lg flex items-center justify-center space-x-2 transition-all border border-primary/20 shadow-glow cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <Upload className="w-4 h-4" />
-                    <span>Начать импорт архива</span>
+                    <span>{t('settings_import_zip_btn', lang)}</span>
                   </button>
                 </form>
               </div>
@@ -810,9 +816,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {/* MD Upload Card */}
               <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4 text-left">
                 <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Загрузить один документ (.MD)</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">{t('settings_import_md_title', lang)}</h3>
                   <p className="text-[11px] text-text-muted">
-                    Загрузите файл `.md` напрямую в выбранную папку без перезаписи проекта.
+                    {t('settings_import_md_desc', lang)}
                   </p>
                 </div>
 
@@ -835,10 +841,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         uploading ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
-                      Выбрать MD-файл
+                      {t('settings_import_md_select', lang)}
                     </label>
                     <span className="text-xs text-text-muted truncate max-w-xs">
-                      {mdFile ? mdFile.name : 'Файл не выбран'}
+                      {mdFile ? mdFile.name : t('settings_import_md_no_file', lang)}
                     </span>
                   </div>
 
@@ -846,7 +852,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <div className="flex items-center space-x-2 bg-black/20 p-2.5 rounded-lg border border-white/5 text-[10.5px]">
                     <FolderOpen className="w-4 h-4 text-primary shrink-0" />
                     <span className="text-text-muted font-medium">
-                      Загрузить в директорию: <strong className="text-white">{selectedParentFolder || 'Корень'}</strong>
+                      {t('settings_import_md_folder', lang, { folder: selectedParentFolder || (lang === 'en' ? 'Root' : 'Корень') })}
                     </span>
                   </div>
 
@@ -856,7 +862,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     className="w-full py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white text-xs font-semibold rounded-lg flex items-center justify-center space-x-2 transition-all border border-primary/20 shadow-glow cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <Upload className="w-4 h-4" />
-                    <span>Загрузить MD-файл</span>
+                    <span>{t('settings_import_md_btn', lang)}</span>
                   </button>
                 </form>
               </div>
@@ -877,12 +883,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
               {/* Create User Form */}
               <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Создать нового пользователя</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">{t('settings_users_create_title', lang)}</h3>
                 
                 <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <input
                     type="text"
-                    placeholder="Логин"
+                    placeholder={t('settings_users_username_placeholder', lang)}
                     value={newUsername}
                     onChange={(e) => {
                       setUserStatus(null);
@@ -893,7 +899,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   />
                   <input
                     type="password"
-                    placeholder="Пароль"
+                    placeholder={t('settings_users_password_placeholder', lang)}
                     value={newPassword}
                     onChange={(e) => {
                       setUserStatus(null);
@@ -907,16 +913,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     onChange={(e) => setNewRole(e.target.value as any)}
                     className="w-full px-3 py-2 bg-black/30 border border-white/5 focus:border-primary/50 focus:outline-none rounded-lg text-xs text-white cursor-pointer"
                   >
-                    <option value="Viewer" className="bg-[#1e1e1e]">Viewer (Читатель)</option>
-                    <option value="Editor" className="bg-[#1e1e1e]">Editor (Редактор)</option>
-                    <option value="Admin" className="bg-[#1e1e1e]">Admin (Администратор)</option>
+                    <option value="Viewer" className="bg-[#1e1e1e]">{t('settings_users_role_viewer', lang)}</option>
+                    <option value="Editor" className="bg-[#1e1e1e]">{t('settings_users_role_editor', lang)}</option>
+                    <option value="Admin" className="bg-[#1e1e1e]">{t('settings_users_role_admin', lang)}</option>
                   </select>
                   <button
                     type="submit"
                     className="w-full py-2 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white text-xs font-semibold rounded-lg flex items-center justify-center space-x-1.5 transition-all border border-primary/20 shadow-glow cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>Добавить</span>
+                    <span>{t('settings_users_btn_add', lang)}</span>
                   </button>
                 </form>
               </div>
@@ -924,18 +930,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {/* Users List Table */}
               <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-white/5 bg-black/10">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Зарегистрированные пользователи</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">{t('settings_users_list_title', lang)}</h3>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-white/5 text-text-disabled bg-black/5">
-                        <th className="px-5 py-3 font-semibold">Логин</th>
-                        <th className="px-5 py-3 font-semibold">Роль в проекте</th>
-                        <th className="px-5 py-3 font-semibold">Дата / Пароль</th>
-                        <th className="px-5 py-3 font-semibold">Статус</th>
-                        <th className="px-5 py-3 font-semibold text-right">Действия</th>
+                        <th className="px-5 py-3 font-semibold">{t('settings_users_th_username', lang)}</th>
+                        <th className="px-5 py-3 font-semibold">{t('settings_users_th_role', lang)}</th>
+                        <th className="px-5 py-3 font-semibold">{t('settings_users_th_date', lang)}</th>
+                        <th className="px-5 py-3 font-semibold">{t('settings_users_th_status', lang)}</th>
+                        <th className="px-5 py-3 font-semibold text-right">{t('settings_users_th_actions', lang)}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -970,7 +976,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               <td className="px-5 py-3">
                                 <input
                                   type="password"
-                                  placeholder="Новый пароль"
+                                  placeholder={t('settings_users_edit_password_placeholder', lang)}
                                   value={editPassword}
                                   onChange={(e) => setEditPassword(e.target.value)}
                                   className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white"
@@ -983,8 +989,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                   onChange={(e) => setEditApproved(e.target.value === "true")}
                                   className="w-full px-2 py-1 bg-black/40 border border-white/10 rounded focus:outline-none focus:border-primary/50 text-xs text-white disabled:opacity-50 cursor-pointer"
                                 >
-                                  <option value="true">Активен</option>
-                                  <option value="false">Ожидает</option>
+                                  <option value="true">{t('settings_users_status_active', lang)}</option>
+                                  <option value="false">{t('settings_users_status_pending', lang)}</option>
                                 </select>
                               </td>
                               <td className="px-5 py-3 text-right">
@@ -992,14 +998,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                   <button
                                     onClick={() => handleSaveEdit(user.id)}
                                     className="p-1.5 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors cursor-pointer"
-                                    title="Сохранить"
+                                    title={t('settings_users_tooltip_save', lang)}
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => setEditingUserId(null)}
                                     className="p-1.5 hover:bg-white/10 text-text-disabled hover:text-white rounded-lg transition-colors cursor-pointer"
-                                    title="Отмена"
+                                    title={t('settings_users_tooltip_cancel', lang)}
                                   >
                                     <X className="w-3.5 h-3.5" />
                                   </button>
@@ -1012,7 +1018,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         return (
                           <tr key={user.id} className="hover:bg-white/[0.01] animate-fade-in">
                             <td className="px-5 py-3 font-medium text-white truncate max-w-[120px]">
-                              {user.username} {isSelf && <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full ml-1">Вы</span>}
+                              {user.username} {isSelf && <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full ml-1">{lang === 'en' ? 'You' : 'Вы'}</span>}
                             </td>
                             <td className="px-5 py-3 text-text-muted">
                               {user.role}
@@ -1023,11 +1029,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             <td className="px-5 py-3">
                               {user.approved ? (
                                 <span className="text-[10px] bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-                                  Активен
+                                  {t('settings_users_status_active', lang)}
                                 </span>
                               ) : (
                                 <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">
-                                  Ожидает одобрения
+                                  {t('settings_users_status_pending', lang)}
                                 </span>
                               )}
                             </td>
@@ -1037,7 +1043,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                   <button
                                     onClick={() => handleApproveUser(user.id)}
                                     className="p-1.5 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors cursor-pointer"
-                                    title="Одобрить пользователя"
+                                    title={t('settings_users_tooltip_approve', lang)}
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                   </button>
@@ -1045,7 +1051,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 <button
                                   onClick={() => startEditing(user)}
                                   className="p-1.5 hover:bg-white/10 text-text-disabled hover:text-white rounded-lg transition-colors cursor-pointer"
-                                  title="Редактировать пользователя"
+                                  title={t('settings_users_tooltip_edit', lang)}
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1053,7 +1059,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                   onClick={() => handleDeleteUser(user.id, user.username)}
                                   disabled={isSelf}
                                   className="p-1.5 hover:bg-red-500/20 text-text-disabled hover:text-red-400 rounded-lg transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                  title={isSelf ? 'Вы не можете удалить свой собственный аккаунт' : 'Удалить пользователя'}
+                                  title={isSelf ? t('settings_users_tooltip_delete_self', lang) : t('settings_users_tooltip_delete', lang)}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1089,14 +1095,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-disabled" />
                   <input
                     type="text"
-                    placeholder="Поиск файлов по названию..."
+                    placeholder={t('settings_media_search_placeholder', lang)}
                     value={mediaSearchQuery}
                     onChange={(e) => setMediaSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 focus:border-primary/50 focus:outline-none rounded-lg text-xs text-white"
                   />
                 </div>
                 <div className="text-xs text-text-muted">
-                  Всего файлов: <strong className="text-white">{filteredMediaFiles.length}</strong>
+                  {t('settings_media_total_files', lang, { count: filteredMediaFiles.length })}
                 </div>
               </div>
 
@@ -1111,7 +1117,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
                   }`}
                 >
-                  Все ({mediaFiles.length})
+                  {t('settings_media_filter_all', lang, { count: mediaFiles.length })}
                 </button>
                 <button
                   type="button"
@@ -1122,7 +1128,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
                   }`}
                 >
-                  Изображения ({mediaFiles.filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length})
+                  {t('settings_media_filter_images', lang, {
+                    count: mediaFiles.filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length
+                  })}
                 </button>
                 <button
                   type="button"
@@ -1133,7 +1141,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
                   }`}
                 >
-                  Видео ({mediaFiles.filter(f => ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length})
+                  {t('settings_media_filter_videos', lang, {
+                    count: mediaFiles.filter(f => ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length
+                  })}
                 </button>
                 <button
                   type="button"
@@ -1144,22 +1154,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
                   }`}
                 >
-                  Другие ({mediaFiles.filter(f => {
-                    const ext = f.filename.split('.').pop()?.toLowerCase() || '';
-                    return !['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext) &&
-                           !['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(ext);
-                  }).length})
+                  {t('settings_media_filter_others', lang, {
+                    count: mediaFiles.filter(f => {
+                      const ext = f.filename.split('.').pop()?.toLowerCase() || '';
+                      return !['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext) &&
+                             !['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(ext);
+                    }).length
+                  })}
                 </button>
               </div>
 
               {/* Media Grid */}
               {loadingMedia ? (
                 <div className="text-center py-12 text-text-muted text-xs">
-                  Загрузка списка медиафайлов...
+                  {t('settings_media_loading', lang)}
                 </div>
               ) : filteredMediaFiles.length === 0 ? (
                 <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl text-text-muted text-xs">
-                  {mediaSearchQuery ? 'Файлы не найдены' : 'В хранилище нет загруженных медиафайлов'}
+                  {mediaSearchQuery ? t('settings_media_no_files_found', lang) : t('settings_media_empty', lang)}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
@@ -1216,7 +1228,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             className="w-full py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 rounded-lg text-[11px] font-medium flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Удалить файл</span>
+                            <span>{t('settings_media_btn_delete', lang)}</span>
                           </button>
                         </div>
                       </div>
@@ -1234,20 +1246,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     🔄
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Синхронизация локальной папки</h3>
-                    <p className="text-[10px] text-text-muted">Интеграция с локальным приложением Obsidian через MCP</p>
+                    <h3 className="text-sm font-bold text-white">{t('settings_sync_title', lang)}</h3>
+                    <p className="text-[10px] text-text-muted">{t('settings_sync_subtitle', lang)}</p>
                   </div>
                 </div>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Эта функция позволяет автоматически синхронизировать вашу локальную папку заметок с сервером StrataNote. Для работы необходимо запустить локальный агент синхронизации <code>stratanote-sync-mcp</code> на вашем компьютере.
+                  {t('settings_sync_desc', lang)}
                 </p>
               </div>
 
               {/* API Token Copy Card */}
               <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ваш API Токен (JWT)</h4>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">{t('settings_sync_token_title', lang)}</h4>
                 <p className="text-[10px] text-text-muted">
-                  Скопируйте этот токен и вставьте в ваш локальный файл <code>config.json</code> в поле <code>STRATANOTE_API_TOKEN</code>.
+                  {t('settings_sync_token_desc', lang)}
                 </p>
                 <div className="flex items-center space-x-2">
                   <input
@@ -1259,36 +1271,36 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   />
                   <button
                     onClick={() => {
-                      const t = generatedToken || token;
-                      if (t) {
-                        navigator.clipboard.writeText(t);
-                        alert('API Токен успешно скопирован в буфер обмена!');
+                      const tVal = generatedToken || token;
+                      if (tVal) {
+                        navigator.clipboard.writeText(tVal);
+                        alert(t('sync_copy_success', lang));
                       }
                     }}
                     className="px-3 py-1.5 bg-primary hover:bg-primary/80 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
-                    Скопировать
+                    {t('settings_sync_btn_copy', lang)}
                   </button>
                 </div>
                 
                 <div className="flex items-center space-x-2 pt-2 border-t border-white/5">
-                  <span className="text-[10px] text-text-muted">Время жизни:</span>
+                  <span className="text-[10px] text-text-muted">{t('settings_sync_token_lifespan', lang)}</span>
                   <select
                     value={customTokenDuration}
                     onChange={(e) => setCustomTokenDuration(e.target.value)}
                     className="bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
                   >
-                    <option value="1d">1 сутки</option>
-                    <option value="7d">7 дней</option>
-                    <option value="30d">30 дней</option>
-                    <option value="90d">90 дней</option>
-                    <option value="3650d">Бессрочно (10 лет)</option>
+                    <option value="1d">{t('sync_token_days_1', lang)}</option>
+                    <option value="7d">{t('sync_token_days_7', lang)}</option>
+                    <option value="30d">{t('sync_token_days_30', lang)}</option>
+                    <option value="90d">{t('sync_token_days_90', lang)}</option>
+                    <option value="3650d">{t('sync_token_days_infinite', lang)}</option>
                   </select>
                   <button
                     onClick={handleGenerateCustomToken}
                     className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-semibold rounded transition-colors cursor-pointer"
                   >
-                    Сгенерировать новый токен
+                    {t('settings_sync_btn_generate', lang)}
                   </button>
                 </div>
               </div>
@@ -1296,22 +1308,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {/* Status and logs */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Подключенные устройства</h4>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">{t('settings_sync_devices_title', lang)}</h4>
                   <button 
                     onClick={fetchSyncStatuses}
                     className="p-1 hover:bg-white/5 rounded transition-colors text-text-muted hover:text-white cursor-pointer"
-                    title="Обновить"
+                    title={lang === 'en' ? 'Refresh' : 'Обновить'}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loadingSync ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
 
                 {loadingSync && syncStatuses.length === 0 ? (
-                  <p className="text-xs text-text-muted italic">Загрузка информации о синхронизации...</p>
+                  <p className="text-xs text-text-muted italic">{t('settings_sync_loading', lang)}</p>
                 ) : syncStatuses.length === 0 ? (
                   <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl text-center">
-                    <p className="text-xs text-text-disabled">Нет подключенных локальных агентов</p>
-                    <p className="text-[10px] text-text-muted mt-1">Запустите агент на ПК для начала синхронизации</p>
+                    <p className="text-xs text-text-disabled">{t('settings_sync_no_agents', lang)}</p>
+                    <p className="text-[10px] text-text-muted mt-1">{t('settings_sync_run_agent_hint', lang)}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1330,21 +1342,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               : 'bg-red-500/10 text-red-400 border border-red-500/20'
                           }`}>
                             {status.status === 'success' 
-                              ? 'Синхронизировано' 
+                              ? t('settings_sync_status_synced', lang) 
                               : status.status === 'online'
-                              ? 'Подключен'
+                              ? t('settings_sync_status_connected', lang)
                               : status.status === 'offline'
-                              ? 'Оффлайн'
-                              : 'Ошибка'}
+                              ? t('settings_sync_status_offline', lang)
+                              : t('settings_sync_status_error', lang)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-[10px] text-text-disabled">
-                          <span>Режим: <strong className="text-white">{status.sync_mode === 'auto' ? 'Авто' : 'Ручной'}</strong></span>
-                          <span>Активность: {formatToMoscowTime(status.last_sync_at)}</span>
+                          <span>{t('settings_sync_mode_label', lang, { mode: status.sync_mode === 'auto' ? t('settings_sync_mode_auto', lang) : t('settings_sync_mode_manual', lang) })}</span>
+                          <span>{t('settings_sync_activity_label', lang, { time: formatToMoscowTime(status.last_sync_at) })}</span>
                         </div>
                         {status.error_message && (
                           <div className="p-2 rounded bg-red-500/5 border border-red-500/10 text-[10px] text-red-400 font-mono whitespace-pre-wrap break-all">
-                            Ошибка: {status.error_message}
+                            {t('settings_sync_error_label', lang, { error: status.error_message })}
                           </div>
                         )}
 
@@ -1355,7 +1367,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             className="w-full py-1.5 bg-primary hover:bg-primary/80 disabled:bg-primary/50 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${triggeringSync ? 'animate-spin' : ''}`} />
-                            <span>{triggeringSync ? 'Синхронизация...' : 'Синхронизировать сейчас'}</span>
+                            <span>{triggeringSync ? t('settings_sync_status_syncing', lang) : t('settings_sync_btn_sync_now', lang)}</span>
                           </button>
                         )}
 
@@ -1381,7 +1393,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         
                         {status.status === 'online' && status.sync_mode === 'auto' && (
                           <div className="p-2 rounded bg-green-500/5 border border-green-500/10 text-[10px] text-green-400 text-center">
-                            ℹ️ Фоновая синхронизация активна. Изменения передаются автоматически.
+                            {t('settings_sync_bg_active', lang)}
                           </div>
                         )}
                       </div>
@@ -1389,7 +1401,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                     {syncLogs && (
                       <div className="p-4 bg-black/40 border border-white/5 rounded-xl space-y-2 animate-fade-in text-left">
-                        <h5 className="text-[11px] font-bold text-white uppercase tracking-wider">Лог последней синхронизации</h5>
+                        <h5 className="text-[11px] font-bold text-white uppercase tracking-wider">{t('settings_sync_logs_title', lang)}</h5>
                         <div className="max-h-40 overflow-y-auto font-mono text-[10px] text-text-muted space-y-1 scrollbar-thin">
                           {syncLogs.map((logLine, idx) => (
                             <div key={idx} className="whitespace-pre-wrap">{logLine}</div>
@@ -1410,13 +1422,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
               {/* Instructions */}
               <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">
-                <h4 className="text-xs font-bold text-white">Как запустить синхронизацию?</h4>
+                <h4 className="text-xs font-bold text-white">{t('settings_sync_how_to_run', lang)}</h4>
                 <ol className="list-decimal list-inside space-y-2 text-xs text-text-muted">
-                  <li>Убедитесь, что у вас установлен Node.js на компьютере.</li>
-                  <li>Перейдите в папку проекта <code>_sync_mcp</code> на вашем компьютере.</li>
-                  <li>Настройте подключение в файле <code>config.json</code>, указав адрес этого сервера и ваш API токен.</li>
-                  <li>Запустите команду: <code className="bg-black/30 px-1 py-0.5 rounded font-mono select-all">npm start</code></li>
-                  <li>Агент начнет отслеживать файлы в указанной локальной папке и синхронизировать их с сервером!</li>
+                  <li>{t('settings_sync_step_1', lang)}</li>
+                  <li>{t('settings_sync_step_2', lang)}</li>
+                  <li>{t('settings_sync_step_3', lang)}</li>
+                  <li>{t('settings_sync_step_4', lang)}</li>
+                  <li>{t('settings_sync_step_5', lang)}</li>
                 </ol>
               </div>
             </div>
