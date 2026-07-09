@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe, Play } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 import { t, type Lang } from '../utils/translations';
 
@@ -36,6 +36,198 @@ interface SettingsPanelProps {
   lang: Lang;
   onLangChange: (lang: Lang) => void;
 }
+
+const formatSize = (bytes: number) => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+interface MediaCardProps {
+  file: { filename: string; size: number; updatedAt: string };
+  token: string | null;
+  lang: Lang;
+  onDeleteMedia: (filename: string) => void;
+}
+
+const MediaCard: React.FC<MediaCardProps> = ({ file, token, lang, onDeleteMedia }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [videoPoster, setVideoPoster] = useState<string | null>(null);
+  const [isIntersecting, setIsIntersecting] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const isVideo = /\.(mp4|webm|ogg|mov|m4v|3gp)$/i.test(file.filename);
+  const fileUrl = `/api/raw/assets/${encodeURIComponent(file.filename)}?token=${token}`;
+  const thumbnailUrl = isVideo 
+    ? fileUrl 
+    : `/api/raw/assets/${encodeURIComponent(file.filename)}?token=${token}&width=300`;
+
+  useEffect(() => {
+    if (!isVideo || videoPoster) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsIntersecting(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '150px' });
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [isVideo, videoPoster]);
+
+  useEffect(() => {
+    if (!isIntersecting || !isVideo || videoPoster) return;
+
+    const tempVideo = document.createElement('video');
+    tempVideo.src = fileUrl;
+    tempVideo.preload = 'metadata';
+    tempVideo.muted = true;
+    tempVideo.playsInline = true;
+    tempVideo.crossOrigin = 'anonymous';
+
+    const handleLoadedMetadata = () => {
+      tempVideo.currentTime = 0.5;
+    };
+
+    const handleSeeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = tempVideo.videoWidth || 320;
+        canvas.height = tempVideo.videoHeight || 180;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          setVideoPoster(dataUrl);
+        }
+      } catch (err) {
+        console.error('Failed to capture frame from video:', err);
+      } finally {
+        cleanup();
+      }
+    };
+
+    const handleError = () => {
+      cleanup();
+    };
+
+    const cleanup = () => {
+      tempVideo.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      tempVideo.removeEventListener('seeked', handleSeeked);
+      tempVideo.removeEventListener('error', handleError);
+      tempVideo.src = '';
+      tempVideo.load();
+    };
+
+    tempVideo.addEventListener('loadedmetadata', handleLoadedMetadata);
+    tempVideo.addEventListener('seeked', handleSeeked);
+    tempVideo.addEventListener('error', handleError);
+    tempVideo.load();
+
+    return cleanup;
+  }, [isIntersecting, isVideo, fileUrl, videoPoster]);
+
+  return (
+    <div 
+      ref={cardRef}
+      className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-primary/30 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.05)]"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Thumbnail Container */}
+      <div className="h-32 bg-black/40 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+        {isVideo ? (
+          isHovered ? (
+            <video 
+              src={fileUrl} 
+              className="w-full h-full object-cover" 
+              autoPlay
+              muted
+              playsInline
+              loop
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-black/60 relative">
+              {videoPoster ? (
+                <img 
+                  src={videoPoster} 
+                  alt={file.filename}
+                  className="w-full h-full object-cover opacity-80"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <span className="text-[10px] text-text-disabled">...</span>
+                </div>
+              )}
+              {/* Play Button Overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+                <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-white/80 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300 shadow-lg backdrop-blur-sm border border-white/10">
+                  <Play className="w-4 h-4 fill-current translate-x-[1px]" />
+                </div>
+              </div>
+              {/* Format Badge under the icon if poster not loaded */}
+              {!videoPoster && (
+                <span className="absolute bottom-2 text-[9px] text-text-muted uppercase font-bold tracking-wider">
+                  {file.filename.split('.').pop()}
+                </span>
+              )}
+            </div>
+          )
+        ) : (
+          <a 
+            href={fileUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="w-full h-full block cursor-zoom-in"
+            title={lang === 'en' ? 'Click to view original' : 'Кликните для просмотра оригинала'}
+          >
+            <img 
+              src={thumbnailUrl} 
+              alt={file.filename}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              loading="lazy"
+            />
+          </a>
+        )}
+        {/* Badges */}
+        <div className="absolute top-2 left-2 flex gap-1">
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${isVideo ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+            {file.filename.split('.').pop() || 'file'}
+          </span>
+        </div>
+      </div>
+
+      {/* File Details */}
+      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+        <div className="space-y-1">
+          <div 
+            className="text-xs font-semibold text-white truncate" 
+            title={file.filename}
+          >
+            {file.filename}
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-text-muted">
+            <span>{formatSize(file.size)}</span>
+            <span>{formatToMoscowTime(file.updatedAt)}</span>
+          </div>
+        </div>
+        <button
+          onClick={() => onDeleteMedia(file.filename)}
+          className="w-full py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 rounded-lg text-[11px] font-medium flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>{t('settings_media_btn_delete', lang)}</span>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   isOpen,
@@ -279,13 +471,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+
 
   const filteredMediaFiles = mediaFiles.filter((file) => {
     const matchesSearch = file.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase());
@@ -1175,65 +1361,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
-                  {filteredMediaFiles.map((file) => {
-                    const isVideo = /\.(mp4|webm|ogg|mov|m4v|3gp)$/i.test(file.filename);
-                    const fileUrl = `/api/raw/assets/${encodeURIComponent(file.filename)}?token=${token}`;
-                    return (
-                      <div 
-                        key={file.filename} 
-                        className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-primary/30 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.05)]"
-                      >
-                        {/* Thumbnail Container */}
-                        <div className="h-32 bg-black/40 relative flex items-center justify-center overflow-hidden border-b border-white/5">
-                          {isVideo ? (
-                            <video 
-                              src={fileUrl} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                              preload="metadata"
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <img 
-                              src={fileUrl} 
-                              alt={file.filename}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              loading="lazy"
-                            />
-                          )}
-                          {/* Badges */}
-                          <div className="absolute top-2 left-2 flex gap-1">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${isVideo ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                              {file.filename.split('.').pop() || 'file'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* File Details */}
-                        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                          <div className="space-y-1">
-                            <div 
-                              className="text-xs font-semibold text-white truncate" 
-                              title={file.filename}
-                            >
-                              {file.filename}
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] text-text-muted">
-                              <span>{formatSize(file.size)}</span>
-                              <span>{formatToMoscowTime(file.updatedAt)}</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteMedia(file.filename)}
-                            className="w-full py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 rounded-lg text-[11px] font-medium flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>{t('settings_media_btn_delete', lang)}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {filteredMediaFiles.map((file) => (
+                    <MediaCard
+                      key={file.filename}
+                      file={file}
+                      token={token}
+                      lang={lang}
+                      onDeleteMedia={handleDeleteMedia}
+                    />
+                  ))}
                 </div>
               )}
             </div>

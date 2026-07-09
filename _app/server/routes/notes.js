@@ -56,6 +56,20 @@ if (!fs.existsSync(tempDir)) {
   }
 }
 
+// Initialize sharp and cache directory for image thumbnails
+let sharp;
+try {
+  sharp = (await import('sharp')).default;
+  console.log('[Init] sharp library loaded successfully for image thumbnail generation');
+} catch (err) {
+  console.warn('[Init] sharp library load failed, thumbnail generation will be disabled:', err.message);
+}
+
+const cacheDir = resolve(__dirname, '../cache/thumbnails');
+if (!fs.existsSync(cacheDir)) {
+  fs.mkdirSync(cacheDir, { recursive: true });
+}
+
 // Helper to normalize path separators to forward slashes
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
@@ -1220,9 +1234,45 @@ export const rawHandler = async (req, res) => {
   }
 
   try {
-    if (!fs.existsSync(resolvedSafePath) || fs.statSync(resolvedSafePath).isDirectory()) {
+    if (!fs.existsSync(resolvedSafePath)) {
       return res.status(404).json({ error: 'File not found' });
     }
+    const stats = fs.statSync(resolvedSafePath);
+    if (stats.isDirectory()) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check if thumbnail generation is requested and sharp is available
+    const ext = extname(resolvedSafePath).toLowerCase();
+    const resizableExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+    const widthStr = req.query.width;
+
+    if (sharp && resizableExtensions.includes(ext) && widthStr) {
+      const width = parseInt(widthStr, 10);
+      if (!isNaN(width) && width > 0 && width < 2000) {
+        const mtime = stats.mtimeMs;
+        const hash = crypto.createHash('md5')
+          .update(`${resolvedSafePath}_${width}_${mtime}`)
+          .digest('hex');
+        const thumbnailPath = join(cacheDir, `${hash}${ext}`);
+
+        if (fs.existsSync(thumbnailPath)) {
+          return res.sendFile(thumbnailPath);
+        }
+
+        // Generate thumbnail
+        try {
+          await sharp(resolvedSafePath)
+            .resize({ width })
+            .toFile(thumbnailPath);
+          return res.sendFile(thumbnailPath);
+        } catch (sharpErr) {
+          console.error(`[Thumbnail] Failed to generate thumbnail for ${decodedPath}:`, sharpErr);
+          // Fallback to sending original file if resizing fails
+        }
+      }
+    }
+
     res.sendFile(resolvedSafePath);
   } catch (err) {
     console.error(`Error sending raw file ${decodedPath}:`, err);
