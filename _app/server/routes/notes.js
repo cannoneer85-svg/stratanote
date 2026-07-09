@@ -40,8 +40,7 @@ export const updateNoteEmbedding = async (relPath, content) => {
 const router = express.Router();
 
 // Define and clear/create temp directory for chunked uploads
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const tempDir = resolve(__dirname, '../temp');
+const tempDir = join(vaultPath, '.temp');
 
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
@@ -56,6 +55,27 @@ if (!fs.existsSync(tempDir)) {
     console.error('Failed to clear temp directory:', err);
   }
 }
+
+// Run cleanup of temp files older than 2 hours every 30 minutes
+setInterval(() => {
+  try {
+    if (!fs.existsSync(tempDir)) return;
+    const files = fs.readdirSync(tempDir);
+    const now = Date.now();
+    const maxAge = 2 * 60 * 60 * 1000; // 2 hours
+
+    for (const file of files) {
+      const filePath = join(tempDir, file);
+      const stats = fs.statSync(filePath);
+      if (now - stats.mtimeMs > maxAge) {
+        fs.unlinkSync(filePath);
+        console.log(`[Temp Cleanup] Deleted stale temporary file: ${file}`);
+      }
+    }
+  } catch (err) {
+    console.error('[Temp Cleanup] Error during stale file cleanup:', err);
+  }
+}, 30 * 60 * 1000);
 
 // Initialize sharp and cache directory for image thumbnails
 let sharp;
@@ -539,6 +559,28 @@ router.post('/upload-media-chunk', authenticateJWT, canEdit, (req, res) => {
       }
     } catch (err) {
       console.error('Media chunk merge error:', err);
+      
+      // Cleanup all possible chunk files for this uploadId on failure
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkPath = join(tempDir, `${uploadId}.part_${i}`);
+        if (fs.existsSync(chunkPath)) {
+          try {
+            fs.unlinkSync(chunkPath);
+          } catch (cleanupErr) {
+            console.error(`Failed to delete chunk ${chunkPath} on failure:`, cleanupErr);
+          }
+        }
+      }
+      
+      // Cleanup partially merged file on failure
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupErr) {
+          console.error(`Failed to delete partial file ${filePath} on failure:`, cleanupErr);
+        }
+      }
+
       res.status(500).json({ error: 'Failed to merge media chunks' });
     }
   });
@@ -1006,10 +1048,10 @@ router.post('/import-chunk', authenticateJWT, canEdit, (req, res) => {
           });
         };
 
-        await mergeChunks();
-        console.log('[Import] Merge complete. Processing vault ZIP...');
-
         try {
+          await mergeChunks();
+          console.log('[Import] Merge complete. Processing vault ZIP...');
+
           // 1. If overwrite is true, delete existing markdown files/folders on disk and clear DB tables
           if (overwrite) {
             console.log('[Import] Clearing current markdown files for overwrite...');
@@ -1039,6 +1081,19 @@ router.post('/import-chunk', authenticateJWT, canEdit, (req, res) => {
           res.json({ message: 'Vault imported and indexed successfully' });
         } catch (err) {
           console.error('Vault import processing error:', err);
+          
+          // Cleanup all possible chunk files for this uploadId on failure
+          for (let i = 0; i < totalChunks; i++) {
+            const chunkPath = join(tempDir, `${uploadId}.part_${i}`);
+            if (fs.existsSync(chunkPath)) {
+              try {
+                fs.unlinkSync(chunkPath);
+              } catch (cleanupErr) {
+                console.error(`Failed to delete chunk ${chunkPath} on failure:`, cleanupErr);
+              }
+            }
+          }
+
           if (fs.existsSync(mergedZipPath)) {
             try {
               fs.unlinkSync(mergedZipPath);

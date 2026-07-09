@@ -529,9 +529,16 @@ export const Editor: React.FC<EditorProps> = ({
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadingFilesCount, setUploadingFilesCount] = useState<number>(0);
   const [uploadingFileIndex, setUploadingFileIndex] = useState<number>(0);
+  const [applyToAllConflicts, setApplyToAllConflicts] = useState(false);
+
+  
+  const activeXhrRef = useRef<XMLHttpRequest | null>(null);
+  const uploadCancelledRef = useRef<boolean>(false);
+  const bulkConflictActionRef = useRef<'overwrite' | 'rename' | 'cancel' | null>(null);
+
   const [conflictFile, setConflictFile] = useState<{
     file: File;
-    resolve: (action: 'overwrite' | 'rename' | 'cancel') => void;
+    resolve: (action: 'overwrite' | 'rename' | 'cancel', applyToAll?: boolean) => void;
   } | null>(null);
   const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
   const [wikiSearch, setWikiSearch] = useState('');
@@ -867,6 +874,7 @@ export const Editor: React.FC<EditorProps> = ({
         const chunk = file.slice(start, end);
 
         const xhr = new XMLHttpRequest();
+        activeXhrRef.current = xhr;
         xhr.open('POST', '/api/notes/upload-media-chunk', true);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.setRequestHeader('Content-Type', 'application/octet-stream');
@@ -887,6 +895,7 @@ export const Editor: React.FC<EditorProps> = ({
         });
 
         xhr.onload = () => {
+          activeXhrRef.current = null;
           if (xhr.status >= 200 && xhr.status < 300) {
             uploadedBytesPrevChunks += (end - start);
             currentChunk++;
@@ -914,7 +923,13 @@ export const Editor: React.FC<EditorProps> = ({
         };
 
         xhr.onerror = () => {
+          activeXhrRef.current = null;
           rejectPromise(new Error('Network error'));
+        };
+
+        xhr.onabort = () => {
+          activeXhrRef.current = null;
+          rejectPromise(new Error('Upload aborted'));
         };
 
         xhr.send(chunk);
@@ -942,11 +957,22 @@ export const Editor: React.FC<EditorProps> = ({
       .then(res => res.json())
       .then((data: { exists: boolean }) => {
         if (data.exists) {
+          if (bulkConflictActionRef.current) {
+            if (bulkConflictActionRef.current === 'cancel') {
+              return Promise.reject(new Error(lang === 'en' ? 'Upload cancelled' : 'Загрузка отменена'));
+            }
+            const isOverwrite = bulkConflictActionRef.current === 'overwrite';
+            return uploadMediaChunked(cleanedFile, onProgress, isOverwrite);
+          }
+
           return new Promise<{ url: string; filename: string }>((resolvePromise, rejectPromise) => {
             setConflictFile({
               file: cleanedFile,
-              resolve: (action) => {
+              resolve: (action, applyToAll = false) => {
                 setConflictFile(null);
+                if (applyToAll) {
+                  bulkConflictActionRef.current = action;
+                }
                 if (action === 'cancel') {
                   rejectPromise(new Error(lang === 'en' ? 'Upload cancelled' : 'Загрузка отменена'));
                 } else {
@@ -1412,13 +1438,25 @@ export const Editor: React.FC<EditorProps> = ({
     setUploadingFilesCount(files.length);
     view.focus();
     
+    // Reset cancellation and bulk actions
+    uploadCancelledRef.current = false;
+    bulkConflictActionRef.current = null;
+    setApplyToAllConflicts(false);
+    
     for (let i = 0; i < files.length; i++) {
+      if (uploadCancelledRef.current) break;
       const file = files[i];
       setUploadingFileIndex(i);
       setUploadProgress(0);
 
       try {
-        const data = await uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct));
+        const data = await uploadMediaWithConflictCheck(file, (pct) => {
+          if (!uploadCancelledRef.current) {
+            setUploadProgress(pct);
+          }
+        });
+        
+        if (uploadCancelledRef.current) break;
         setUploadProgress(null);
         
         view.focus();
@@ -1443,13 +1481,30 @@ export const Editor: React.FC<EditorProps> = ({
         setContent(view.state.doc.toString());
       } catch (err: any) {
         setUploadProgress(null);
-        if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
+        if (uploadCancelledRef.current) {
+          break;
+        }
+        if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена' && err.message !== 'Upload aborted' && err.message !== 'Upload cancelled by user') {
           console.error(err);
           alert((langRef.current === 'en' ? 'Failed to upload file ' : 'Не удалось загрузить файл ') + file.name + ': ' + err.message);
         }
       }
     }
     
+    setUploadingFilesCount(0);
+    setUploadingFileIndex(0);
+  };
+
+  const handleCancelUpload = () => {
+    uploadCancelledRef.current = true;
+    if (activeXhrRef.current) {
+      try {
+        activeXhrRef.current.abort();
+      } catch (err) {
+        console.error('Failed to abort upload XHR:', err);
+      }
+    }
+    setUploadProgress(null);
     setUploadingFilesCount(0);
     setUploadingFileIndex(0);
   };
@@ -2363,7 +2418,16 @@ export const Editor: React.FC<EditorProps> = ({
               style={{ width: `${uploadProgress}%` }}
             />
           </div>
-          <div className="text-xs text-text-muted font-mono">{uploadProgress}%</div>
+          <div className="flex items-center space-x-4">
+            <div className="text-xs text-text-muted font-mono">{uploadProgress}%</div>
+            <button
+              type="button"
+              onClick={handleCancelUpload}
+              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 hover:text-white text-xs font-semibold rounded-lg transition-all cursor-pointer active:scale-95"
+            >
+              {lang === 'en' ? 'Cancel' : 'Отменить'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -2386,22 +2450,36 @@ export const Editor: React.FC<EditorProps> = ({
                   : `Файл "${conflictFile.file.name}" уже загружен на сервер. Что вы хотите сделать?`}
               </p>
             </div>
+
+            {uploadingFilesCount > 1 && (
+              <label className="flex items-center space-x-2.5 text-xs text-text-muted cursor-pointer hover:text-white transition-colors py-1">
+                <input 
+                  type="checkbox" 
+                  checked={applyToAllConflicts}
+                  onChange={(e) => setApplyToAllConflicts(e.target.checked)}
+                  className="rounded border-white/10 bg-black/40 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                />
+                <span>
+                  {lang === 'en' ? 'Apply to all remaining files' : 'Применить ко всем оставшимся файлам'}
+                </span>
+              </label>
+            )}
             
             <div className="flex flex-col space-y-2 w-full pt-2">
               <button
-                onClick={() => conflictFile.resolve('overwrite')}
+                onClick={() => conflictFile.resolve('overwrite', applyToAllConflicts)}
                 className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-[1.01]"
               >
                 {lang === 'en' ? 'Overwrite Existing' : 'Перезаписать существующий'}
               </button>
               <button
-                onClick={() => conflictFile.resolve('rename')}
+                onClick={() => conflictFile.resolve('rename', applyToAllConflicts)}
                 className="w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/45 text-primary rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-[1.01] shadow-glow"
               >
                 {lang === 'en' ? 'Keep Both (Rename)' : 'Создать копию (Переименовать)'}
               </button>
               <button
-                onClick={() => conflictFile.resolve('cancel')}
+                onClick={() => conflictFile.resolve('cancel', applyToAllConflicts)}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all"
               >
                 {lang === 'en' ? 'Cancel' : 'Отмена'}
