@@ -393,7 +393,7 @@ const uploadMediaHandler = async (req, res) => {
     fs.mkdirSync(assetsDir, { recursive: true });
   }
 
-  const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_');
+  const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
   const ext = extname(cleanedFilename);
   const base = basename(cleanedFilename, ext);
 
@@ -403,7 +403,7 @@ const uploadMediaHandler = async (req, res) => {
 
   while (fs.existsSync(filePath)) {
     counter++;
-    safeFilename = `${base} (${counter})${ext}`;
+    safeFilename = `${base}_${counter}${ext}`;
     filePath = join(assetsDir, safeFilename);
   }
 
@@ -422,12 +422,22 @@ const uploadMediaHandler = async (req, res) => {
 router.post('/upload-media', authenticateJWT, canEdit, uploadMediaHandler);
 router.post('/upload-image', authenticateJWT, canEdit, uploadMediaHandler);
 
+// 6.0. Check if Media File Exists
+router.get('/media-exists', authenticateJWT, (req, res) => {
+  const filename = req.query.filename;
+  if (!filename) return res.status(400).json({ error: 'filename query parameter is required' });
+  const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+  const filePath = join(vaultPath, 'assets', cleanedFilename);
+  res.json({ exists: fs.existsSync(filePath) });
+});
+
 // 6.1. Upload Media Chunk
 router.post('/upload-media-chunk', authenticateJWT, canEdit, (req, res) => {
   const chunkIndex = parseInt(req.headers['x-chunk-index'], 10);
   const totalChunks = parseInt(req.headers['x-total-chunks'], 10);
   const uploadId = req.headers['x-upload-id'];
   const filename = decodeURIComponent(req.headers['x-filename'] || 'upload');
+  const overwrite = req.headers['x-overwrite'] === 'true';
 
   if (isNaN(chunkIndex) || isNaN(totalChunks) || !uploadId) {
     return res.status(400).json({ error: 'Missing required chunk headers' });
@@ -458,7 +468,7 @@ router.post('/upload-media-chunk', authenticateJWT, canEdit, (req, res) => {
           fs.mkdirSync(assetsDir, { recursive: true });
         }
 
-        const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_');
+        const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
         const ext = extname(cleanedFilename);
         const base = basename(cleanedFilename, ext);
 
@@ -466,10 +476,12 @@ router.post('/upload-media-chunk', authenticateJWT, canEdit, (req, res) => {
         let safeFilename = cleanedFilename;
         let filePath = join(assetsDir, safeFilename);
 
-        while (fs.existsSync(filePath)) {
-          counter++;
-          safeFilename = `${base} (${counter})${ext}`;
-          filePath = join(assetsDir, safeFilename);
+        if (!overwrite) {
+          while (fs.existsSync(filePath)) {
+            counter++;
+            safeFilename = `${base}_${counter}${ext}`;
+            filePath = join(assetsDir, safeFilename);
+          }
         }
 
         // Streaming merge function

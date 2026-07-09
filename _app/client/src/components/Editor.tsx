@@ -500,6 +500,10 @@ export const Editor: React.FC<EditorProps> = ({
   const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [conflictFile, setConflictFile] = useState<{
+    file: File;
+    resolve: (action: 'overwrite' | 'rename' | 'cancel') => void;
+  } | null>(null);
   const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
   const [wikiSearch, setWikiSearch] = useState('');
   const [wikiSelectedIndex, setWikiSelectedIndex] = useState(0);
@@ -811,7 +815,8 @@ export const Editor: React.FC<EditorProps> = ({
   // Upload media file in 5MB chunks with progress callback
   const uploadMediaChunked = (
     file: File,
-    onProgress: (pct: number) => void
+    onProgress: (pct: number) => void,
+    overwrite = false
   ): Promise<{ url: string; filename: string }> => {
     return new Promise((resolvePromise, rejectPromise) => {
       const token = localStorage.getItem('token');
@@ -836,6 +841,9 @@ export const Editor: React.FC<EditorProps> = ({
         xhr.setRequestHeader('x-total-chunks', totalChunks.toString());
         xhr.setRequestHeader('x-upload-id', uploadId);
         xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
+        if (overwrite) {
+          xhr.setRequestHeader('x-overwrite', 'true');
+        }
 
         xhr.upload.addEventListener('progress', (event) => {
           if (event.lengthComputable) {
@@ -884,6 +892,49 @@ export const Editor: React.FC<EditorProps> = ({
     });
   };
 
+  // Wrapper that checks for name conflicts and prompts the user if necessary
+  const uploadMediaWithConflictCheck = (
+    file: File,
+    onProgress: (pct: number) => void
+  ): Promise<{ url: string; filename: string }> => {
+    const token = localStorage.getItem('token');
+    const cleanedName = file.name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+    const cleanedFile = new File([file], cleanedName, { type: file.type });
+
+    return fetch(`/api/notes/media-exists?filename=${encodeURIComponent(cleanedName)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(res => res.json())
+      .then((data: { exists: boolean }) => {
+        if (data.exists) {
+          return new Promise<{ url: string; filename: string }>((resolvePromise, rejectPromise) => {
+            setConflictFile({
+              file: cleanedFile,
+              resolve: (action) => {
+                setConflictFile(null);
+                if (action === 'cancel') {
+                  rejectPromise(new Error(lang === 'en' ? 'Upload cancelled' : 'Загрузка отменена'));
+                } else {
+                  const isOverwrite = action === 'overwrite';
+                  uploadMediaChunked(cleanedFile, onProgress, isOverwrite)
+                    .then(resolvePromise)
+                    .catch(rejectPromise);
+                }
+              }
+            });
+          });
+        } else {
+          return uploadMediaChunked(cleanedFile, onProgress, false);
+        }
+      })
+      .catch(err => {
+        console.error('Conflict check failed, falling back to auto-rename:', err);
+        return uploadMediaChunked(cleanedFile, onProgress, false);
+      });
+  };
+
   // Handle Drag-and-Drop and Copy-Paste for media files inside CodeMirror
   const mediaEvents = useMemo(() => {
     return EditorView.domEventHandlers({
@@ -900,14 +951,14 @@ export const Editor: React.FC<EditorProps> = ({
         e.preventDefault();
 
         setUploadProgress(0);
-        uploadMediaChunked(file, (pct) => setUploadProgress(pct))
+        uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct))
           .then((data) => {
             setUploadProgress(null);
             const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
             const insertPos = pos !== null ? pos : view.state.selection.main.head;
             
             view.focus();
-            const linkText = `![${file.name}](${data.url})`;
+            const linkText = `![${data.filename}](${data.url})`;
             view.dispatch({
               changes: { from: insertPos, to: insertPos, insert: linkText },
               selection: { anchor: insertPos + linkText.length }
@@ -916,8 +967,10 @@ export const Editor: React.FC<EditorProps> = ({
           })
           .catch((err) => {
             setUploadProgress(null);
-            console.error(err);
-            alert('Не удалось загрузить медиафайл: ' + err.message);
+            if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
+              console.error(err);
+              alert('Не удалось загрузить медиафайл: ' + err.message);
+            }
           });
         return true;
       },
@@ -947,12 +1000,12 @@ export const Editor: React.FC<EditorProps> = ({
             const renamedFile = new File([file], filename, { type: file.type });
 
             setUploadProgress(0);
-            uploadMediaChunked(renamedFile, (pct) => setUploadProgress(pct))
+            uploadMediaWithConflictCheck(renamedFile, (pct) => setUploadProgress(pct))
               .then((data) => {
                 setUploadProgress(null);
                 view.focus();
                 const insertPos = view.state.selection.main.head;
-                const linkText = `![${filename}](${data.url})`;
+                const linkText = `![${data.filename}](${data.url})`;
                 view.dispatch({
                   changes: { from: insertPos, to: insertPos, insert: linkText },
                   selection: { anchor: insertPos + linkText.length }
@@ -961,8 +1014,10 @@ export const Editor: React.FC<EditorProps> = ({
               })
               .catch((err) => {
                 setUploadProgress(null);
-                console.error(err);
-                alert('Не удалось загрузить медиафайл: ' + err.message);
+                if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
+                  console.error(err);
+                  alert('Не удалось загрузить медиафайл: ' + err.message);
+                }
               });
             return true;
           }
@@ -1345,15 +1400,17 @@ export const Editor: React.FC<EditorProps> = ({
       if (!file) return;
 
       setUploadProgress(0);
-      uploadMediaChunked(file, (pct) => setUploadProgress(pct))
+      uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct))
         .then((data) => {
           setUploadProgress(null);
-          insertText(`![${file.name}](${data.url})`);
+          insertText(`![${data.filename}](${data.url})`);
         })
         .catch((err) => {
           setUploadProgress(null);
-          console.error(err);
-          alert('Не удалось загрузить медиафайл: ' + err.message);
+          if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
+            console.error(err);
+            alert('Не удалось загрузить медиафайл: ' + err.message);
+          }
         });
     };
     input.click();
@@ -2239,6 +2296,50 @@ export const Editor: React.FC<EditorProps> = ({
             />
           </div>
           <div className="text-xs text-text-muted font-mono">{uploadProgress}%</div>
+        </div>
+      )}
+
+      {conflictFile && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4 select-none">
+          <div className="bg-background-panel/95 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/25 flex items-center justify-center text-yellow-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-white">
+                {lang === 'en' ? 'File Already Exists' : 'Файл уже существует'}
+              </h3>
+              <p className="text-xs text-text-muted break-all px-2 leading-relaxed">
+                {lang === 'en' 
+                  ? `File "${conflictFile.file.name}" is already uploaded. What would you like to do?` 
+                  : `Файл "${conflictFile.file.name}" уже загружен на сервер. Что вы хотите сделать?`}
+              </p>
+            </div>
+            
+            <div className="flex flex-col space-y-2 w-full pt-2">
+              <button
+                onClick={() => conflictFile.resolve('overwrite')}
+                className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-[1.01]"
+              >
+                {lang === 'en' ? 'Overwrite Existing' : 'Перезаписать существующий'}
+              </button>
+              <button
+                onClick={() => conflictFile.resolve('rename')}
+                className="w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/45 text-primary rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-[1.01] shadow-glow"
+              >
+                {lang === 'en' ? 'Keep Both (Rename)' : 'Создать копию (Переименовать)'}
+              </button>
+              <button
+                onClick={() => conflictFile.resolve('cancel')}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-xs font-semibold cursor-pointer transition-all"
+              >
+                {lang === 'en' ? 'Cancel' : 'Отмена'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       
