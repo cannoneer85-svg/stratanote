@@ -499,6 +499,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [wikiDropdownOpen, setWikiDropdownOpen] = useState(false);
   const [wikiSearch, setWikiSearch] = useState('');
   const [wikiSelectedIndex, setWikiSelectedIndex] = useState(0);
@@ -807,6 +808,82 @@ export const Editor: React.FC<EditorProps> = ({
     setMode('edit');
   };
 
+  // Upload media file in 5MB chunks with progress callback
+  const uploadMediaChunked = (
+    file: File,
+    onProgress: (pct: number) => void
+  ): Promise<{ url: string; filename: string }> => {
+    return new Promise((resolvePromise, rejectPromise) => {
+      const token = localStorage.getItem('token');
+      const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+      const totalSize = file.size;
+      const totalChunks = Math.ceil(totalSize / chunkSize);
+      const uploadId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+      let currentChunk = 0;
+      let uploadedBytesPrevChunks = 0;
+
+      const uploadNextChunk = () => {
+        const start = currentChunk * chunkSize;
+        const end = Math.min(start + chunkSize, totalSize);
+        const chunk = file.slice(start, end);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/notes/upload-media-chunk', true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.setRequestHeader('x-chunk-index', currentChunk.toString());
+        xhr.setRequestHeader('x-total-chunks', totalChunks.toString());
+        xhr.setRequestHeader('x-upload-id', uploadId);
+        xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const currentLoaded = uploadedBytesPrevChunks + event.loaded;
+            const pct = Math.min(99, Math.round((currentLoaded / totalSize) * 100));
+            onProgress(pct);
+          }
+        });
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            uploadedBytesPrevChunks += (end - start);
+            currentChunk++;
+            if (currentChunk < totalChunks) {
+              const overallPct = Math.round((currentChunk / totalChunks) * 100);
+              onProgress(overallPct);
+              uploadNextChunk();
+            } else {
+              onProgress(100);
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolvePromise(response);
+              } catch (e) {
+                rejectPromise(new Error(xhr.responseText || 'Invalid response from server'));
+              }
+            }
+          } else {
+            let errMsg = `HTTP ${xhr.status}`;
+            try {
+              const resJson = JSON.parse(xhr.responseText);
+              errMsg = resJson.error || errMsg;
+            } catch (_) {}
+            rejectPromise(new Error(errMsg));
+          }
+        };
+
+        xhr.onerror = () => {
+          rejectPromise(new Error('Network error'));
+        };
+
+        xhr.send(chunk);
+      };
+
+      onProgress(0);
+      uploadNextChunk();
+    });
+  };
+
   // Handle Drag-and-Drop and Copy-Paste for media files inside CodeMirror
   const mediaEvents = useMemo(() => {
     return EditorView.domEventHandlers({
@@ -822,44 +899,26 @@ export const Editor: React.FC<EditorProps> = ({
 
         e.preventDefault();
 
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64Data = (reader.result as string).split(',')[1];
-          try {
-            const res = await fetch('/api/notes/upload-media', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({ filename: file.name, base64Data })
+        setUploadProgress(0);
+        uploadMediaChunked(file, (pct) => setUploadProgress(pct))
+          .then((data) => {
+            setUploadProgress(null);
+            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+            const insertPos = pos !== null ? pos : view.state.selection.main.head;
+            
+            view.focus();
+            const linkText = `![${file.name}](${data.url})`;
+            view.dispatch({
+              changes: { from: insertPos, to: insertPos, insert: linkText },
+              selection: { anchor: insertPos + linkText.length }
             });
-            let data;
-            try {
-              data = await res.json();
-            } catch (jsonErr) {
-              data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
-            }
-            if (res.ok) {
-              const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-              const insertPos = pos !== null ? pos : view.state.selection.main.head;
-              
-              view.focus();
-              const linkText = `![${file.name}](${data.url})`;
-              view.dispatch({
-                changes: { from: insertPos, to: insertPos, insert: linkText },
-                selection: { anchor: insertPos + linkText.length }
-              });
-              setContent(view.state.doc.toString());
-            } else {
-              alert('Не удалось загрузить медиафайл: ' + data.error);
-            }
-          } catch (err) {
+            setContent(view.state.doc.toString());
+          })
+          .catch((err) => {
+            setUploadProgress(null);
             console.error(err);
-            alert('Ошибка сети при загрузке медиафайла');
-          }
-        };
-        reader.readAsDataURL(file);
+            alert('Не удалось загрузить медиафайл: ' + err.message);
+          });
         return true;
       },
       paste: (e: ClipboardEvent, view: EditorView) => {
@@ -885,42 +944,26 @@ export const Editor: React.FC<EditorProps> = ({
             const extension = file.type.startsWith('image/') ? 'png' : 'mp4';
             const filename = `Pasted image ${year}${month}${day}${hour}${minute}${second}.${extension}`;
 
-            const reader = new FileReader();
-            reader.onload = async () => {
-              const base64Data = (reader.result as string).split(',')[1];
-              try {
-                const res = await fetch('/api/notes/upload-media', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                  },
-                  body: JSON.stringify({ filename, base64Data })
+            const renamedFile = new File([file], filename, { type: file.type });
+
+            setUploadProgress(0);
+            uploadMediaChunked(renamedFile, (pct) => setUploadProgress(pct))
+              .then((data) => {
+                setUploadProgress(null);
+                view.focus();
+                const insertPos = view.state.selection.main.head;
+                const linkText = `![${filename}](${data.url})`;
+                view.dispatch({
+                  changes: { from: insertPos, to: insertPos, insert: linkText },
+                  selection: { anchor: insertPos + linkText.length }
                 });
-                let data;
-                try {
-                  data = await res.json();
-                } catch (jsonErr) {
-                  data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
-                }
-                if (res.ok) {
-                  view.focus();
-                  const insertPos = view.state.selection.main.head;
-                  const linkText = `![${filename}](${data.url})`;
-                  view.dispatch({
-                    changes: { from: insertPos, to: insertPos, insert: linkText },
-                    selection: { anchor: insertPos + linkText.length }
-                  });
-                  setContent(view.state.doc.toString());
-                } else {
-                  alert('Не удалось загрузить медиафайл: ' + data.error);
-                }
-              } catch (err) {
+                setContent(view.state.doc.toString());
+              })
+              .catch((err) => {
+                setUploadProgress(null);
                 console.error(err);
-                alert('Ошибка сети при загрузке медиафайла');
-              }
-            };
-            reader.readAsDataURL(file);
+                alert('Не удалось загрузить медиафайл: ' + err.message);
+              });
             return true;
           }
         }
@@ -1301,35 +1344,17 @@ export const Editor: React.FC<EditorProps> = ({
       const file = e.target.files?.[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        try {
-          const res = await fetch('/api/notes/upload-media', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({ filename: file.name, base64Data })
-          });
-          let data;
-          try {
-            data = await res.json();
-          } catch (jsonErr) {
-            data = { error: `Ошибка HTTP ${res.status}: ${res.statusText}` };
-          }
-          if (res.ok) {
-            insertText(`![${file.name}](${data.url})`);
-          } else {
-            alert('Не удалось загрузить медиафайл: ' + data.error);
-          }
-        } catch (err) {
+      setUploadProgress(0);
+      uploadMediaChunked(file, (pct) => setUploadProgress(pct))
+        .then((data) => {
+          setUploadProgress(null);
+          insertText(`![${file.name}](${data.url})`);
+        })
+        .catch((err) => {
+          setUploadProgress(null);
           console.error(err);
-          alert('Ошибка сети при загрузке медиафайла');
-        }
-      };
-      reader.readAsDataURL(file);
+          alert('Не удалось загрузить медиафайл: ' + err.message);
+        });
     };
     input.click();
   };
@@ -1342,17 +1367,48 @@ export const Editor: React.FC<EditorProps> = ({
       const lowercasePath = path.toLowerCase();
       const isVideo = videoExtensions.some(ext => lowercasePath.endsWith(ext));
 
+      let parsedOptions = [...options];
+      let cleanAlt = alt || '';
+      if (alt && alt.includes('|')) {
+        const parts = alt.split('|');
+        cleanAlt = parts[0].trim();
+        parsedOptions = [...parsedOptions, ...parts.slice(1).map((opt: string) => opt.trim())];
+      }
+
+      let requestedWidth = 800; // default optimized width for preview
+      let width = '';
+      let height = '';
+
+      for (const option of parsedOptions) {
+        if (/^\d+$/.test(option)) {
+          requestedWidth = parseInt(option, 10);
+          width = `${option}px`;
+        } else if (/^\d+x\d+$/.test(option)) {
+          const [w, h] = option.split('x');
+          requestedWidth = parseInt(w, 10);
+          width = `${w}px`;
+          height = `${h}px`;
+        }
+      }
+
       let mediaUrl = path;
       if (!/^https?:\/\//i.test(path)) {
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
         const token = localStorage.getItem('token') || '';
-        mediaUrl = `/api/raw/${cleanPath}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+        
+        const params = [];
+        if (token) params.push(`token=${encodeURIComponent(token)}`);
+        if (!isVideo) {
+          params.push(`width=${requestedWidth}`);
+        }
+        
+        mediaUrl = `/api/raw/${cleanPath}${params.length > 0 ? `?${params.join('&')}` : ''}`;
       }
 
       if (isVideo) {
-        const hasAutoplay = options.includes('autoplay');
-        const hasLoop = options.includes('loop');
-        const hasMuted = options.includes('muted') || hasAutoplay;
+        const hasAutoplay = parsedOptions.includes('autoplay');
+        const hasLoop = parsedOptions.includes('loop');
+        const hasMuted = parsedOptions.includes('muted') || hasAutoplay;
 
         const videoAttrs = [
           'controls',
@@ -1365,21 +1421,9 @@ export const Editor: React.FC<EditorProps> = ({
 
         return `<div class="my-3"><video src="${mediaUrl}" ${videoAttrs}></video></div>`;
       } else {
-        let width = '';
-        let height = '';
-        for (const option of options) {
-          if (/^\d+$/.test(option)) {
-            width = `${option}px`;
-          } else if (/^\d+x\d+$/.test(option)) {
-            const [w, h] = option.split('x');
-            width = `${w}px`;
-            height = `${h}px`;
-          }
-        }
-
-        let altText = alt || '';
-        if (options.length > 0) {
-          const nonSizeOptions = options.filter((opt: string) => !/^\d+(x\d+)?$/.test(opt) && opt !== 'autoplay' && opt !== 'loop' && opt !== 'muted');
+        let altText = cleanAlt;
+        if (parsedOptions.length > 0) {
+          const nonSizeOptions = parsedOptions.filter((opt: string) => !/^\d+(x\d+)?$/.test(opt) && opt !== 'autoplay' && opt !== 'loop' && opt !== 'muted');
           if (nonSizeOptions.length > 0) {
             altText = nonSizeOptions[0];
           }
@@ -2050,11 +2094,12 @@ export const Editor: React.FC<EditorProps> = ({
       }
     }
 
-    // Lightbox image zoom support
+    // Lightbox image zoom support (loads original full-quality file by stripping width param)
     if (target.tagName === 'IMG') {
       const src = target.getAttribute('src');
       if (src) {
-        setLightboxSrc(src);
+        const originalSrc = src.replace(/([?&])width=\d+(&?)/, '$1$2').replace(/[?&]$/, '');
+        setLightboxSrc(originalSrc);
         return;
       }
     }
@@ -2180,7 +2225,22 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background-panel border border-white/5 rounded-xl overflow-hidden shadow-glass">
+    <div className="flex flex-col h-full bg-background-panel border border-white/5 rounded-xl overflow-hidden shadow-glass relative">
+      {uploadProgress !== null && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center space-y-4 select-none">
+          <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin shadow-glow" />
+          <div className="text-sm font-semibold text-white">
+            {lang === 'en' ? 'Uploading media file...' : 'Загрузка медиафайла...'}
+          </div>
+          <div className="w-64 bg-white/10 h-2 rounded-full overflow-hidden border border-white/5">
+            <div 
+              className="bg-primary h-full transition-all duration-300 shadow-glow"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+          <div className="text-xs text-text-muted font-mono">{uploadProgress}%</div>
+        </div>
+      )}
       
       {/* Editor Toolbar */}
       {selectedSuggestion ? (

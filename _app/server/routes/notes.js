@@ -422,6 +422,121 @@ const uploadMediaHandler = async (req, res) => {
 router.post('/upload-media', authenticateJWT, canEdit, uploadMediaHandler);
 router.post('/upload-image', authenticateJWT, canEdit, uploadMediaHandler);
 
+// 6.1. Upload Media Chunk
+router.post('/upload-media-chunk', authenticateJWT, canEdit, (req, res) => {
+  const chunkIndex = parseInt(req.headers['x-chunk-index'], 10);
+  const totalChunks = parseInt(req.headers['x-total-chunks'], 10);
+  const uploadId = req.headers['x-upload-id'];
+  const filename = decodeURIComponent(req.headers['x-filename'] || 'upload');
+
+  if (isNaN(chunkIndex) || isNaN(totalChunks) || !uploadId) {
+    return res.status(400).json({ error: 'Missing required chunk headers' });
+  }
+
+  const partPath = join(tempDir, `${uploadId}.part_${chunkIndex}`);
+  const writeStream = fs.createWriteStream(partPath);
+
+  req.pipe(writeStream);
+
+  writeStream.on('finish', async () => {
+    try {
+      // Check if all chunks are uploaded
+      let allDone = true;
+      for (let i = 0; i < totalChunks; i++) {
+        if (!fs.existsSync(join(tempDir, `${uploadId}.part_${i}`))) {
+          allDone = false;
+          break;
+        }
+      }
+
+      if (allDone) {
+        console.log(`[Media Upload] All ${totalChunks} chunks received for ${filename}. Merging...`);
+        
+        // Ensure assets folder exists in workspace
+        const assetsDir = join(vaultPath, 'assets');
+        if (!fs.existsSync(assetsDir)) {
+          fs.mkdirSync(assetsDir, { recursive: true });
+        }
+
+        const cleanedFilename = basename(filename).replace(/[\\/:*?"<>|]/g, '_');
+        const ext = extname(cleanedFilename);
+        const base = basename(cleanedFilename, ext);
+
+        let counter = 0;
+        let safeFilename = cleanedFilename;
+        let filePath = join(assetsDir, safeFilename);
+
+        while (fs.existsSync(filePath)) {
+          counter++;
+          safeFilename = `${base} (${counter})${ext}`;
+          filePath = join(assetsDir, safeFilename);
+        }
+
+        // Streaming merge function
+        const mergeChunks = () => {
+          return new Promise((resolvePromise, rejectPromise) => {
+            const finalWriteStream = fs.createWriteStream(filePath);
+            let currentChunk = 0;
+
+            function appendNext() {
+              if (currentChunk >= totalChunks) {
+                finalWriteStream.end();
+                return;
+              }
+
+              const chunkPath = join(tempDir, `${uploadId}.part_${currentChunk}`);
+              const readStream = fs.createReadStream(chunkPath);
+
+              readStream.pipe(finalWriteStream, { end: false });
+
+              readStream.on('end', () => {
+                try {
+                  fs.unlinkSync(chunkPath); // delete part file immediately
+                } catch (e) {
+                  console.error(`Failed to delete chunk file ${chunkPath}:`, e);
+                }
+                currentChunk++;
+                appendNext();
+              });
+
+              readStream.on('error', (err) => {
+                finalWriteStream.end();
+                rejectPromise(err);
+              });
+            }
+
+            finalWriteStream.on('finish', () => {
+              resolvePromise();
+            });
+
+            finalWriteStream.on('error', (err) => {
+              rejectPromise(err);
+            });
+
+            appendNext();
+          });
+        };
+
+        await mergeChunks();
+        console.log(`[Media Upload] Merge complete: ${safeFilename}`);
+
+        const relativeUrl = `assets/${safeFilename}`;
+        res.json({ url: relativeUrl, filename: safeFilename });
+      } else {
+        res.json({ success: true, message: `Chunk ${chunkIndex + 1}/${totalChunks} uploaded` });
+      }
+    } catch (err) {
+      console.error('Media chunk merge error:', err);
+      res.status(500).json({ error: 'Failed to merge media chunks' });
+    }
+  });
+
+  writeStream.on('error', (err) => {
+    console.error('WriteStream error on media chunk write:', err);
+    res.status(500).json({ error: 'Failed to save media chunk file' });
+  });
+});
+
 // 6.2. List Media Files
 router.get('/media', authenticateJWT, async (req, res) => {
   try {
