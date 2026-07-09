@@ -1,6 +1,6 @@
 {
   "name": "stratanote-monorepo",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "scripts": {
     "postinstall": "npm run install:all",

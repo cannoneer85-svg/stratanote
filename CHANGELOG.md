@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0] - 2026-07-09
+### Full localization, media optimization, and hotkeys
+
+- Added full English and Russian localization for all settings panel tabs and notifications popover
+- Implemented on-the-fly image thumbnail generation and caching using the sharp library
+- Added lazy client-side video frame capture using IntersectionObserver and HTML5 Canvas
+- Implemented responsive layout, visual hover auto-playback, and play button badge overlays for videos
+- Added Ctrl+S (Cmd+S) keyboard shortcut to save document edits immediately in any layout
+- Added document icon styling and nesting depth support for markdown list items
+
 ## [1.6.0] - 2026-07-06
 ### Bilingual Support (RU/EN) and Centralized Localization System
 

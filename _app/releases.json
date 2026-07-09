@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.7.0",
+    "date": "2026-07-09",
+    "title_ru": "Полная локализация, оптимизация медиапанели и горячие клавиши",
+    "title_en": "Full localization, media optimization, and hotkeys",
+    "keynotes_ru": [
+      "Добавлена полная русская и английская локализация всех разделов панели настроек и всплывающего окна уведомлений",
+      "Реализовано автоматическое сжатие и кэширование миниатюр изображений на сервере через библиотеку sharp",
+      "Добавлена ленивая генерация превью для видео на клиенте с помощью IntersectionObserver и HTML5 Canvas",
+      "Реализовано автоматическое бесшумное превью-воспроизведение видео при наведении курсора",
+      "Добавлено сочетание клавиш Ctrl+S/Cmd+S для мгновенного сохранения заметок независимо от раскладки",
+      "Улучшено визуальное отображение вложенных списков и добавлены иконки документов для WikiLinks"
+    ],
+    "keynotes_en": [
+      "Added full English and Russian localization for all settings panel tabs and notifications popover",
+      "Implemented on-the-fly image thumbnail generation and caching using the sharp library",
+      "Added lazy client-side video frame capture using IntersectionObserver and HTML5 Canvas",
+      "Implemented responsive layout, visual hover auto-playback, and play button badge overlays for videos",
+      "Added Ctrl+S (Cmd+S) keyboard shortcut to save document edits immediately in any layout",
+      "Added document icon styling and nesting depth support for markdown list items"
+    ]
+  },
+  {
     "version": "1.6.0",
     "date": "2026-07-06",
     "title_ru": "Мультиязычная поддержка (RU/EN) и централизованная система локализации",
