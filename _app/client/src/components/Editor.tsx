@@ -964,6 +964,22 @@ export const Editor: React.FC<EditorProps> = ({
     return () => clearInterval(timer);
   }, [content, initialContent, isReadOnly, lockedBy, isSuggestMode, saving]);
 
+  // Listen for Ctrl+S / Cmd+S to save (using capture phase to intercept CodeMirror and layout-independent code verification)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isS = e.key.toLowerCase() === 's' || e.code === 'KeyS' || e.key === 'ы' || e.key === 'Ы';
+      if ((e.ctrlKey || e.metaKey) && isS) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (content !== initialContent && !saving) {
+          handleSave();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [content, initialContent, saving]);
+
   // Render Mermaid diagrams on preview mode change or content update, using MutationObserver to handle async React re-renders
   useEffect(() => {
     if (mode !== 'preview' || !previewRef.current) return;
