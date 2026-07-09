@@ -223,9 +223,9 @@ router.put('/', authenticateJWT, canEdit, checkLock, async (req, res) => {
     // Check owner permission for non-Admin users
     if (req.user.role !== 'Admin') {
       const note = await get('SELECT created_by FROM notes WHERE relative_path = ?', [normPath]);
-      if (note && note.created_by && note.created_by !== 'Внешняя система' && note.created_by !== req.user.username) {
+      if (note && note.created_by && note.created_by !== req.user.username) {
         return res.status(403).json({ 
-          error: 'Permission denied: Прямое редактирование чужого документа запрещено. Пожалуйста, используйте Режим рецензирования (Suggest Mode).' 
+          error: 'Permission denied: Редактирование этого файла напрямую невозможно. Пожалуйста, воспользуйтесь Режимом рецензирования (Suggest Mode).' 
         });
       }
     }

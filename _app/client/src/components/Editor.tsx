@@ -579,18 +579,25 @@ export const Editor: React.FC<EditorProps> = ({
   const [prevNotePath, setPrevNotePath] = useState(notePath);
   const [prevInitialContent, setPrevInitialContent] = useState(initialContent);
 
+  const currentNote = useMemo(() => allNotes.find(n => n.relative_path === notePath), [allNotes, notePath]);
+  const isOwnNote = useMemo(() => {
+    return currentUser.role === 'Admin' || (currentNote && currentNote.created_by === currentUser.username);
+  }, [currentUser, currentNote]);
+
   // Sync state with prop updates during render to avoid transient rendering of old content
   if (notePath !== prevNotePath || initialContent !== prevInitialContent) {
     setPrevNotePath(notePath);
     setPrevInitialContent(initialContent);
     setContent(initialContent);
-    setIsSuggestMode(false);
+    
+    const noteObj = allNotes.find(n => n.relative_path === notePath);
+    const own = currentUser.role === 'Admin' || (noteObj && noteObj.created_by === currentUser.username);
+    setIsSuggestMode(!own);
+    
     setSelectedSuggestion(null);
     setConflictData(null);
     setShowSuggestionsSidebar(false);
   }
-
-  const currentNote = useMemo(() => allNotes.find(n => n.relative_path === notePath), [allNotes, notePath]);
   const rawNoteCreator = currentNote?.created_by || 'system';
   const noteCreator = rawNoteCreator === 'system' || rawNoteCreator === 'Внешняя система'
     ? t('system_external', lang)
@@ -2748,12 +2755,23 @@ export const Editor: React.FC<EditorProps> = ({
                     setMode('edit');
                   }
                 }}
-                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
-                  isSuggestMode 
+                disabled={!isOwnNote}
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all shrink-0 ${
+                  !isOwnNote ? 'cursor-not-allowed opacity-60 bg-primary/10 border-primary/25 text-primary' : 'cursor-pointer'
+                } ${
+                  isSuggestMode && isOwnNote
                     ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]' 
-                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                    : !isSuggestMode && isOwnNote
+                    ? 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                    : 'font-semibold font-mono text-[11px]'
                 }`}
-                title={isSuggestMode ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
+                title={!isOwnNote 
+                  ? (lang === 'en' 
+                      ? "Only review mode is available for this document (it is owned by another user or system)" 
+                      : "Для этого документа доступен только режим рецензирования (он принадлежит другому пользователю или системе)") 
+                  : isSuggestMode 
+                    ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") 
+                    : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
               >
                 <GitBranch className="w-3.5 h-3.5 text-primary" />
                 <span className="text-[11px] hidden md:inline">{lang === 'en' ? 'Review' : 'Рецензирование'}</span>
