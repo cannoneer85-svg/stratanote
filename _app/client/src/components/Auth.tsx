@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, User, PlusCircle, ArrowRight } from 'lucide-react';
 import { t, type Lang } from '../utils/translations';
 
@@ -14,6 +14,18 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess, lang }) => {
   const [role, setRole] = useState('Editor');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/version')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.version) {
+          setVersion(data.version);
+        }
+      })
+      .catch(err => console.error('Failed to load version in login:', err));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +169,12 @@ export const Auth: React.FC<AuthProps> = ({ onLoginSuccess, lang }) => {
             </p>
           )}
         </div>
+
+        {version && (
+          <div className="mt-8 text-center select-none text-[10px] text-white/20 font-mono tracking-wider">
+            StrataNote v{version}
+          </div>
+        )}
       </div>
     </div>
   );

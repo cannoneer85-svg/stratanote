@@ -15,9 +15,9 @@ This skill automates the release process for StrataNote.
     - Read `package.json` to get the current version.
 2.  **Determine SemVer increment**:
     - Parse commit messages to recommend:
-      - `MAJOR` if there are breaking changes (e.g. `feat!:` or `BREAKING CHANGE:`).
-      - `MINOR` if there are feature commits (e.g. `feat:`).
-      - `PATCH` if there are only bugfixes/chores/docs (e.g. `fix:`, `docs:`, `chore:`).
+      - `MAJOR` if there are breaking changes (e.g. `feat!:`, `tweak!:`, or `BREAKING CHANGE:`).
+      - `MINOR` if there are major feature commits (e.g. `feat:`).
+      - `PATCH` if there are only tweaks, bugfixes, chores, docs, or other non-feat commits (e.g. `tweak:`, `fix:`, `docs:`, `chore:`, `ref:`, `style:`, `perf:`).
 3.  **Collect Bilingual Keynotes**:
     - Summarize the commits since the last release into bullet points in both English and Russian.
 4.  **Review and Update Documentation**:

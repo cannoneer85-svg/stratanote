@@ -55,7 +55,7 @@ app.use('/api/history', historyRouter);
 app.use('/api/sync', syncRouter);
 
 // System Version and Changelog Endpoint
-app.get('/api/version', authenticateJWT, (req, res) => {
+app.get('/api/version', (req, res) => {
   try {
     const releasesPath = join(__dirname, '..', 'releases.json');
     const isProd = process.env.NODE_ENV === 'production';
