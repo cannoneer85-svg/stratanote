@@ -500,6 +500,8 @@ export const Editor: React.FC<EditorProps> = ({
   const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadingFilesCount, setUploadingFilesCount] = useState<number>(0);
+  const [uploadingFileIndex, setUploadingFileIndex] = useState<number>(0);
   const [conflictFile, setConflictFile] = useState<{
     file: File;
     resolve: (action: 'overwrite' | 'rename' | 'cancel') => void;
@@ -558,12 +560,16 @@ export const Editor: React.FC<EditorProps> = ({
   const lockedByRef = useRef(lockedBy);
   const contentRef = useRef(content);
   const isSuggestModeRef = useRef(isSuggestMode);
+  const langRef = useRef(lang);
+  const uploadMultipleFilesSequentiallyRef = useRef<any>(null);
+
   useEffect(() => {
     isReadOnlyRef.current = isReadOnly;
     lockedByRef.current = lockedBy;
     contentRef.current = content;
     isSuggestModeRef.current = isSuggestMode;
-  }, [isReadOnly, lockedBy, content, isSuggestMode]);
+    langRef.current = lang;
+  }, [isReadOnly, lockedBy, content, isSuggestMode, lang]);
 
   // Reset pending scroll states when note changes to prevent jumping in other files
   useEffect(() => {
@@ -940,38 +946,17 @@ export const Editor: React.FC<EditorProps> = ({
     return EditorView.domEventHandlers({
       drop: (e: DragEvent, view: EditorView) => {
         if (isReadOnlyRef.current || (lockedByRef.current && !isSuggestModeRef.current)) return;
-        const files = e.dataTransfer?.files;
-        if (!files || files.length === 0) return;
+        const files = Array.from(e.dataTransfer?.files || []) as File[];
+        if (files.length === 0) return;
 
-        const file = files[0];
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/');
-        if (!isImage && !isVideo) return;
+        const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+        if (mediaFiles.length === 0) return;
 
         e.preventDefault();
-
-        setUploadProgress(0);
-        uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct))
-          .then((data) => {
-            setUploadProgress(null);
-            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-            const insertPos = pos !== null ? pos : view.state.selection.main.head;
-            
-            view.focus();
-            const linkText = `![${data.filename}](${data.url})`;
-            view.dispatch({
-              changes: { from: insertPos, to: insertPos, insert: linkText },
-              selection: { anchor: insertPos + linkText.length }
-            });
-            setContent(view.state.doc.toString());
-          })
-          .catch((err) => {
-            setUploadProgress(null);
-            if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
-              console.error(err);
-              alert('Не удалось загрузить медиафайл: ' + err.message);
-            }
-          });
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        if (uploadMultipleFilesSequentiallyRef.current) {
+          uploadMultipleFilesSequentiallyRef.current(mediaFiles, view, pos);
+        }
         return true;
       },
       paste: (e: ClipboardEvent, view: EditorView) => {
@@ -979,49 +964,39 @@ export const Editor: React.FC<EditorProps> = ({
         const items = e.clipboardData?.items;
         if (!items) return;
 
+        const mediaFiles: File[] = [];
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
             const file = item.getAsFile();
-            if (!file) continue;
-
-            e.preventDefault();
-
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hour = String(now.getHours()).padStart(2, '0');
-            const minute = String(now.getMinutes()).padStart(2, '0');
-            const second = String(now.getSeconds()).padStart(2, '0');
-            const extension = file.type.startsWith('image/') ? 'png' : 'mp4';
-            const filename = `Pasted image ${year}${month}${day}${hour}${minute}${second}.${extension}`;
-
-            const renamedFile = new File([file], filename, { type: file.type });
-
-            setUploadProgress(0);
-            uploadMediaWithConflictCheck(renamedFile, (pct) => setUploadProgress(pct))
-              .then((data) => {
-                setUploadProgress(null);
-                view.focus();
-                const insertPos = view.state.selection.main.head;
-                const linkText = `![${data.filename}](${data.url})`;
-                view.dispatch({
-                  changes: { from: insertPos, to: insertPos, insert: linkText },
-                  selection: { anchor: insertPos + linkText.length }
-                });
-                setContent(view.state.doc.toString());
-              })
-              .catch((err) => {
-                setUploadProgress(null);
-                if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
-                  console.error(err);
-                  alert('Не удалось загрузить медиафайл: ' + err.message);
-                }
-              });
-            return true;
+            if (file) {
+              mediaFiles.push(file);
+            }
           }
         }
+
+        if (mediaFiles.length === 0) return;
+        e.preventDefault();
+
+        // Convert Pasted images to files with clean names
+        const renamedFiles = mediaFiles.map((file, idx) => {
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const hour = String(now.getHours()).padStart(2, '0');
+          const minute = String(now.getMinutes()).padStart(2, '0');
+          const second = String(now.getSeconds()).padStart(2, '0');
+          const suffix = idx > 0 ? `_${idx}` : '';
+          const extension = file.type.startsWith('image/') ? 'png' : 'mp4';
+          const filename = `Pasted image ${year}${month}${day}${hour}${minute}${second}${suffix}.${extension}`;
+          return new File([file], filename, { type: file.type });
+        });
+
+        if (uploadMultipleFilesSequentiallyRef.current) {
+          uploadMultipleFilesSequentiallyRef.current(renamedFiles, view);
+        }
+        return true;
       }
     });
   }, []);
@@ -1372,6 +1347,8 @@ export const Editor: React.FC<EditorProps> = ({
     const view = editorRef.current?.view;
     if (!view) return;
 
+    view.focus();
+
     const selection = view.state.selection.main;
     const selectedText = view.state.sliceDoc(selection.from, selection.to);
     
@@ -1383,35 +1360,81 @@ export const Editor: React.FC<EditorProps> = ({
         to: selection.to,
         insert: replacement
       },
-      selection: { anchor: selection.from + before.length + selectedText.length }
+      selection: { anchor: selection.from + before.length + selectedText.length },
+      scrollIntoView: true
     });
     
     // Update local content state
     setContent(view.state.doc.toString());
   };
 
+  // Sequentially upload and insert multiple files
+  const uploadMultipleFilesSequentially = async (files: File[], view: any, dragDropPos: number | null = null) => {
+    setUploadingFilesCount(files.length);
+    view.focus();
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadingFileIndex(i);
+      setUploadProgress(0);
+
+      try {
+        const data = await uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct));
+        setUploadProgress(null);
+        
+        view.focus();
+        if (i === 0 && dragDropPos !== null) {
+          view.dispatch({
+            selection: { anchor: dragDropPos }
+          });
+        }
+
+        const currentPos = view.state.selection.main.head;
+        const linkText = `![${data.filename}](${data.url})`;
+        
+        // If we are uploading multiple files, we append \n\n after each file
+        const textToInsert = files.length > 1 ? `${linkText}\n\n` : linkText;
+        
+        view.dispatch({
+          changes: { from: currentPos, to: currentPos, insert: textToInsert },
+          selection: { anchor: currentPos + textToInsert.length },
+          scrollIntoView: true
+        });
+        
+        setContent(view.state.doc.toString());
+      } catch (err: any) {
+        setUploadProgress(null);
+        if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
+          console.error(err);
+          alert((langRef.current === 'en' ? 'Failed to upload file ' : 'Не удалось загрузить файл ') + file.name + ': ' + err.message);
+        }
+      }
+    }
+    
+    setUploadingFilesCount(0);
+    setUploadingFileIndex(0);
+  };
+
+  // Assign to the ref so the event handlers always call the latest version
+  uploadMultipleFilesSequentiallyRef.current = uploadMultipleFilesSequentially;
+
   // Format image/video media tags
   const handleMediaUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,video/*';
+    input.multiple = true;
     input.onchange = async (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const files = Array.from(e.target.files || []) as File[];
+      if (files.length === 0) return;
 
-      setUploadProgress(0);
-      uploadMediaWithConflictCheck(file, (pct) => setUploadProgress(pct))
-        .then((data) => {
-          setUploadProgress(null);
-          insertText(`![${data.filename}](${data.url})`);
-        })
-        .catch((err) => {
-          setUploadProgress(null);
-          if (err.message !== 'Upload cancelled' && err.message !== 'Загрузка отменена') {
-            console.error(err);
-            alert('Не удалось загрузить медиафайл: ' + err.message);
-          }
-        });
+      const view = editorRef.current?.view;
+      if (!view) return;
+
+      const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+      if (mediaFiles.length === 0) return;
+
+      uploadMultipleFilesSequentially(mediaFiles, view);
     };
     input.click();
   };
@@ -2287,7 +2310,13 @@ export const Editor: React.FC<EditorProps> = ({
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center space-y-4 select-none">
           <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin shadow-glow" />
           <div className="text-sm font-semibold text-white">
-            {lang === 'en' ? 'Uploading media file...' : 'Загрузка медиафайла...'}
+            {uploadingFilesCount > 1
+              ? (lang === 'en' 
+                ? `Uploading media files (${uploadingFileIndex + 1}/${uploadingFilesCount})...` 
+                : `Загрузка медиафайлов (${uploadingFileIndex + 1}/${uploadingFilesCount})...`)
+              : (lang === 'en' 
+                ? 'Uploading media file...' 
+                : 'Загрузка медиафайла...')}
           </div>
           <div className="w-64 bg-white/10 h-2 rounded-full overflow-hidden border border-white/5">
             <div 
