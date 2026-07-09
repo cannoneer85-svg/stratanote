@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.8.0",
+    "date": "2026-07-09",
+    "title_ru": "Синхронизация метаданных и истории версий",
+    "title_en": "Metadata and Version History Sync",
+    "keynotes_ru": [
+      "Двусторонняя синхронизация метаданных заметок (created_by, last_edited_by и всей истории версий из SQLite).",
+      "Исправление ошибки race condition с watcher-ом из-за отсутствующего basename в эндпоинте /api/sync/push.",
+      "Автоматическая доустановка пакета sqlite3 при запуске локального синхронизационного агента."
+    ],
+    "keynotes_en": [
+      "Two-way note owner (created_by, last_edited_by) and SQLite version history synchronization.",
+      "Fixed race condition with watcher due to missing basename import in the /api/sync/push endpoint.",
+      "Auto-installation of sqlite3 dependency when starting the local sync agent."
+    ]
+  },
+  {
     "version": "1.7.0",
     "date": "2026-07-09",
     "title_ru": "Полная локализация, оптимизация медиапанели и горячие клавиши",

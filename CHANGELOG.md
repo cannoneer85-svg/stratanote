@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0] - 2026-07-09
+### Metadata and Version History Sync
+
+- Two-way note owner (created_by, last_edited_by) and SQLite version history synchronization.
+- Fixed race condition with watcher due to missing basename import in the /api/sync/push endpoint.
+- Auto-installation of sqlite3 dependency when starting the local sync agent.
+
 ## [1.7.0] - 2026-07-09
 ### Full localization, media optimization, and hotkeys
 
