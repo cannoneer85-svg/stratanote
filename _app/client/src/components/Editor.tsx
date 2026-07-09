@@ -55,7 +55,16 @@ class ImagePreviewWidget extends WidgetType {
       const img = document.createElement("img");
       img.src = this.url;
       img.alt = this.filename;
-      img.className = "max-w-full max-h-32 rounded-lg object-contain bg-black/20";
+      img.className = "max-w-full max-h-32 rounded-lg object-contain bg-black/20 transition-all duration-300 hover:max-h-72 hover:scale-[1.03] cursor-zoom-in";
+      
+      img.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const originalSrc = this.url.replace(/([?&])width=\d+(&?)/, '$1$2').replace(/[?&]$/, '');
+        const event = new CustomEvent("open-lightbox", { detail: { src: originalSrc } });
+        window.dispatchEvent(event);
+      });
+
       wrap.appendChild(img);
     }
 
@@ -107,7 +116,16 @@ const imagePreviewPlugin = ViewPlugin.fromClass(class {
           }).range(end));
         } else {
           const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-          const mediaUrl = `/api/raw/${cleanPath}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+          const params = [];
+          const lowercasePath = cleanPath.toLowerCase();
+          const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some(ext => lowercasePath.endsWith(ext));
+          if (isImage) {
+            params.push('width=300');
+          }
+          if (token) {
+            params.push(`token=${encodeURIComponent(token)}`);
+          }
+          const mediaUrl = `/api/raw/${cleanPath}${params.length > 0 ? `?${params.join('&')}` : ''}`;
           deco.push(Decoration.widget({
             widget: new ImagePreviewWidget(mediaUrl, alt || path),
             side: 1
@@ -124,7 +142,16 @@ const imagePreviewPlugin = ViewPlugin.fromClass(class {
         const filename = parts[0].trim();
         const relativePath = `assets/${filename}`;
         
-        const mediaUrl = `/api/raw/${relativePath}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+        const params = [];
+        const lowercasePath = filename.toLowerCase();
+        const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some(ext => lowercasePath.endsWith(ext));
+        if (isImage) {
+          params.push('width=300');
+        }
+        if (token) {
+          params.push(`token=${encodeURIComponent(token)}`);
+        }
+        const mediaUrl = `/api/raw/${relativePath}${params.length > 0 ? `?${params.join('&')}` : ''}`;
 
         deco.push(Decoration.widget({
           widget: new ImagePreviewWidget(mediaUrl, filename),
@@ -1053,6 +1080,18 @@ export const Editor: React.FC<EditorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [content, initialContent, saving]);
 
+  // Listen for open-lightbox event from ImagePreviewWidget inside CodeMirror
+  useEffect(() => {
+    const handleOpenLightbox = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.src) {
+        setLightboxSrc(customEvent.detail.src);
+      }
+    };
+    window.addEventListener('open-lightbox', handleOpenLightbox);
+    return () => window.removeEventListener('open-lightbox', handleOpenLightbox);
+  }, []);
+
   // Render Mermaid diagrams on preview mode change or content update, using MutationObserver to handle async React re-renders
   useEffect(() => {
     if (mode !== 'preview' || !previewRef.current) return;
@@ -1516,7 +1555,7 @@ export const Editor: React.FC<EditorProps> = ({
 
         const styleAttr = imgStyle ? ` style="${imgStyle}"` : '';
 
-        return `<div class="my-3"><img src="${mediaUrl}" alt="${altText}"${styleAttr} class="max-w-full max-h-96 rounded-lg border border-white/10 shadow-lg object-contain" />${altText ? `<span class="text-[10px] text-text-disabled italic block mt-1">${altText}</span>` : ''}</div>`;
+        return `<div class="my-3"><img src="${mediaUrl}" alt="${altText}"${styleAttr} class="max-w-full max-h-96 rounded-lg border border-white/10 shadow-lg object-contain cursor-zoom-in" />${altText ? `<span class="text-[10px] text-text-disabled italic block mt-1">${altText}</span>` : ''}</div>`;
       }
     };
 
