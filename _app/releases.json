@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.9.0",
+    "date": "2026-07-09",
+    "title_ru": "Поблочная загрузка медиа, диалог коллизий и локальная история",
+    "title_en": "Media chunked uploads, collision prompt and localized history UI",
+    "keynotes_ru": [
+      "Поблочная загрузка медиафайлов: Добавлена поддержка загрузки файлов чанками по 5 МБ для обхода ограничений размера тела запроса (для файлов >300 МБ).",
+      "Интерактивное разрешение конфликтов: Внедрена проверка существования файлов на сервере и премиальный диалог выбора (перезаписать, создать копию с безопасным суффиксом _1 для ссылок Markdown или отменить).",
+      "Оптимизация превью: Автоматический ресайз и кэширование локальных картинок до 800px на сервере через Sharp для ускорения загрузки превью.",
+      "Корзина удаленных заметок: Удаленные файлы переносятся в БД SQLite trash с сохранением содержимого и всей истории правок для возможности восстановления.",
+      "Синхронизация истории и авторов правок: Синхронизация владельцев заметок и полной истории версий между сервером и локальным агентом.",
+      "Улучшение истории версий: Локальная нумерация версий (Версия #1, #2...) индивидуально для каждого файла, визуальный маркер «Текущая версия» и скрытие нелогичной кнопки восстановления для неё."
+    ],
+    "keynotes_en": [
+      "Chunked Media Upload: Implemented chunked binary uploads (5MB blocks) to bypass payload limits for files larger than 300MB.",
+      "Conflict-Aware Media Uploads: Added file existence check and confirmation dialog to overwrite, rename (with safe _1 suffixes to prevent markdown links breakage), or cancel.",
+      "Dynamic Image Previews: Automatically request resized 800px image thumbnails in preview mode to optimize network loading.",
+      "Note Trash Bin: Deleted notes are archived in the SQLite trash database, preserving content and full revision history for recovery.",
+      "Owner and Revision Synchronization: Sync owner metadata and full revision history between local sync agent and server.",
+      "Version History UI: Enabled local version numbering (Version #1, #2, etc.) per note, highlighted the current version, and hid the redundant restore button for the active version."
+    ]
+  },
+  {
     "version": "1.8.0",
     "date": "2026-07-09",
     "title_ru": "Синхронизация метаданных и истории версий",

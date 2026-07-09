@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.0] - 2026-07-09
+### Media chunked uploads, collision prompt and localized history UI
+
+- Chunked Media Upload: Implemented chunked binary uploads (5MB blocks) to bypass payload limits for files larger than 300MB.
+- Conflict-Aware Media Uploads: Added file existence check and confirmation dialog to overwrite, rename (with safe _1 suffixes to prevent markdown links breakage), or cancel.
+- Dynamic Image Previews: Automatically request resized 800px image thumbnails in preview mode to optimize network loading.
+- Note Trash Bin: Deleted notes are archived in the SQLite trash database, preserving content and full revision history for recovery.
+- Owner and Revision Synchronization: Sync owner metadata and full revision history between local sync agent and server.
+- Version History UI: Enabled local version numbering (Version #1, #2, etc.) per note, highlighted the current version, and hid the redundant restore button for the active version.
+
 ## [1.8.0] - 2026-07-09
 ### Metadata and Version History Sync
 
