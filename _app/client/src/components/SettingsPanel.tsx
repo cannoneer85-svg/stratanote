@@ -46,7 +46,7 @@ const formatSize = (bytes: number) => {
 };
 
 interface MediaCardProps {
-  file: { filename: string; size: number; updatedAt: string };
+  file: { filename: string; size: number; updatedAt: string; isReferenced?: boolean };
   token: string | null;
   lang: Lang;
   onDeleteMedia: (filename: string) => void;
@@ -214,10 +214,15 @@ const MediaCard: React.FC<MediaCardProps> = ({ file, token, lang, onDeleteMedia,
           </a>
         )}
         {/* Badges */}
-        <div className="absolute top-2 left-2 flex gap-1">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${isVideo ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
             {file.filename.split('.').pop() || 'file'}
           </span>
+          {file.isReferenced === false && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">
+              {lang === 'en' ? 'Unused' : 'Не используется'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -297,10 +302,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [editApproved, setEditApproved] = useState(false);
 
   // Media Management State
-  const [mediaFiles, setMediaFiles] = useState<{ filename: string; size: number; updatedAt: string }[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<{ filename: string; size: number; updatedAt: string; isReferenced?: boolean }[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [mediaSearchQuery, setMediaSearchQuery] = useState('');
-  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'images' | 'videos' | 'others'>('all');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'images' | 'videos' | 'unused' | 'others'>('all');
   const [mediaStatus, setMediaStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [selectedMediaFiles, setSelectedMediaFiles] = useState<string[]>([]);
 
@@ -639,6 +644,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
     if (mediaTypeFilter === 'images') return isImage;
     if (mediaTypeFilter === 'videos') return isVideo;
+    if (mediaTypeFilter === 'unused') return !file.isReferenced;
     if (mediaTypeFilter === 'others') return !isImage && !isVideo;
 
     return true;
@@ -1536,6 +1542,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   {t('settings_media_filter_videos', lang, {
                     count: mediaFiles.filter(f => ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(f.filename.split('.').pop()?.toLowerCase() || '')).length
                   })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTypeFilter('unused')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                    mediaTypeFilter === 'unused'
+                      ? 'bg-primary text-white border border-primary/20 shadow-glow'
+                      : 'bg-white/[0.02] text-text-muted hover:text-white border border-white/5'
+                  }`}
+                >
+                  {lang === 'en' ? 'Unreferenced' : 'Непривязанные'} ({mediaFiles.filter(f => !f.isReferenced).length})
                 </button>
                 <button
                   type="button"

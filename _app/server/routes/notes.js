@@ -12,6 +12,9 @@ import { getEmbedding, cosineSimilarity } from '../embeddings.js';
 import { threeWayMerge } from '../merge.js';
 import { archiveNoteBeforeDelete, restoreNoteFromTrash, purgeFromTrash, clearTrash, getTrashList } from '../trash.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Helper to update note embedding in the background
 export const updateNoteEmbedding = async (relPath, content) => {
   try {
@@ -598,21 +601,64 @@ router.get('/media', authenticateJWT, async (req, res) => {
     if (!fs.existsSync(assetsDir)) {
       return res.json([]);
     }
+
+    // Scan all notes and compile a Set of referenced asset names
+    const referencedAssets = new Set();
+    const scanDir = (dir) => {
+      try {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          if (['node_modules', '.git', '.temp', '_app', '_sync_mcp', '.obsidian', '.agents', '.sync_backup', 'assets'].includes(item)) {
+            continue;
+          }
+          const fullPath = join(dir, item);
+          const stats = fs.statSync(fullPath);
+          if (stats.isDirectory()) {
+            scanDir(fullPath);
+          } else if (stats.isFile() && item.endsWith('.md')) {
+            try {
+              const content = fs.readFileSync(fullPath, 'utf8');
+              // Matches ![[filename]] or [[filename]]
+              const wikiRegex = /!?\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+              let match;
+              while ((match = wikiRegex.exec(content)) !== null) {
+                const name = basename(match[1].trim());
+                referencedAssets.add(name);
+              }
+              // Matches ![alt](assets/filename) or [label](assets/filename)
+              const mdRegex = /!?\[.*?\]\((.*?)\)/g;
+              while ((match = mdRegex.exec(content)) !== null) {
+                const url = match[1];
+                const cleanUrl = url.split('?')[0]; // strip query
+                const name = basename(decodeURIComponent(cleanUrl));
+                referencedAssets.add(name);
+              }
+            } catch (e) {
+              console.error(`Failed to read file ${fullPath} for references:`, e);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Error scanning directory ${dir}:`, err);
+      }
+    };
+
+    scanDir(vaultPath);
+
     const files = fs.readdirSync(assetsDir);
     const mediaFiles = [];
     for (const file of files) {
+      if (file.startsWith('.')) continue;
+
       const filePath = join(assetsDir, file);
       const stats = fs.statSync(filePath);
       if (stats.isFile()) {
-        const ext = extname(file).toLowerCase();
-        const isMedia = /\.(gif|jpe?g|png|svg|webp|bmp|ico|mp4|webm|ogg|mov|m4v|3gp)$/i.test(ext);
-        if (isMedia) {
-          mediaFiles.push({
-            filename: file,
-            size: stats.size,
-            updatedAt: stats.mtime
-          });
-        }
+        mediaFiles.push({
+          filename: file,
+          size: stats.size,
+          updatedAt: stats.mtime,
+          isReferenced: referencedAssets.has(file)
+        });
       }
     }
     res.json(mediaFiles);

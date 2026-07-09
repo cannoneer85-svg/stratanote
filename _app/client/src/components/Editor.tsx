@@ -39,10 +39,13 @@ class ImagePreviewWidget extends WidgetType {
 
   toDOM() {
     const wrap = document.createElement("div");
-    wrap.className = "block my-2 p-1.5 bg-black/40 rounded-lg border border-white/10 select-none max-w-xs w-fit";
+    wrap.className = "block my-2 p-1.5 bg-black/40 rounded-lg border border-white/10 select-none max-w-xs w-fit relative group/preview";
     
     const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
     const isVideo = videoExtensions.some(ext => this.url.toLowerCase().includes(ext));
+
+    const cleanUrl = this.url.split('?')[0];
+    const cleanFilename = cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
 
     if (isVideo) {
       const video = document.createElement("video");
@@ -67,6 +70,26 @@ class ImagePreviewWidget extends WidgetType {
 
       wrap.appendChild(img);
     }
+
+    // Delete Button Overlay
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/20 hover:bg-red-500 hover:text-white border border-red-500/40 text-red-200 flex items-center justify-center transition-all cursor-pointer shadow-lg opacity-0 group-hover/preview:opacity-100 z-10 active:scale-95";
+    deleteBtn.title = "Удалить файл с сервера и из текста";
+    deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+    
+    deleteBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const event = new CustomEvent("delete-inline-file", {
+        detail: {
+          filename: decodeURIComponent(cleanFilename),
+          url: this.url
+        }
+      });
+      window.dispatchEvent(event);
+    });
+    wrap.appendChild(deleteBtn);
 
     const label = document.createElement("div");
     label.className = "text-[9px] text-white/40 italic mt-1 truncate max-w-[200px]";
@@ -1117,6 +1140,69 @@ export const Editor: React.FC<EditorProps> = ({
     window.addEventListener('open-lightbox', handleOpenLightbox);
     return () => window.removeEventListener('open-lightbox', handleOpenLightbox);
   }, []);
+
+  // Listen for delete-inline-file event from ImagePreviewWidget inside CodeMirror
+  useEffect(() => {
+    const handleDeleteInlineFile = async (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (!customEvent.detail || !customEvent.detail.filename) return;
+
+      const { filename } = customEvent.detail;
+
+      const confirmed = confirm(
+        lang === 'en'
+          ? `Are you sure you want to permanently delete "${filename}" from the server and remove it from the text?`
+          : `Вы действительно хотите навсегда удалить "${filename}" с сервера и убрать его из текста?`
+      );
+      if (!confirmed) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/notes/media/${encodeURIComponent(filename)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok || res.status === 404) {
+          const view = editorRef.current?.view;
+          if (view) {
+            const docText = view.state.doc.toString();
+            const escapedFilename = filename.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            
+            // Build regexes to find the link in markdown
+            const wikiRegex = new RegExp(`!?\\[\\[${escapedFilename}(?:\\|.*?)?\\]\\]`, 'g');
+            const mdRegex = new RegExp(`!?\\[.*?\\]\\((?:.*?/)?${escapedFilename}(?:\\?.*?)?\\)`, 'g');
+            
+            const changes: { from: number; to: number; insert: string }[] = [];
+            let match;
+            
+            // Search wiki links
+            while ((match = wikiRegex.exec(docText)) !== null) {
+              changes.push({ from: match.index, to: match.index + match[0].length, insert: '' });
+            }
+            // Search markdown links
+            while ((match = mdRegex.exec(docText)) !== null) {
+              changes.push({ from: match.index, to: match.index + match[0].length, insert: '' });
+            }
+
+            if (changes.length > 0) {
+              view.dispatch({ changes });
+              setContent(view.state.doc.toString());
+            }
+          }
+        } else {
+          const data = await res.json();
+          alert((lang === 'en' ? 'Failed to delete file: ' : 'Не удалось удалить файл: ') + (data.error || ''));
+        }
+      } catch (err: any) {
+        console.error('Error during inline file deletion:', err);
+        alert(lang === 'en' ? 'Network error during file deletion' : 'Ошибка сети при удалении файла');
+      }
+    };
+
+    window.addEventListener('delete-inline-file', handleDeleteInlineFile);
+    return () => window.removeEventListener('delete-inline-file', handleDeleteInlineFile);
+  }, [lang]);
 
   // Render Mermaid diagrams on preview mode change or content update, using MutationObserver to handle async React re-renders
   useEffect(() => {
