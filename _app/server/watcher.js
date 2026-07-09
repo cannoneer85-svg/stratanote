@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { run, get, all } from './db.js';
 import { getEmbedding } from './embeddings.js';
+import { archiveNoteBeforeDelete } from './trash.js';
 
 // Helper to update embedding in background for watcher events
 const updateNoteEmbedding = async (relPath, content) => {
@@ -175,6 +176,7 @@ export const initWatcher = (io) => {
       if (!relPath.endsWith('.md')) return;
 
       try {
+        await archiveNoteBeforeDelete(relPath, 'Внешняя система');
         await run('DELETE FROM notes WHERE relative_path = ?', [relPath]);
         // Foreign keys cascade delete versions & locks
         console.log(`[Watcher] Deleted file: ${relPath}`);
@@ -188,7 +190,13 @@ export const initWatcher = (io) => {
       if (!relPath) return;
 
       try {
-        await run('DELETE FROM notes WHERE relative_path = ?', [relPath]);
+        // Защитная архивация всех вложенных файлов, которые могли остаться в БД
+        const nestedNotes = await all('SELECT relative_path FROM notes WHERE relative_path LIKE ? AND is_directory = 0', [relPath + '/%']);
+        for (const note of nestedNotes) {
+          await archiveNoteBeforeDelete(note.relative_path, 'Внешняя система');
+        }
+
+        await run('DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?', [relPath, relPath + '/%']);
         console.log(`[Watcher] Deleted directory: ${relPath}`);
         io.emit('file-delete', { relative_path: relPath });
       } catch (err) {

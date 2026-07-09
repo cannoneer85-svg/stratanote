@@ -159,6 +159,19 @@ export const initDb = async () => {
     // Column already exists, ignore
   }
 
+  // 7. Trash Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS trash (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      relative_path TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_by TEXT NOT NULL,
+      versions_json TEXT
+    )
+  `);
+
   // Seed default admin if table is empty
   const adminExists = await get('SELECT id FROM users WHERE username = ?', ['admin']);
   if (!adminExists) {

@@ -10,6 +10,7 @@ import { vaultPath } from '../watcher.js';
 import { authenticateJWT } from './auth.js';
 import { getEmbedding, cosineSimilarity } from '../embeddings.js';
 import { threeWayMerge } from '../merge.js';
+import { archiveNoteBeforeDelete, restoreNoteFromTrash, purgeFromTrash, clearTrash, getTrashList } from '../trash.js';
 
 // Helper to update note embedding in the background
 export const updateNoteEmbedding = async (relPath, content) => {
@@ -246,6 +247,12 @@ router.delete('/', authenticateJWT, canEdit, async (req, res) => {
 
   try {
     if (!fs.existsSync(absolutePath)) {
+      // Архивируем все Markdown-файлы, которые есть в БД для этого пути перед удалением
+      const nestedNotes = await all('SELECT relative_path FROM notes WHERE (relative_path = ? OR relative_path LIKE ?) AND is_directory = 0', [normPath, normPath + '/%']);
+      for (const note of nestedNotes) {
+        await archiveNoteBeforeDelete(note.relative_path, req.user.username);
+      }
+
       // Self-heal: If folder is not on disk but remains in DB, clean it up
       await run('DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?', [normPath, normPath + '/%']);
       req.app.get('io').emit('file-delete', { relative_path: normPath });
@@ -253,9 +260,17 @@ router.delete('/', authenticateJWT, canEdit, async (req, res) => {
     }
 
     const stat = fs.statSync(absolutePath);
-    if (stat.isDirectory()) {
+    const isDir = stat.isDirectory();
+
+    // Архивируем файлы в корзину перед физическим удалением
+    if (isDir) {
+      const nestedNotes = await all('SELECT relative_path FROM notes WHERE (relative_path = ? OR relative_path LIKE ?) AND is_directory = 0', [normPath, normPath + '/%']);
+      for (const note of nestedNotes) {
+        await archiveNoteBeforeDelete(note.relative_path, req.user.username);
+      }
       fs.rmSync(absolutePath, { recursive: true, force: true });
     } else {
+      await archiveNoteBeforeDelete(normPath, req.user.username);
       fs.unlinkSync(absolutePath);
     }
 
@@ -1279,5 +1294,82 @@ export const rawHandler = async (req, res) => {
     res.status(500).json({ error: 'Failed to send file' });
   }
 };
+
+// ==========================================
+// 8. Trash Bin Endpoints (Admin only)
+// ==========================================
+
+const checkAdmin = (req, res, next) => {
+  if (req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Permission denied: Admins only' });
+  }
+  next();
+};
+
+// 8.1. GET /trash - Get all deleted notes in trash bin
+router.get('/trash', authenticateJWT, checkAdmin, async (req, res) => {
+  try {
+    const list = await getTrashList();
+    res.json({ trash: list });
+  } catch (err) {
+    console.error('[API Trash] Failed to fetch trash list:', err);
+    res.status(500).json({ error: 'Failed to fetch trash list' });
+  }
+});
+
+// 8.2. POST /trash/restore - Restore note from trash bin
+router.post('/trash/restore', authenticateJWT, checkAdmin, async (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'ID is required' });
+  }
+
+  try {
+    const result = await restoreNoteFromTrash(id);
+    
+    // Broadcast file-create event to all clients to refresh UI tree instantly
+    const relPath = result.relative_path;
+    const title = basename(relPath, '.md');
+    const parentPath = normalizePath(dirname(relPath)) === '.' ? '' : normalizePath(dirname(relPath));
+    req.app.get('io').emit('file-create', { 
+      relative_path: relPath, 
+      title, 
+      is_directory: false, 
+      parent_path: parentPath 
+    });
+
+    res.json({ message: 'Note restored successfully', relative_path: relPath });
+  } catch (err) {
+    console.error(`[API Trash] Failed to restore note ID ${id}:`, err);
+    res.status(500).json({ error: err.message || 'Failed to restore note' });
+  }
+});
+
+// 8.3. DELETE /trash/purge/:id - Purge single item from trash
+router.delete('/trash/purge/:id', authenticateJWT, checkAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Valid ID is required' });
+  }
+
+  try {
+    await purgeFromTrash(id);
+    res.json({ message: 'Item permanently deleted from trash' });
+  } catch (err) {
+    console.error(`[API Trash] Failed to purge item ID ${id}:`, err);
+    res.status(500).json({ error: 'Failed to delete item from trash' });
+  }
+});
+
+// 8.4. DELETE /trash/clear - Clear all items in trash
+router.delete('/trash/clear', authenticateJWT, checkAdmin, async (req, res) => {
+  try {
+    await clearTrash();
+    res.json({ message: 'Trash bin cleared successfully' });
+  } catch (err) {
+    console.error('[API Trash] Failed to clear trash bin:', err);
+    res.status(500).json({ error: 'Failed to clear trash bin' });
+  }
+});
 
 export default router;

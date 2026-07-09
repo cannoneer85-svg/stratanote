@@ -241,7 +241,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   lang,
   onLangChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'import' | 'users' | 'media' | 'about' | 'sync'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'import' | 'users' | 'media' | 'about' | 'sync' | 'trash'>('general');
+  
+  // Trash Bin State
+  interface TrashItem {
+    id: number;
+    relative_path: string;
+    title: string;
+    deleted_at: string;
+    deleted_by: string;
+  }
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashStatus, setTrashStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // ZIP / MD Upload State
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -333,6 +345,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (currentUser.role === 'Admin') {
         fetchUsers();
         fetchMediaFiles();
+        fetchTrashItems();
       }
       fetchSyncStatuses();
     }
@@ -346,6 +359,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         fetchMediaFiles();
       } else if (activeTab === 'sync') {
         fetchSyncStatuses();
+      } else if (activeTab === 'trash' && currentUser.role === 'Admin') {
+        fetchTrashItems();
       }
     }
   }, [activeTab, isOpen]);
@@ -384,6 +399,81 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
+    }
+  };
+
+  const fetchTrashItems = async () => {
+    setTrashLoading(true);
+    try {
+      const res = await fetch('/api/notes/trash', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTrashItems(data.trash || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch trash list:', err);
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  const handleRestoreTrashItem = async (id: number) => {
+    try {
+      const res = await fetch('/api/notes/trash/restore', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        setTrashStatus({ type: 'success', message: t('trash_restore_success', lang) });
+        fetchTrashItems();
+        onVaultReload();
+        setTimeout(() => setTrashStatus(null), 3000);
+      } else {
+        const data = await res.json();
+        setTrashStatus({ type: 'error', message: data.error || t('trash_restore_failed', lang) });
+      }
+    } catch (err) {
+      setTrashStatus({ type: 'error', message: t('sync_network_error', lang) });
+    }
+  };
+
+  const handlePurgeTrashItem = async (id: number, name: string) => {
+    if (!confirm(t('trash_confirm_purge', lang, { name }))) return;
+    try {
+      const res = await fetch(`/api/notes/trash/purge/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchTrashItems();
+      } else {
+        setTrashStatus({ type: 'error', message: t('trash_purge_failed', lang) });
+      }
+    } catch (err) {
+      setTrashStatus({ type: 'error', message: t('sync_network_error', lang) });
+    }
+  };
+
+  const handleClearTrash = async () => {
+    if (!confirm(t('trash_confirm_clear', lang))) return;
+    try {
+      const res = await fetch('/api/notes/trash/clear', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchTrashItems();
+      } else {
+        setTrashStatus({ type: 'error', message: t('trash_clear_failed', lang) });
+      }
+    } catch (err) {
+      setTrashStatus({ type: 'error', message: t('sync_network_error', lang) });
     }
   };
 
@@ -841,6 +931,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <RefreshCw className="w-3.5 h-3.5" />
             <span>{t('settings_tab_sync', lang)}</span>
           </button>
+          {currentUser.role === 'Admin' && (
+            <button
+              onClick={() => setActiveTab('trash')}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
+                activeTab === 'trash' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{t('settings_tab_trash', lang)}</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('about')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 ${
@@ -1566,6 +1667,112 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <li>{t('settings_sync_step_4', lang)}</li>
                   <li>{t('settings_sync_step_5', lang)}</li>
                 </ol>
+              </div>
+            </div>
+          ) : activeTab === 'trash' && currentUser.role === 'Admin' ? (
+            <div className="space-y-6 text-left animate-fade-in select-none">
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-primary">
+                    <Trash2 className="w-5 h-5" />
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">{t('trash_title', lang)}</h3>
+                  </div>
+                  {trashItems.length > 0 && (
+                    <button
+                      onClick={handleClearTrash}
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{t('trash_btn_clear_all', lang)}</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-text-muted">
+                  {t('trash_desc', lang)}
+                </p>
+
+                {trashStatus && (
+                  <div className={`p-3 rounded-xl border text-xs flex items-center space-x-2 ${
+                    trashStatus.type === 'success' 
+                      ? 'bg-green-500/10 border-green-500/20 text-green-400' 
+                      : 'bg-red-500/10 border-red-500/20 text-red-400'
+                  }`}>
+                    {trashStatus.type === 'success' ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                    <span>{trashStatus.message}</span>
+                  </div>
+                )}
+
+                {trashLoading ? (
+                  <div className="py-12 flex items-center justify-center text-xs text-text-muted space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>{t('trash_loading', lang)}</span>
+                  </div>
+                ) : trashItems.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-xl bg-black/10">
+                    <Trash2 className="w-8 h-8 text-text-disabled mb-2 opacity-40" />
+                    <span className="text-xs text-text-disabled">{t('trash_empty', lang)}</span>
+                  </div>
+                ) : (
+                  <div className="border border-white/5 rounded-xl overflow-hidden bg-black/10">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-white/5 bg-white/[0.02] text-text-muted">
+                            <th className="p-3 font-semibold">{t('trash_th_name', lang)}</th>
+                            <th className="p-3 font-semibold">{t('trash_th_path', lang)}</th>
+                            <th className="p-3 font-semibold">{t('trash_th_deleted_by', lang)}</th>
+                            <th className="p-3 font-semibold">{t('trash_th_date', lang)}</th>
+                            <th className="p-3 font-semibold text-right">{t('trash_th_actions', lang)}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {trashItems.map((item) => {
+                            const fileName = item.relative_path.split('/').pop() || item.title;
+                            return (
+                              <tr key={item.id} className="hover:bg-white/[0.01] transition-colors">
+                                <td className="p-3 text-white font-medium max-w-[150px] truncate" title={fileName}>
+                                  {fileName}
+                                </td>
+                                <td className="p-3 text-text-muted font-mono max-w-[200px] truncate" title={item.relative_path}>
+                                  {item.relative_path}
+                                </td>
+                                <td className="p-3">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                    item.deleted_by === 'admin' 
+                                      ? 'bg-primary/20 text-primary border border-primary/30' 
+                                      : item.deleted_by === 'Внешняя система'
+                                      ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                                      : 'bg-white/10 text-white border border-white/10'
+                                  }`}>
+                                    {item.deleted_by === 'Внешняя система' ? t('system_external', lang) : item.deleted_by}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-text-muted">
+                                  {formatToMoscowTime(item.deleted_at)}
+                                </td>
+                                <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                                  <button
+                                    onClick={() => handleRestoreTrashItem(item.id)}
+                                    className="px-2.5 py-1 bg-primary/20 hover:bg-primary/30 border border-primary/30 hover:border-primary/50 text-[11px] font-semibold text-primary-light hover:text-white rounded-lg transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                                  >
+                                    <span>{t('trash_btn_restore', lang)}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handlePurgeTrashItem(item.id, fileName)}
+                                    className="p-1 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 text-text-muted hover:text-red-400 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                                    title={t('trash_btn_purge', lang)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : activeTab === 'about' ? (
