@@ -1,6 +1,6 @@
 import express from 'express';
 import fs from 'fs';
-import { join, relative, dirname, resolve, extname } from 'path';
+import { join, relative, dirname, resolve, extname, basename } from 'path';
 import crypto from 'crypto';
 import { run, get, all } from '../db.js';
 import { vaultPath } from '../watcher.js';
@@ -74,7 +74,7 @@ router.get('/manifest', authenticateJWT, async (req, res) => {
 
 // 2. POST /api/sync/pull - Download file from server
 router.post('/pull', authenticateJWT, async (req, res) => {
-  const { path: relPath } = req.body;
+  const { path: relPath, includeMetadata } = req.body;
   if (!relPath) {
     return res.status(400).json({ error: 'Relative path is required' });
   }
@@ -95,8 +95,31 @@ router.post('/pull', authenticateJWT, async (req, res) => {
 
   try {
     const content = fs.readFileSync(safePath);
-    // Send file contents
     const isBinary = relPath.startsWith('assets/');
+
+    if (includeMetadata && !isBinary && relPath.endsWith('.md')) {
+      let dbMetadata = null;
+      try {
+        const note = await get('SELECT created_by, last_edited_by FROM notes WHERE relative_path = ?', [relPath]);
+        if (note) {
+          const versions = await all('SELECT content, author_name, created_at FROM versions WHERE relative_path = ? ORDER BY id ASC', [relPath]);
+          dbMetadata = {
+            created_by: note.created_by,
+            last_edited_by: note.last_edited_by,
+            versions: versions || []
+          };
+        }
+      } catch (dbErr) {
+        console.error('[Sync] Failed to retrieve note metadata for pull:', dbErr);
+      }
+
+      return res.json({
+        content: content.toString('utf8'),
+        dbMetadata
+      });
+    }
+
+    // Send file contents raw
     if (isBinary) {
       res.setHeader('Content-Type', 'application/octet-stream');
       res.send(content);
@@ -112,7 +135,7 @@ router.post('/pull', authenticateJWT, async (req, res) => {
 
 // 3. POST /api/sync/push - Upload file to server
 router.post('/push', authenticateJWT, async (req, res) => {
-  const { path: relPath, content, mtime, isDirectory, lastKnownServerHash } = req.body;
+  const { path: relPath, content, mtime, isDirectory, lastKnownServerHash, dbMetadata } = req.body;
   if (!relPath) {
     return res.status(400).json({ error: 'Relative path is required' });
   }
@@ -175,23 +198,49 @@ router.post('/push', authenticateJWT, async (req, res) => {
         const title = basename(relPath, '.md');
         const parentPath = normalizePath(dirname(relPath)) === '.' ? '' : normalizePath(dirname(relPath));
 
+        const createdBy = (dbMetadata && dbMetadata.created_by) ? dbMetadata.created_by : req.user.username;
+        const lastEditedBy = (dbMetadata && dbMetadata.last_edited_by) ? dbMetadata.last_edited_by : req.user.username;
+
         const existingNote = await get('SELECT * FROM notes WHERE relative_path = ?', [relPath]);
         if (!existingNote) {
           await run(
             'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-            [relPath, title, 0, parentPath, req.user.username, req.user.username]
+            [relPath, title, 0, parentPath, lastEditedBy, createdBy]
           );
         } else {
           await run(
-            'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ? WHERE relative_path = ?',
-            [req.user.username, relPath]
+            'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ?, created_by = ? WHERE relative_path = ?',
+            [lastEditedBy, createdBy, relPath]
           );
         }
 
-        await run(
-          'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
-          [relPath, contentStr, req.user.username]
-        );
+        // If we have versions in metadata, sync them
+        if (dbMetadata && Array.isArray(dbMetadata.versions)) {
+          for (const ver of dbMetadata.versions) {
+            const existingVersion = await get(
+              'SELECT id FROM versions WHERE relative_path = ? AND content = ?',
+              [relPath, ver.content]
+            );
+            if (!existingVersion) {
+              await run(
+                'INSERT INTO versions (relative_path, content, author_name, created_at) VALUES (?, ?, ?, ?)',
+                [relPath, ver.content, ver.author_name, ver.created_at]
+              );
+            }
+          }
+        } else {
+          // Fallback to inserting single version
+          const existingVersion = await get(
+            'SELECT id FROM versions WHERE relative_path = ? AND content = ?',
+            [relPath, contentStr]
+          );
+          if (!existingVersion) {
+            await run(
+              'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+              [relPath, contentStr, lastEditedBy]
+            );
+          }
+        }
 
         // Update embedding asynchronously
         updateNoteEmbedding(relPath, contentStr).catch(err => {

@@ -8,6 +8,13 @@ import os from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+let sqlite3 = null;
+try {
+  sqlite3 = (await import('sqlite3')).default;
+} catch (err) {
+  console.error('[SyncEngine] sqlite3 module not found. SQLite metadata synchronization is disabled.');
+}
+
 // Helper to normalize path separators
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
@@ -58,6 +65,113 @@ export class SyncEngine {
     this.stateFilePath = join(__dirname, '.sync_state.json');
     this.backupDir = join(__dirname, '.sync_backup');
     this.onProgress = onProgress || (() => { });
+  }
+
+  // Get local DB metadata for a file
+  async getLocalDbMetadata(relPath) {
+    if (!sqlite3) return null;
+    const dbPath = join(this.config.LOCAL_VAULT_PATH, '_app', 'server', 'database.sqlite');
+    if (!fs.existsSync(dbPath)) return null;
+
+    return new Promise((resolve) => {
+      const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+        if (err) {
+          console.error('[SyncEngine] Failed to connect to local DB:', err);
+          return resolve(null);
+        }
+      });
+
+      db.get('SELECT created_by, last_edited_by FROM notes WHERE relative_path = ?', [relPath], (err, note) => {
+        if (err || !note) {
+          db.close();
+          return resolve(null);
+        }
+
+        db.all('SELECT content, author_name, created_at FROM versions WHERE relative_path = ? ORDER BY id ASC', [relPath], (err, versions) => {
+          db.close();
+          if (err) {
+            return resolve({
+              created_by: note.created_by,
+              last_edited_by: note.last_edited_by,
+              versions: []
+            });
+          }
+          resolve({
+            created_by: note.created_by,
+            last_edited_by: note.last_edited_by,
+            versions: versions || []
+          });
+        });
+      });
+    });
+  }
+
+  // Save DB metadata to local DB
+  async saveLocalDbMetadata(relPath, dbMetadata) {
+    if (!sqlite3 || !dbMetadata) return;
+    const dbPath = join(this.config.LOCAL_VAULT_PATH, '_app', 'server', 'database.sqlite');
+    if (!fs.existsSync(dbPath)) return;
+
+    return new Promise((resolve) => {
+      const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
+        if (err) {
+          console.error('[SyncEngine] Failed to connect to local DB for write:', err);
+          return resolve();
+        }
+      });
+
+      db.serialize(() => {
+        const title = relPath.endsWith('.md') ? relPath.slice(0, -3).split('/').pop() : relPath;
+        const parentPath = relPath.includes('/') ? relPath.substring(0, relPath.lastIndexOf('/')) : '';
+
+        db.get('SELECT * FROM notes WHERE relative_path = ?', [relPath], (err, note) => {
+          if (err) {
+            db.close();
+            return resolve();
+          }
+
+          const runQuery = (sql, params) => {
+            return new Promise((res) => db.run(sql, params, () => res()));
+          };
+
+          (async () => {
+            if (!note) {
+              await runQuery(
+                'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                [relPath, title, 0, parentPath, dbMetadata.last_edited_by || 'Внешняя система', dbMetadata.created_by || 'Внешняя система']
+              );
+            } else {
+              await runQuery(
+                'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ?, created_by = ? WHERE relative_path = ?',
+                [dbMetadata.last_edited_by || note.last_edited_by, dbMetadata.created_by || note.created_by, relPath]
+              );
+            }
+
+            if (Array.isArray(dbMetadata.versions)) {
+              for (const ver of dbMetadata.versions) {
+                const exists = await new Promise((res) => {
+                  db.get(
+                    'SELECT id FROM versions WHERE relative_path = ? AND content = ?',
+                    [relPath, ver.content],
+                    (err, row) => res(!!row)
+                  );
+                });
+
+                if (!exists) {
+                  await runQuery(
+                    'INSERT INTO versions (relative_path, content, author_name, created_at) VALUES (?, ?, ?, ?)',
+                    [relPath, ver.content, ver.author_name, ver.created_at]
+                  );
+                }
+              }
+            }
+
+            db.close();
+            resolve();
+          })();
+        });
+      });
+    });
   }
 
   // Load last sync state from .sync_state.json
@@ -272,12 +386,18 @@ export class SyncEngine {
             const content = fs.readFileSync(fullLocalPath);
             const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
 
+            let dbMetadata = null;
+            if (!isBinary && item.path.endsWith('.md')) {
+              dbMetadata = await this.getLocalDbMetadata(item.path);
+            }
+
             const response = await api.post('/api/sync/push', {
               path: item.path,
               content: contentStr,
               mtime: item.local.mtime,
               isDirectory: false,
-              lastKnownServerHash: item.base ? item.base.serverHash : undefined
+              lastKnownServerHash: item.base ? item.base.serverHash : undefined,
+              dbMetadata
             });
 
             nextSyncState[item.path] = {
@@ -311,8 +431,25 @@ export class SyncEngine {
             nextSyncState[item.path] = { isDirectory: true, mtime: Date.now() };
           } else {
             log(`Pulling file from server: ${item.path}`);
-            const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
-            fs.writeFileSync(fullLocalPath, Buffer.from(res.data));
+            const isBinary = item.path.startsWith('assets/');
+
+            let fileContentBuffer;
+            let dbMetadata = null;
+
+            if (!isBinary && item.path.endsWith('.md')) {
+              const res = await api.post('/api/sync/pull', { path: item.path, includeMetadata: true });
+              fileContentBuffer = Buffer.from(res.data.content, 'utf8');
+              dbMetadata = res.data.dbMetadata;
+            } else {
+              const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
+              fileContentBuffer = Buffer.from(res.data);
+            }
+
+            if (dbMetadata) {
+              await this.saveLocalDbMetadata(item.path, dbMetadata);
+            }
+
+            fs.writeFileSync(fullLocalPath, fileContentBuffer);
 
             if (item.server.mtime) {
               const atime = Date.now() / 1000;
@@ -367,12 +504,18 @@ export class SyncEngine {
             const content = fs.readFileSync(fullLocalPath);
             const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
 
+            let dbMetadata = null;
+            if (!isBinary && item.path.endsWith('.md')) {
+              dbMetadata = await this.getLocalDbMetadata(item.path);
+            }
+
             const response = await api.post('/api/sync/push', {
               path: item.path,
               content: contentStr,
               mtime: item.local.mtime,
               isDirectory: false,
-              force: true
+              force: true,
+              dbMetadata
             });
 
             nextSyncState[item.path] = {
@@ -392,8 +535,24 @@ export class SyncEngine {
               log(`Backed up local file to: .sync_backup/${item.path}`);
             }
 
-            const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
-            fs.writeFileSync(fullLocalPath, Buffer.from(res.data));
+            const isBinary = item.path.startsWith('assets/');
+            let fileContentBuffer;
+            let dbMetadata = null;
+
+            if (!isBinary && item.path.endsWith('.md')) {
+              const res = await api.post('/api/sync/pull', { path: item.path, includeMetadata: true });
+              fileContentBuffer = Buffer.from(res.data.content, 'utf8');
+              dbMetadata = res.data.dbMetadata;
+            } else {
+              const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
+              fileContentBuffer = Buffer.from(res.data);
+            }
+
+            if (dbMetadata) {
+              await this.saveLocalDbMetadata(item.path, dbMetadata);
+            }
+
+            fs.writeFileSync(fullLocalPath, fileContentBuffer);
 
             nextSyncState[item.path] = {
               hash: item.server.hash,

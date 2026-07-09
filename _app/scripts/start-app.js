@@ -42,8 +42,9 @@ async function main() {
   const syncMcpDir = path.resolve(projectRoot, '_sync_mcp');
   if (fs.existsSync(syncMcpDir)) {
     const syncNodeModules = path.join(syncMcpDir, 'node_modules');
-    if (!fs.existsSync(syncNodeModules)) {
-      console.log('Зависимости для локального агента _sync_mcp не найдены. Установка (это может занять около 10-15 секунд)...');
+    const sqliteModule = path.join(syncNodeModules, 'sqlite3');
+    if (!fs.existsSync(syncNodeModules) || !fs.existsSync(sqliteModule)) {
+      console.log('Зависимости для локального агента _sync_mcp не полные или не найдены. Установка/обновление (это может занять около 10-15 секунд)...');
       await runCommand('npm', ['install'], syncMcpDir);
     }
   }
