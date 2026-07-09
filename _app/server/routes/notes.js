@@ -653,6 +653,45 @@ router.delete('/media/:filename', authenticateJWT, canEdit, async (req, res) => 
   }
 });
 
+// 6.4. Bulk Delete Media Files
+router.post('/media-bulk-delete', authenticateJWT, canEdit, async (req, res) => {
+  const { filenames } = req.body;
+  if (!filenames || !Array.isArray(filenames)) {
+    return res.status(400).json({ error: 'Filenames array is required' });
+  }
+
+  const assetsDir = join(vaultPath, 'assets');
+  const resolvedVaultPath = resolve(vaultPath);
+  const resolvedAssetsPath = resolve(assetsDir);
+  const deleted = [];
+  const errors = [];
+
+  for (const filename of filenames) {
+    const cleanedFilename = basename(filename);
+    const filePath = join(assetsDir, cleanedFilename);
+    const resolvedFilePath = resolve(filePath);
+
+    if (!resolvedFilePath.startsWith(resolvedAssetsPath) || !resolvedFilePath.startsWith(resolvedVaultPath)) {
+      errors.push({ filename, error: 'Access denied: Out of assets boundary' });
+      continue;
+    }
+
+    try {
+      if (fs.existsSync(resolvedFilePath)) {
+        fs.unlinkSync(resolvedFilePath);
+        deleted.push(cleanedFilename);
+      } else {
+        errors.push({ filename, error: 'File not found' });
+      }
+    } catch (err) {
+      console.error(`Error deleting file ${cleanedFilename}:`, err);
+      errors.push({ filename, error: err.message || 'Failed to delete' });
+    }
+  }
+
+  res.json({ message: 'Bulk deletion process completed', deleted, errors });
+});
+
 
 
 // 6.5. Get Graph Data (Compute relationships on server with active disk filtering & self-healing)

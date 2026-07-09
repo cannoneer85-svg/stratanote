@@ -50,9 +50,11 @@ interface MediaCardProps {
   token: string | null;
   lang: Lang;
   onDeleteMedia: (filename: string) => void;
+  isSelected: boolean;
+  onToggleSelect: (filename: string) => void;
 }
 
-const MediaCard: React.FC<MediaCardProps> = ({ file, token, lang, onDeleteMedia }) => {
+const MediaCard: React.FC<MediaCardProps> = ({ file, token, lang, onDeleteMedia, isSelected, onToggleSelect }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [videoPoster, setVideoPoster] = useState<string | null>(null);
   const [isIntersecting, setIsIntersecting] = useState(false);
@@ -136,12 +138,28 @@ const MediaCard: React.FC<MediaCardProps> = ({ file, token, lang, onDeleteMedia 
   return (
     <div 
       ref={cardRef}
-      className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-primary/30 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.05)]"
+      className={`group bg-white/[0.02] hover:bg-white/[0.04] border ${
+        isSelected ? 'border-primary bg-primary/[0.02] shadow-[0_0_15px_rgba(var(--primary-rgb),0.1)]' : 'border-white/5 hover:border-primary/30'
+      } rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_0_15px_rgba(var(--primary-rgb),0.05)]`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Thumbnail Container */}
       <div className="h-32 bg-black/40 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+        {/* Checkbox Overlay */}
+        <div 
+          className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${
+            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input 
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(file.filename)}
+            className="w-4 h-4 rounded border-white/20 bg-black/60 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
+          />
+        </div>
         {isVideo ? (
           isHovered ? (
             <video 
@@ -284,6 +302,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [mediaSearchQuery, setMediaSearchQuery] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'images' | 'videos' | 'others'>('all');
   const [mediaStatus, setMediaStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [selectedMediaFiles, setSelectedMediaFiles] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedMediaFiles([]);
+  }, [activeTab, isOpen]);
 
   // Sync Management State
   const [syncStatuses, setSyncStatuses] = useState<{
@@ -558,6 +581,47 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     } catch (err) {
       console.error('Failed to delete media file:', err);
       setMediaStatus({ type: 'error', message: lang === 'en' ? 'Network error during file deletion' : 'Ошибка сети при удалении файла' });
+    }
+  };
+
+  const handleBulkDeleteMedia = async () => {
+    if (selectedMediaFiles.length === 0) return;
+    
+    const confirmed = confirm(
+      lang === 'en'
+        ? `Are you sure you want to delete ${selectedMediaFiles.length} selected files?\nThis action is irreversible and may break links in your notes.`
+        : `Вы действительно хотите удалить ${selectedMediaFiles.length} выбранных файлов?\nЭто действие необратимо и может сломать ссылки на эти файлы в ваших заметках.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/api/notes/media-bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ filenames: selectedMediaFiles })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMediaStatus({
+          type: 'success',
+          message: lang === 'en'
+            ? `Successfully deleted ${data.deleted?.length || 0} files.`
+            : `Успешно удалено ${data.deleted?.length || 0} файлов.`
+        });
+        setSelectedMediaFiles([]);
+        fetchMediaFiles();
+      } else {
+        setMediaStatus({ type: 'error', message: data.error || (lang === 'en' ? 'Bulk deletion failed' : 'Сбой массового удаления') });
+      }
+    } catch (err) {
+      console.error('Failed to perform bulk media deletion:', err);
+      setMediaStatus({
+        type: 'error',
+        message: lang === 'en' ? 'Network error during bulk deletion' : 'Ошибка сети при массовом удалении'
+      });
     }
   };
 
@@ -1376,20 +1440,61 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
               )}
 
-              {/* Toolbar: Search input */}
-              <div className="flex items-center justify-between gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-disabled" />
-                  <input
-                    type="text"
-                    placeholder={t('settings_media_search_placeholder', lang)}
-                    value={mediaSearchQuery}
-                    onChange={(e) => setMediaSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 focus:border-primary/50 focus:outline-none rounded-lg text-xs text-white"
-                  />
+              {/* Toolbar: Search input & Bulk Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+                <div className="flex flex-1 items-center gap-3 max-w-md">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-disabled" />
+                    <input
+                      type="text"
+                      placeholder={t('settings_media_search_placeholder', lang)}
+                      value={mediaSearchQuery}
+                      onChange={(e) => setMediaSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 focus:border-primary/50 focus:outline-none rounded-lg text-xs text-white"
+                    />
+                  </div>
+                  {filteredMediaFiles.length > 0 && (
+                    <label className="flex items-center space-x-2 text-xs text-text-muted cursor-pointer hover:text-white shrink-0 select-none">
+                      <input 
+                        type="checkbox"
+                        checked={filteredMediaFiles.length > 0 && filteredMediaFiles.every(f => selectedMediaFiles.includes(f.filename))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedMediaFiles(filteredMediaFiles.map(f => f.filename));
+                          } else {
+                            setSelectedMediaFiles([]);
+                          }
+                        }}
+                        className="rounded border-white/10 bg-black/40 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span>{lang === 'en' ? 'Select All' : 'Выбрать все'}</span>
+                    </label>
+                  )}
                 </div>
-                <div className="text-xs text-text-muted">
-                  {t('settings_media_total_files', lang, { count: filteredMediaFiles.length })}
+
+                <div className="flex items-center gap-4 justify-between sm:justify-end">
+                  {selectedMediaFiles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleBulkDeleteMedia}
+                      className="px-3.5 py-1.5 bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white border border-red-500/30 hover:border-red-500 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer hover:scale-[1.01] active:scale-95 shadow-glow"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>
+                        {lang === 'en' 
+                          ? `Delete Selected (${selectedMediaFiles.length})` 
+                          : `Удалить выбранные (${selectedMediaFiles.length})`}
+                      </span>
+                    </button>
+                  )}
+                  <div className="text-xs text-text-muted shrink-0">
+                    {t('settings_media_total_files', lang, { count: filteredMediaFiles.length })}
+                    {selectedMediaFiles.length > 0 && (
+                      <span className="text-primary ml-1.5">
+                        ({lang === 'en' ? `selected ${selectedMediaFiles.length}` : `выбрано ${selectedMediaFiles.length}`})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1469,6 +1574,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       token={token}
                       lang={lang}
                       onDeleteMedia={handleDeleteMedia}
+                      isSelected={selectedMediaFiles.includes(file.filename)}
+                      onToggleSelect={(filename) => {
+                        setSelectedMediaFiles(prev => 
+                          prev.includes(filename) 
+                            ? prev.filter(name => name !== filename) 
+                            : [...prev, filename]
+                        );
+                      }}
                     />
                   ))}
                 </div>
