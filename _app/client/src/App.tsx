@@ -33,6 +33,7 @@ interface HistoryItem {
   relative_path: string;
   author_name: string;
   created_at: string;
+  version_number?: number;
 }
 
 export default function App() {
@@ -746,7 +747,7 @@ export default function App() {
                 <div className="w-full h-full relative">
                   {selectedHistoryItem ? (
                     <DiffViewer
-                      versionId={selectedHistoryItem.id}
+                      versionId={selectedHistoryItem.version_number || selectedHistoryItem.id}
                       versionDate={selectedHistoryItem.created_at}
                       authorName={selectedHistoryItem.author_name}
                       historicContent={previousContent}
@@ -755,6 +756,7 @@ export default function App() {
                       onRestore={handleRestoreHistory}
                       isReadOnly={currentUser.role === 'Viewer'}
                       lang={lang}
+                      isCurrent={historyList.length > 0 && selectedHistoryItem.id === historyList[0].id}
                     />
                   ) : (
                     <Editor
@@ -821,25 +823,41 @@ export default function App() {
                       {t('history_empty', lang)}
                     </div>
                   ) : (
-                    historyList.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleViewHistoryItem(item)}
-                        className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all active:scale-[0.98]"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold text-white">{t('history_version', lang, { id: item.id })}</span>
-                          <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-1.5 rounded-full font-bold">
-                            {item.author_name === 'Внешняя система' || item.author_name === 'system' 
-                              ? t('system_external', lang) 
-                              : item.author_name}
-                          </span>
+                    historyList.map((item) => {
+                      const isCurrent = item.id === historyList[0].id;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => handleViewHistoryItem(item)}
+                          className={`p-3 border rounded-xl cursor-pointer transition-all active:scale-[0.98] ${
+                            isCurrent
+                              ? 'bg-primary/5 border-primary/20 hover:bg-primary/10 hover:border-primary/30'
+                              : 'bg-white/[0.02] border-white/5 hover:bg-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-semibold text-white">
+                                {t('history_version', lang, { id: item.version_number || item.id })}
+                              </span>
+                              {isCurrent && (
+                                <span className="ml-1.5 text-[9px] text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 rounded-full font-bold">
+                                  {lang === 'en' ? 'Current' : 'Текущая'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-1.5 rounded-full font-bold">
+                              {item.author_name === 'Внешняя система' || item.author_name === 'system' 
+                                ? t('system_external', lang) 
+                                : item.author_name}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-text-muted">
+                            {formatToMoscowTime(item.created_at)}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-text-muted">
-                          {formatToMoscowTime(item.created_at)}
-                        </p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

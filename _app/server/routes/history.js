@@ -14,7 +14,12 @@ router.get('/', authenticateJWT, async (req, res) => {
       'SELECT id, relative_path, author_name, created_at FROM versions WHERE relative_path = ? ORDER BY id DESC',
       [relative_path]
     );
-    res.json(historyList);
+    const N = historyList.length;
+    const historyWithLocalIndex = historyList.map((item, index) => ({
+      ...item,
+      version_number: N - index
+    }));
+    res.json(historyWithLocalIndex);
   } catch (err) {
     console.error(`Error retrieving history for ${relative_path}:`, err);
     res.status(500).json({ error: 'Failed to retrieve note history' });

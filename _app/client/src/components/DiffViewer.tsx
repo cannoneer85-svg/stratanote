@@ -13,6 +13,7 @@ interface DiffViewerProps {
   onRestore: () => void;
   isReadOnly: boolean;
   lang: Lang;
+  isCurrent?: boolean;
 }
 
 interface DiffLine {
@@ -29,7 +30,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   onClose,
   onRestore,
   isReadOnly,
-  lang
+  lang,
+  isCurrent
 }) => {
   // Helper: line-by-line LCS (Longest Common Subsequence) Diff Algorithm
   const getDiff = (oldText: string, newText: string): DiffLine[] => {
@@ -92,15 +94,22 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             <h2 className="text-sm font-semibold text-white">
               {lang === 'en' ? 'View Changes' : 'Просмотр изменений'}
             </h2>
-            <p className="text-xs text-text-muted">
-              {lang === 'en' 
-                ? `Version #${versionId} from ${formatToMoscowTime(versionDate)} (${authorName})` 
-                : `Версия #${versionId} от ${formatToMoscowTime(versionDate)} (${authorName})`}
+            <p className="text-xs text-text-muted flex items-center">
+              <span>
+                {lang === 'en' 
+                  ? `Version #${versionId} from ${formatToMoscowTime(versionDate)} (${authorName})` 
+                  : `Версия #${versionId} от ${formatToMoscowTime(versionDate)} (${authorName})`}
+              </span>
+              {isCurrent && (
+                <span className="ml-2 text-[10px] text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded select-none">
+                  {lang === 'en' ? 'Current Version' : 'Текущая версия'}
+                </span>
+              )}
             </p>
           </div>
         </div>
 
-        {!isReadOnly && (
+        {!isReadOnly && !isCurrent && (
           <button
             onClick={onRestore}
             className="px-3 py-1.5 bg-primary hover:bg-primary-hover hover:opacity-90 active:scale-95 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer shadow-glow border border-primary/20"
