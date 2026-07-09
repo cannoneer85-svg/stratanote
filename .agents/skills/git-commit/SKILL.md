@@ -10,7 +10,7 @@ This skill allows the user to manually stage and commit their code modifications
 ## Workflow
 
 1.  **Check status**: Run `git status` to see what files are modified or untracked.
-2.  **Update project status**: **ОБЯЗАТЕЛЬНО** проанализируйте изменения кода и обновите файл `_app/project_status.md` (раздел реализованного функционала, архитектуры или локального запуска), чтобы он точно отражал текущее состояние проекта после ваших изменений.
+2.  **Update project status**: **ОБЯЗАТЕЛЬНО** проанализируйте изменения кода и обновите файл `_app/project_status.md` (раздел реализованного функционала, архитектуры или локального запуска), чтобы он точно отражал текущее состояние проекта после ваших изменений. **Важно:** даже если вы уже обновляли этот файл в процессе диалога, непосредственно перед коммитом вы обязаны заново проверить `git diff` и убедиться, что абсолютно все последние изменения (включая правки, сделанные в ходе обсуждений) полностью отражены в `project_status.md`.
 3.  **Display status**: Present the modified files to the user (including the updated `_app/project_status.md`) and explain what changes are going to be committed.
 4.  **Draft commit message**: Propose a clean Conventional Commit message in English (e.g. `feat(client): add release info tab`) with a short summary in Russian for the user.
 5.  **Get confirmation**: Ask the user if they agree with the commit message and the files to be staged.
