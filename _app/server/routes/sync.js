@@ -42,7 +42,7 @@ const getFileHashWithCache = async (filePath, stat) => {
 };
 
 // Recursive function to get all files in vaultPath asynchronously
-const getFilesRecursiveAsync = async (dir, rootDir) => {
+const getFilesRecursiveAsync = async (dir, rootDir, state = { count: 0 }) => {
   let results = [];
   if (!fs.existsSync(dir)) return results;
   
@@ -72,7 +72,7 @@ const getFilesRecursiveAsync = async (dir, rootDir) => {
         size: 0,
         hash: ''
       });
-      const subResults = await getFilesRecursiveAsync(filePath, rootDir);
+      const subResults = await getFilesRecursiveAsync(filePath, rootDir, state);
       results = results.concat(subResults);
     } else {
       try {
@@ -89,8 +89,11 @@ const getFilesRecursiveAsync = async (dir, rootDir) => {
       }
     }
     
-    // Yield control to the event loop so that WebSockets and other requests are not starved
-    await new Promise(resolve => setImmediate(resolve));
+    // Yield control to the event loop every 200 items to avoid artificial latency while preventing event loop starvation
+    state.count++;
+    if (state.count % 200 === 0) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
   return results;
 };
@@ -98,7 +101,7 @@ const getFilesRecursiveAsync = async (dir, rootDir) => {
 // 1. GET /api/sync/manifest - Get server files manifest
 router.get('/manifest', authenticateJWT, async (req, res) => {
   try {
-    const files = await getFilesRecursiveAsync(vaultPath, vaultPath);
+    const files = await getFilesRecursiveAsync(vaultPath, vaultPath, { count: 0 });
     res.json({ files });
   } catch (err) {
     console.error('[Sync] Error generating manifest:', err);

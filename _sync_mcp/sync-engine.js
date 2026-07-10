@@ -75,7 +75,7 @@ function isExcluded(relPath, excludePatterns) {
 }
 
 // Recursively get local files and their hashes/mtimes asynchronously
-async function getLocalFilesAsync(dir, rootDir, excludePatterns) {
+async function getLocalFilesAsync(dir, rootDir, excludePatterns, state = { count: 0 }) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
 
@@ -91,7 +91,7 @@ async function getLocalFilesAsync(dir, rootDir, excludePatterns) {
 
     if (stat.isDirectory()) {
       results.push({ path: relPath, isDirectory: true, mtime: stat.mtimeMs });
-      const subResults = await getLocalFilesAsync(filePath, rootDir, excludePatterns);
+      const subResults = await getLocalFilesAsync(filePath, rootDir, excludePatterns, state);
       results = results.concat(subResults);
     } else {
       try {
@@ -102,8 +102,11 @@ async function getLocalFilesAsync(dir, rootDir, excludePatterns) {
       }
     }
     
-    // Yield to event loop
-    await new Promise(resolve => setImmediate(resolve));
+    // Yield to event loop every 200 items to avoid artificial latency while preventing event loop starvation
+    state.count++;
+    if (state.count % 200 === 0) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
   return results;
 }
@@ -335,7 +338,8 @@ export class SyncEngine {
       const localFiles = await getLocalFilesAsync(
         this.config.LOCAL_VAULT_PATH,
         this.config.LOCAL_VAULT_PATH,
-        this.config.EXCLUDE_PATTERNS
+        this.config.EXCLUDE_PATTERNS,
+        { count: 0 }
       );
       log(`Generated local manifest (${localFiles.length} items)`);
 
