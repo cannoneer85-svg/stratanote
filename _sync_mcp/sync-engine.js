@@ -18,6 +18,12 @@ try {
 // Helper to normalize path separators
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
+const BINARY_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.docx', '.xlsx', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.mov', '.avi', '.exe', '.dll', '.bin'];
+const isBinaryFile = (filePath) => {
+  const ext = extname(filePath).toLowerCase();
+  return BINARY_EXTENSIONS.includes(ext) || filePath.replace(/\\/g, '/').startsWith('assets/');
+};
+
 // In-memory cache for file hashes to avoid re-reading files on every local scan
 const fileHashCache = new Map();
 
@@ -480,7 +486,7 @@ export class SyncEngine {
             await retryOperation(() => api.post('/api/sync/push', { path: item.path, isDirectory: true }), 3, 1000);
             nextSyncState[item.path] = { isDirectory: true, mtime: item.local.mtime };
           } else {
-            const isBinary = item.path.startsWith('assets/');
+            const isBinary = isBinaryFile(item.path);
             const stat = await fs.promises.stat(fullLocalPath);
             const size = stat.size;
             let response;
@@ -546,7 +552,7 @@ export class SyncEngine {
             nextSyncState[item.path] = { isDirectory: true, mtime: Date.now() };
           } else {
             log(`Pulling file from server: ${item.path}`);
-            const isBinary = item.path.startsWith('assets/');
+            const isBinary = isBinaryFile(item.path);
 
             let fileContentBuffer;
             let dbMetadata = null;
@@ -631,7 +637,7 @@ export class SyncEngine {
           }
           else if (this.config.CONFLICT_RESOLUTION === 'local-wins') {
             log(`Forcing local version for: ${item.path}`);
-            const isBinary = item.path.startsWith('assets/');
+            const isBinary = isBinaryFile(item.path);
             const stat = await fs.promises.stat(fullLocalPath);
             const size = stat.size;
             let response;
@@ -681,7 +687,7 @@ export class SyncEngine {
               log(`Backed up local file to: .sync_backup/${item.path}`);
             }
 
-            const isBinary = item.path.startsWith('assets/');
+            const isBinary = isBinaryFile(item.path);
             let fileContentBuffer;
             let dbMetadata = null;
 
@@ -714,8 +720,8 @@ export class SyncEngine {
             const conflictPath = `${baseName}.conflict-${Date.now()}${ext}`;
             const conflictFilePath = join(this.config.LOCAL_VAULT_PATH, conflictPath);
 
-            const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }), 3, 1000);
-            await fs.promises.writeFile(conflictFilePath, res.data);
+            const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' }), 3, 1000);
+            await fs.promises.writeFile(conflictFilePath, Buffer.from(res.data));
             log(`Saved server copy as: ${relative(this.config.LOCAL_VAULT_PATH, conflictFilePath)}. Please merge manually.`);
 
             if (item.base) nextSyncState[item.path] = item.base;

@@ -11,6 +11,12 @@ const router = express.Router();
 
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
+const BINARY_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.docx', '.xlsx', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.mov', '.avi', '.exe', '.dll', '.bin'];
+const isBinaryFile = (filePath) => {
+  const ext = extname(filePath).toLowerCase();
+  return BINARY_EXTENSIONS.includes(ext) || filePath.replace(/\\/g, '/').startsWith('assets/');
+};
+
 const tempDir = join(vaultPath, '.temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
@@ -132,7 +138,7 @@ router.post('/pull', authenticateJWT, async (req, res) => {
 
   try {
     const content = fs.readFileSync(safePath);
-    const isBinary = relPath.startsWith('assets/');
+    const isBinary = isBinaryFile(relPath);
 
     if (includeMetadata && !isBinary && relPath.endsWith('.md')) {
       let dbMetadata = null;
@@ -224,7 +230,7 @@ router.post('/push', authenticateJWT, async (req, res) => {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
-    const isBinary = relPath.startsWith('assets/');
+    const isBinary = isBinaryFile(relPath);
     const fileBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
 
     // If it's a markdown note, update database versions first, so that the Chokidar file watcher
@@ -439,7 +445,7 @@ router.post('/push-chunk', authenticateJWT, async (req, res) => {
           const newHash = crypto.createHash('sha256').update(finalContent).digest('hex');
 
           // Metadata updates for markdown files
-          const isBinary = relPath.startsWith('assets/');
+          const isBinary = isBinaryFile(relPath);
           if (!isBinary && relPath.endsWith('.md')) {
             try {
               const contentStr = finalContent.toString('utf8');
