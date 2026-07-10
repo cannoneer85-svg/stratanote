@@ -18,6 +18,48 @@ try {
 // Helper to normalize path separators
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
+// In-memory cache for file hashes to avoid re-reading files on every local scan
+const fileHashCache = new Map();
+
+// Helper to compute SHA-256 hash of a file asynchronously and stream-wise
+const getFileHash = (filePath) => {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', err => reject(err));
+  });
+};
+
+// Retrieve file hash from cache if stats (mtime, size) match, otherwise compute and cache
+const getFileHashWithCache = async (filePath, stat) => {
+  const cached = fileHashCache.get(filePath);
+  if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
+    return cached.hash;
+  }
+  const hash = await getFileHash(filePath);
+  fileHashCache.set(filePath, { hash, mtime: stat.mtimeMs, size: stat.size });
+  return hash;
+};
+
+// Helper for automatic retries of async operations
+async function retryOperation(operation, maxAttempts = 3, delayMs = 1000) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        console.warn(`[SyncEngine] Attempt ${attempt} failed: ${err.message}. Retrying in ${delayMs * attempt}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // Check if a path should be excluded
 function isExcluded(relPath, excludePatterns) {
   const norm = normalizePath(relPath);
@@ -32,15 +74,15 @@ function isExcluded(relPath, excludePatterns) {
   return excludePatterns.some(pattern => minimatch(norm, pattern, { dot: true }));
 }
 
-// Recursively get local files and their hashes/mtimes
-function getLocalFiles(dir, rootDir, excludePatterns) {
+// Recursively get local files and their hashes/mtimes asynchronously
+async function getLocalFilesAsync(dir, rootDir, excludePatterns) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
 
-  const list = fs.readdirSync(dir);
+  const list = await fs.promises.readdir(dir);
   for (const file of list) {
     const filePath = join(dir, file);
-    const stat = fs.statSync(filePath);
+    const stat = await fs.promises.stat(filePath);
     const relPath = normalizePath(relative(rootDir, filePath));
 
     if (isExcluded(relPath, excludePatterns)) {
@@ -49,12 +91,19 @@ function getLocalFiles(dir, rootDir, excludePatterns) {
 
     if (stat.isDirectory()) {
       results.push({ path: relPath, isDirectory: true, mtime: stat.mtimeMs });
-      results = results.concat(getLocalFiles(filePath, rootDir, excludePatterns));
+      const subResults = await getLocalFilesAsync(filePath, rootDir, excludePatterns);
+      results = results.concat(subResults);
     } else {
-      const content = fs.readFileSync(filePath);
-      const hash = crypto.createHash('sha256').update(content).digest('hex');
-      results.push({ path: relPath, isDirectory: false, hash, mtime: stat.mtimeMs });
+      try {
+        const hash = await getFileHashWithCache(filePath, stat);
+        results.push({ path: relPath, isDirectory: false, hash, mtime: stat.mtimeMs });
+      } catch (err) {
+        console.error(`[SyncEngine] Failed to hash local file ${filePath}:`, err);
+      }
     }
+    
+    // Yield to event loop
+    await new Promise(resolve => setImmediate(resolve));
   }
   return results;
 }
@@ -207,6 +256,52 @@ export class SyncEngine {
     });
   }
 
+  async pushFileInChunks(api, log, relPath, fullLocalPath, size, mtime, lastKnownServerHash, dbMetadata, force = false) {
+    const uploadId = crypto.randomUUID();
+    const chunkSize = 2 * 1024 * 1024; // 2MB chunks
+    const totalChunks = Math.ceil(size / chunkSize);
+    
+    log(`Pushing file in ${totalChunks} chunks: ${relPath} (size: ${(size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    let lastResponse;
+    const fileFd = await fs.promises.open(fullLocalPath, 'r');
+    
+    try {
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const buffer = Buffer.alloc(Math.min(chunkSize, size - chunkIndex * chunkSize));
+        await fileFd.read(buffer, 0, buffer.length, chunkIndex * chunkSize);
+        
+        const headers = {
+          'Content-Type': 'application/octet-stream',
+          'Authorization': `Bearer ${this.config.STRATANOTE_API_TOKEN}`,
+          'x-chunk-index': chunkIndex,
+          'x-total-chunks': totalChunks,
+          'x-upload-id': uploadId,
+          'x-relative-path-b64': Buffer.from(relPath).toString('base64'),
+          'x-force': force ? 'true' : 'false'
+        };
+        
+        if (mtime) {
+          headers['x-mtime'] = mtime;
+        }
+        if (lastKnownServerHash) {
+          headers['x-last-known-server-hash'] = lastKnownServerHash;
+        }
+        if (dbMetadata && chunkIndex === totalChunks - 1) {
+          headers['x-db-metadata-b64'] = Buffer.from(JSON.stringify(dbMetadata)).toString('base64');
+        }
+        
+        lastResponse = await retryOperation(async () => {
+          return await api.post('/api/sync/push-chunk', buffer, { headers });
+        }, 3, 1000);
+      }
+    } finally {
+      await fileFd.close();
+    }
+    
+    return lastResponse;
+  }
+
   async runSync(dryRun = false) {
     const logs = [];
     const log = (msg) => {
@@ -228,16 +323,16 @@ export class SyncEngine {
       this.onProgress('start', 0, 0, 'Инициализация синхронизации...');
       log(`${dryRun ? '[DryRun] ' : ''}Starting synchronization with ${this.config.STRATANOTE_SERVER_URL}...`);
 
-      // 1. Fetch server manifest
+      // 1. Fetch server manifest with retries
       this.onProgress('manifest', 0, 0, 'Запрос манифеста сервера...');
       let serverFiles = [];
-      const res = await api.get('/api/sync/manifest');
+      const res = await retryOperation(() => api.get('/api/sync/manifest'), 3, 1000);
       serverFiles = res.data.files || [];
       log(`Successfully retrieved server manifest (${serverFiles.length} items)`);
 
-      // 2. Generate local manifest
+      // 2. Generate local manifest asynchronously
       this.onProgress('manifest', 0, 0, 'Сканирование локальной папки...');
-      const localFiles = getLocalFiles(
+      const localFiles = await getLocalFilesAsync(
         this.config.LOCAL_VAULT_PATH,
         this.config.LOCAL_VAULT_PATH,
         this.config.EXCLUDE_PATTERNS
@@ -344,7 +439,7 @@ export class SyncEngine {
           processedTasks++;
           this.onProgress('process', processedTasks, totalTasks, `Удаление на сервере: ${item.path}`);
           log(`Deleting server file/folder: ${item.path}`);
-          await api.post('/api/sync/delete', { path: item.path });
+          await retryOperation(() => api.post('/api/sync/delete', { path: item.path }), 3, 1000);
         } catch (err) {
           log(`Failed to delete server file ${item.path}: ${err.message}`);
         }
@@ -358,11 +453,11 @@ export class SyncEngine {
           const fullLocalPath = join(this.config.LOCAL_VAULT_PATH, item.path);
           if (fs.existsSync(fullLocalPath)) {
             log(`Deleting local file/folder: ${item.path}`);
-            const stat = fs.statSync(fullLocalPath);
+            const stat = await fs.promises.stat(fullLocalPath);
             if (stat.isDirectory()) {
-              fs.rmSync(fullLocalPath, { recursive: true, force: true });
+              await fs.promises.rm(fullLocalPath, { recursive: true, force: true });
             } else {
-              fs.unlinkSync(fullLocalPath);
+              await fs.promises.unlink(fullLocalPath);
             }
           }
         } catch (err) {
@@ -378,27 +473,43 @@ export class SyncEngine {
           const fullLocalPath = join(this.config.LOCAL_VAULT_PATH, item.path);
           if (item.local.isDirectory) {
             log(`Creating server directory: ${item.path}`);
-            await api.post('/api/sync/push', { path: item.path, isDirectory: true });
+            await retryOperation(() => api.post('/api/sync/push', { path: item.path, isDirectory: true }), 3, 1000);
             nextSyncState[item.path] = { isDirectory: true, mtime: item.local.mtime };
           } else {
-            log(`Pushing file to server: ${item.path}`);
             const isBinary = item.path.startsWith('assets/');
-            const content = fs.readFileSync(fullLocalPath);
-            const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
+            const stat = await fs.promises.stat(fullLocalPath);
+            const size = stat.size;
+            let response;
+            
+            // If file is larger than 1MB, push in chunks
+            if (size > 1024 * 1024) {
+              let dbMetadata = null;
+              if (!isBinary && item.path.endsWith('.md')) {
+                dbMetadata = await this.getLocalDbMetadata(item.path);
+              }
+              response = await this.pushFileInChunks(
+                api, log, item.path, fullLocalPath, size, item.local.mtime,
+                item.base ? item.base.serverHash : undefined, dbMetadata, false
+              );
+            } else {
+              log(`Pushing file to server: ${item.path}`);
+              const content = await fs.promises.readFile(fullLocalPath);
+              const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
 
-            let dbMetadata = null;
-            if (!isBinary && item.path.endsWith('.md')) {
-              dbMetadata = await this.getLocalDbMetadata(item.path);
+              let dbMetadata = null;
+              if (!isBinary && item.path.endsWith('.md')) {
+                dbMetadata = await this.getLocalDbMetadata(item.path);
+              }
+
+              response = await retryOperation(() => api.post('/api/sync/push', {
+                path: item.path,
+                content: contentStr,
+                mtime: item.local.mtime,
+                isDirectory: false,
+                lastKnownServerHash: item.base ? item.base.serverHash : undefined,
+                dbMetadata
+              }), 3, 1000);
             }
-
-            const response = await api.post('/api/sync/push', {
-              path: item.path,
-              content: contentStr,
-              mtime: item.local.mtime,
-              isDirectory: false,
-              lastKnownServerHash: item.base ? item.base.serverHash : undefined,
-              dbMetadata
-            });
 
             nextSyncState[item.path] = {
               hash: item.local.hash,
@@ -420,13 +531,13 @@ export class SyncEngine {
           const fullLocalPath = join(this.config.LOCAL_VAULT_PATH, item.path);
           const parentDir = dirname(fullLocalPath);
           if (!fs.existsSync(parentDir)) {
-            fs.mkdirSync(parentDir, { recursive: true });
+            await fs.promises.mkdir(parentDir, { recursive: true });
           }
 
           if (item.server.isDirectory) {
             log(`Creating local directory: ${item.path}`);
             if (!fs.existsSync(fullLocalPath)) {
-              fs.mkdirSync(fullLocalPath, { recursive: true });
+              await fs.promises.mkdir(fullLocalPath, { recursive: true });
             }
             nextSyncState[item.path] = { isDirectory: true, mtime: Date.now() };
           } else {
@@ -437,11 +548,11 @@ export class SyncEngine {
             let dbMetadata = null;
 
             if (!isBinary && item.path.endsWith('.md')) {
-              const res = await api.post('/api/sync/pull', { path: item.path, includeMetadata: true });
+              const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path, includeMetadata: true }), 3, 1000);
               fileContentBuffer = Buffer.from(res.data.content, 'utf8');
               dbMetadata = res.data.dbMetadata;
             } else {
-              const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
+              const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' }), 3, 1000);
               fileContentBuffer = Buffer.from(res.data);
             }
 
@@ -449,14 +560,14 @@ export class SyncEngine {
               await this.saveLocalDbMetadata(item.path, dbMetadata);
             }
 
-            fs.writeFileSync(fullLocalPath, fileContentBuffer);
+            await fs.promises.writeFile(fullLocalPath, fileContentBuffer);
 
             if (item.server.mtime) {
               const atime = Date.now() / 1000;
               fs.utimesSync(fullLocalPath, atime, item.server.mtime / 1000);
             }
 
-            const localStat = fs.statSync(fullLocalPath);
+            const localStat = await fs.promises.stat(fullLocalPath);
             nextSyncState[item.path] = {
               hash: item.server.hash,
               mtime: localStat.mtimeMs,
@@ -479,17 +590,17 @@ export class SyncEngine {
 
           if (this.config.CONFLICT_RESOLUTION === 'suggest') {
             log(`Sending local changes for ${item.path} as Suggestion to server...`);
-            const fileContent = fs.readFileSync(fullLocalPath, 'utf8');
+            const fileContent = await fs.promises.readFile(fullLocalPath, 'utf8');
 
-            const resPull = await api.post('/api/sync/pull', { path: item.path });
+            const resPull = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }), 3, 1000);
             const baseContent = resPull.data;
 
-            await api.post('/api/notes/suggest', {
+            await retryOperation(() => api.post('/api/notes/suggest', {
               relative_path: item.path,
               author_name: 'Локальный агент синхронизации',
               base_content: baseContent,
               suggested_content: fileContent
-            });
+            }), 3, 1000);
 
             log(`Successfully created review suggestion for: ${item.path}`);
             nextSyncState[item.path] = {
@@ -501,22 +612,37 @@ export class SyncEngine {
           else if (this.config.CONFLICT_RESOLUTION === 'local-wins') {
             log(`Forcing local version for: ${item.path}`);
             const isBinary = item.path.startsWith('assets/');
-            const content = fs.readFileSync(fullLocalPath);
-            const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
+            const stat = await fs.promises.stat(fullLocalPath);
+            const size = stat.size;
+            let response;
+            
+            if (size > 1024 * 1024) {
+              let dbMetadata = null;
+              if (!isBinary && item.path.endsWith('.md')) {
+                dbMetadata = await this.getLocalDbMetadata(item.path);
+              }
+              response = await this.pushFileInChunks(
+                api, log, item.path, fullLocalPath, size, item.local.mtime,
+                undefined, dbMetadata, true
+              );
+            } else {
+              const content = await fs.promises.readFile(fullLocalPath);
+              const contentStr = isBinary ? content.toString('base64') : content.toString('utf8');
 
-            let dbMetadata = null;
-            if (!isBinary && item.path.endsWith('.md')) {
-              dbMetadata = await this.getLocalDbMetadata(item.path);
+              let dbMetadata = null;
+              if (!isBinary && item.path.endsWith('.md')) {
+                dbMetadata = await this.getLocalDbMetadata(item.path);
+              }
+
+              response = await retryOperation(() => api.post('/api/sync/push', {
+                path: item.path,
+                content: contentStr,
+                mtime: item.local.mtime,
+                isDirectory: false,
+                force: true,
+                dbMetadata
+              }), 3, 1000);
             }
-
-            const response = await api.post('/api/sync/push', {
-              path: item.path,
-              content: contentStr,
-              mtime: item.local.mtime,
-              isDirectory: false,
-              force: true,
-              dbMetadata
-            });
 
             nextSyncState[item.path] = {
               hash: item.local.hash,
@@ -528,10 +654,10 @@ export class SyncEngine {
             log(`Forcing server version for: ${item.path}`);
 
             if (fs.existsSync(fullLocalPath)) {
-              if (!fs.existsSync(this.backupDir)) fs.mkdirSync(this.backupDir, { recursive: true });
+              if (!fs.existsSync(this.backupDir)) await fs.promises.mkdir(this.backupDir, { recursive: true });
               const backupPath = join(this.backupDir, item.path);
-              fs.mkdirSync(dirname(backupPath), { recursive: true });
-              fs.copyFileSync(fullLocalPath, backupPath);
+              await fs.promises.mkdir(dirname(backupPath), { recursive: true });
+              await fs.promises.copyFile(fullLocalPath, backupPath);
               log(`Backed up local file to: .sync_backup/${item.path}`);
             }
 
@@ -540,11 +666,11 @@ export class SyncEngine {
             let dbMetadata = null;
 
             if (!isBinary && item.path.endsWith('.md')) {
-              const res = await api.post('/api/sync/pull', { path: item.path, includeMetadata: true });
+              const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path, includeMetadata: true }), 3, 1000);
               fileContentBuffer = Buffer.from(res.data.content, 'utf8');
               dbMetadata = res.data.dbMetadata;
             } else {
-              const res = await api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' });
+              const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' }), 3, 1000);
               fileContentBuffer = Buffer.from(res.data);
             }
 
@@ -552,11 +678,12 @@ export class SyncEngine {
               await this.saveLocalDbMetadata(item.path, dbMetadata);
             }
 
-            fs.writeFileSync(fullLocalPath, fileContentBuffer);
+            await fs.promises.writeFile(fullLocalPath, fileContentBuffer);
 
+            const finalStat = await fs.promises.stat(fullLocalPath);
             nextSyncState[item.path] = {
               hash: item.server.hash,
-              mtime: fs.statSync(fullLocalPath).mtimeMs,
+              mtime: finalStat.mtimeMs,
               serverHash: item.server.hash
             };
           }
@@ -567,8 +694,8 @@ export class SyncEngine {
             const conflictPath = `${baseName}.conflict-${Date.now()}${ext}`;
             const conflictFilePath = join(this.config.LOCAL_VAULT_PATH, conflictPath);
 
-            const res = await api.post('/api/sync/pull', { path: item.path });
-            fs.writeFileSync(conflictFilePath, res.data);
+            const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }), 3, 1000);
+            await fs.promises.writeFile(conflictFilePath, res.data);
             log(`Saved server copy as: ${relative(this.config.LOCAL_VAULT_PATH, conflictFilePath)}. Please merge manually.`);
 
             if (item.base) nextSyncState[item.path] = item.base;
@@ -585,11 +712,11 @@ export class SyncEngine {
 
       if (!dryRun) {
         try {
-          await api.post('/api/sync/status', {
+          await retryOperation(() => api.post('/api/sync/status', {
             deviceName: os.hostname(),
             status: 'success',
             syncMode: this.config.SYNC_MODE
-          });
+          }), 3, 1000);
         } catch (statusErr) {
           console.error('[SyncEngine] Failed to send success status to server:', statusErr.message);
         }
@@ -601,12 +728,12 @@ export class SyncEngine {
       this.onProgress('error', 0, 0, `Ошибка: ${err.message}`);
       if (!dryRun) {
         try {
-          await api.post('/api/sync/status', {
+          await retryOperation(() => api.post('/api/sync/status', {
             deviceName: os.hostname(),
             status: 'error',
             errorMessage: err.message,
             syncMode: this.config.SYNC_MODE
-          });
+          }), 3, 1000);
         } catch (statusErr) {
           console.error('[SyncEngine] Failed to send error status to server:', statusErr.message);
         }

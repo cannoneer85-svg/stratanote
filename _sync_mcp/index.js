@@ -98,7 +98,12 @@ function setupSocketConnection(config) {
   socket = io(config.STRATANOTE_SERVER_URL, {
     auth: {
       token: config.STRATANOTE_API_TOKEN
-    }
+    },
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000
   });
 
   socket.on('connect', () => {

@@ -11,15 +11,45 @@ const router = express.Router();
 
 const normalizePath = (p) => p.replace(/\\/g, '/');
 
-// Recursive function to get all files in vaultPath
-const getFilesRecursive = (dir, rootDir) => {
+const tempDir = join(vaultPath, '.temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+
+// In-memory cache for file hashes to avoid re-reading files on every manifest generation
+const fileHashCache = new Map();
+
+// Helper to compute SHA-256 hash of a file asynchronously and stream-wise
+const getFileHash = (filePath) => {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', err => reject(err));
+  });
+};
+
+// Retrieve file hash from cache if stats (mtime, size) match, otherwise compute and cache
+const getFileHashWithCache = async (filePath, stat) => {
+  const cached = fileHashCache.get(filePath);
+  if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
+    return cached.hash;
+  }
+  const hash = await getFileHash(filePath);
+  fileHashCache.set(filePath, { hash, mtime: stat.mtimeMs, size: stat.size });
+  return hash;
+};
+
+// Recursive function to get all files in vaultPath asynchronously
+const getFilesRecursiveAsync = async (dir, rootDir) => {
   let results = [];
   if (!fs.existsSync(dir)) return results;
   
-  const list = fs.readdirSync(dir);
+  const list = await fs.promises.readdir(dir);
   for (const file of list) {
     const filePath = join(dir, file);
-    const stat = fs.statSync(filePath);
+    const stat = await fs.promises.stat(filePath);
     
     const rel = normalizePath(relative(rootDir, filePath));
     // Ignore hidden files/folders, backend code, node_modules, and sync configs on any level
@@ -42,21 +72,25 @@ const getFilesRecursive = (dir, rootDir) => {
         size: 0,
         hash: ''
       });
-      results = results.concat(getFilesRecursive(filePath, rootDir));
+      const subResults = await getFilesRecursiveAsync(filePath, rootDir);
+      results = results.concat(subResults);
     } else {
-      const fileBuffer = fs.readFileSync(filePath);
-      const hashSum = crypto.createHash('sha256');
-      hashSum.update(fileBuffer);
-      const hex = hashSum.digest('hex');
-
-      results.push({
-        path: rel,
-        isDirectory: false,
-        mtime: stat.mtimeMs,
-        size: stat.size,
-        hash: hex
-      });
+      try {
+        const hex = await getFileHashWithCache(filePath, stat);
+        results.push({
+          path: rel,
+          isDirectory: false,
+          mtime: stat.mtimeMs,
+          size: stat.size,
+          hash: hex
+        });
+      } catch (err) {
+        console.error(`[Sync] Failed to hash file ${filePath}:`, err);
+      }
     }
+    
+    // Yield control to the event loop so that WebSockets and other requests are not starved
+    await new Promise(resolve => setImmediate(resolve));
   }
   return results;
 };
@@ -64,7 +98,7 @@ const getFilesRecursive = (dir, rootDir) => {
 // 1. GET /api/sync/manifest - Get server files manifest
 router.get('/manifest', authenticateJWT, async (req, res) => {
   try {
-    const files = getFilesRecursive(vaultPath, vaultPath);
+    const files = await getFilesRecursiveAsync(vaultPath, vaultPath);
     res.json({ files });
   } catch (err) {
     console.error('[Sync] Error generating manifest:', err);
@@ -267,6 +301,229 @@ router.post('/push', authenticateJWT, async (req, res) => {
   }
 });
 
+// Helper function to clean up upload chunks on server
+function cleanupChunks(uploadId, totalChunks) {
+  for (let i = 0; i < totalChunks; i++) {
+    const chunkPath = join(tempDir, `${uploadId}.part_${i}`);
+    if (fs.existsSync(chunkPath)) {
+      try {
+        fs.unlinkSync(chunkPath);
+      } catch (cleanupErr) {
+        console.error(`Failed to delete chunk ${chunkPath} on failure:`, cleanupErr);
+      }
+    }
+  }
+}
+
+// 3.5. POST /api/sync/push-chunk - Upload file chunk to server
+router.post('/push-chunk', authenticateJWT, async (req, res) => {
+  const chunkIndex = parseInt(req.headers['x-chunk-index'], 10);
+  const totalChunks = parseInt(req.headers['x-total-chunks'], 10);
+  const uploadId = req.headers['x-upload-id'];
+  const relPathB64 = req.headers['x-relative-path-b64'];
+  const mtime = req.headers['x-mtime'] ? parseInt(req.headers['x-mtime'], 10) : undefined;
+  const lastKnownServerHash = req.headers['x-last-known-server-hash'] || undefined;
+  const force = req.headers['x-force'] === 'true';
+  const dbMetadataB64 = req.headers['x-db-metadata-b64'];
+
+  if (isNaN(chunkIndex) || isNaN(totalChunks) || !uploadId || !relPathB64) {
+    return res.status(400).json({ error: 'Missing required chunk headers' });
+  }
+
+  const relPath = Buffer.from(relPathB64, 'base64').toString('utf8');
+  const safePath = resolve(vaultPath, relPath);
+  if (!safePath.startsWith(resolve(vaultPath))) {
+    return res.status(403).json({ error: 'Directory traversal detected' });
+  }
+
+  try {
+    // Check if the file is locked in SQLite by someone else
+    const lock = await get('SELECT * FROM locks WHERE relative_path = ?', [relPath]);
+    if (lock && lock.user_id !== req.user.id && new Date(lock.expires_at) > new Date()) {
+      return res.status(423).json({ error: `File is locked by user: ${lock.username}` });
+    }
+
+    const partPath = join(tempDir, `${uploadId}.part_${chunkIndex}`);
+    const writeStream = fs.createWriteStream(partPath);
+
+    req.pipe(writeStream);
+
+    writeStream.on('finish', async () => {
+      try {
+        // Check if all chunks are uploaded
+        let allDone = true;
+        for (let i = 0; i < totalChunks; i++) {
+          if (!fs.existsSync(join(tempDir, `${uploadId}.part_${i}`))) {
+            allDone = false;
+            break;
+          }
+        }
+
+        if (allDone) {
+          console.log(`[Sync Push Chunk] All ${totalChunks} chunks received for ${relPath}. Merging...`);
+          
+          // Version conflict validation (unless force is true)
+          let serverFileExists = fs.existsSync(safePath);
+          let serverFileHash = '';
+          if (serverFileExists && !force) {
+            const serverContent = fs.readFileSync(safePath);
+            serverFileHash = crypto.createHash('sha256').update(serverContent).digest('hex');
+            
+            if (lastKnownServerHash && serverFileHash !== lastKnownServerHash) {
+              cleanupChunks(uploadId, totalChunks);
+              console.log(`[Sync Push Chunk] Conflict detected for: ${relPath}. Server: ${serverFileHash}, Client last known: ${lastKnownServerHash}`);
+              return res.status(409).json({ 
+                error: 'Conflict detected', 
+                serverHash: serverFileHash,
+                message: 'File was modified on the server since last sync.' 
+              });
+            }
+          }
+
+          const parentDir = dirname(safePath);
+          if (!fs.existsSync(parentDir)) {
+            fs.mkdirSync(parentDir, { recursive: true });
+          }
+
+          // Streaming merge function
+          const mergeChunks = () => {
+            return new Promise((resolvePromise, rejectPromise) => {
+              const finalWriteStream = fs.createWriteStream(safePath);
+              let currentChunk = 0;
+
+              function appendNext() {
+                if (currentChunk >= totalChunks) {
+                  finalWriteStream.end();
+                  return;
+                }
+
+                const chunkPath = join(tempDir, `${uploadId}.part_${currentChunk}`);
+                const readStream = fs.createReadStream(chunkPath);
+
+                readStream.pipe(finalWriteStream, { end: false });
+
+                readStream.on('end', () => {
+                  try {
+                    fs.unlinkSync(chunkPath); // delete part file immediately
+                  } catch (e) {
+                    console.error(`Failed to delete chunk file ${chunkPath}:`, e);
+                  }
+                  currentChunk++;
+                  appendNext();
+                });
+
+                readStream.on('error', (err) => {
+                  finalWriteStream.end();
+                  rejectPromise(err);
+                });
+              }
+
+              finalWriteStream.on('finish', () => resolvePromise());
+              finalWriteStream.on('error', (err) => rejectPromise(err));
+              appendNext();
+            });
+          };
+
+          await mergeChunks();
+
+          if (mtime) {
+            const atime = Date.now() / 1000;
+            fs.utimesSync(safePath, atime, mtime / 1000);
+          }
+
+          // Compute final file hash from merged file
+          const finalContent = fs.readFileSync(safePath);
+          const newHash = crypto.createHash('sha256').update(finalContent).digest('hex');
+
+          // Metadata updates for markdown files
+          const isBinary = relPath.startsWith('assets/');
+          if (!isBinary && relPath.endsWith('.md')) {
+            try {
+              const contentStr = finalContent.toString('utf8');
+              const title = basename(relPath, '.md');
+              const parentPath = normalizePath(dirname(relPath)) === '.' ? '' : normalizePath(dirname(relPath));
+
+              let dbMetadata = null;
+              if (dbMetadataB64) {
+                try {
+                  dbMetadata = JSON.parse(Buffer.from(dbMetadataB64, 'base64').toString('utf8'));
+                } catch (e) {
+                  console.error('[Sync Push Chunk] Failed to decode dbMetadata:', e);
+                }
+              }
+
+              const createdBy = (dbMetadata && dbMetadata.created_by) ? dbMetadata.created_by : req.user.username;
+              const lastEditedBy = (dbMetadata && dbMetadata.last_edited_by) ? dbMetadata.last_edited_by : req.user.username;
+
+              const existingNote = await get('SELECT * FROM notes WHERE relative_path = ?', [relPath]);
+              if (!existingNote) {
+                await run(
+                  'INSERT INTO notes (relative_path, title, is_directory, parent_path, last_edited_by, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                  [relPath, title, 0, parentPath, lastEditedBy, createdBy]
+                );
+              } else {
+                await run(
+                  'UPDATE notes SET updated_at = CURRENT_TIMESTAMP, last_edited_by = ?, created_by = ? WHERE relative_path = ?',
+                  [lastEditedBy, createdBy, relPath]
+                );
+              }
+
+              if (dbMetadata && Array.isArray(dbMetadata.versions)) {
+                for (const ver of dbMetadata.versions) {
+                  const existingVersion = await get(
+                    'SELECT id FROM versions WHERE relative_path = ? AND content = ?',
+                    [relPath, ver.content]
+                  );
+                  if (!existingVersion) {
+                    await run(
+                      'INSERT INTO versions (relative_path, content, author_name, created_at) VALUES (?, ?, ?, ?)',
+                      [relPath, ver.content, ver.author_name, ver.created_at]
+                    );
+                  }
+                }
+              } else {
+                const existingVersion = await get(
+                  'SELECT id FROM versions WHERE relative_path = ? AND content = ?',
+                  [relPath, contentStr]
+                );
+                if (!existingVersion) {
+                  await run(
+                    'INSERT INTO versions (relative_path, content, author_name) VALUES (?, ?, ?)',
+                    [relPath, contentStr, lastEditedBy]
+                  );
+                }
+              }
+
+              updateNoteEmbedding(relPath, contentStr).catch(err => {
+                console.error('[Sync Push Chunk] Failed to update note embedding:', err);
+              });
+            } catch (dbErr) {
+              console.error('[Sync Push Chunk] Database update failed:', dbErr);
+            }
+          }
+
+          console.log(`[Sync Push Chunk] Successfully saved merged file: ${relPath}`);
+          res.json({ success: true, hash: newHash });
+        } else {
+          res.json({ success: true, message: `Chunk ${chunkIndex + 1}/${totalChunks} uploaded` });
+        }
+      } catch (err) {
+        console.error('[Sync Push Chunk] Merge process error:', err);
+        cleanupChunks(uploadId, totalChunks);
+        res.status(500).json({ error: 'Failed to merge chunks on server' });
+      }
+    });
+
+    writeStream.on('error', (err) => {
+      console.error('[Sync Push Chunk] WriteStream error:', err);
+      res.status(500).json({ error: 'Failed to save chunk file' });
+    });
+  } catch (err) {
+    console.error('[Sync Push Chunk] Error processing chunk:', err);
+    res.status(500).json({ error: 'Failed to process chunk on server' });
+  }
+});
+
 // 4. POST /api/sync/delete - Delete file/directory on server
 router.post('/delete', authenticateJWT, async (req, res) => {
   const { path: relPath } = req.body;
@@ -355,7 +612,7 @@ router.post('/trigger', authenticateJWT, async (req, res) => {
 
   console.log(`[Sync] Triggering sync command for user ${req.user.username} via socket ${agentSocket.id}`);
 
-  agentSocket.timeout(45000).emit('trigger-sync-request', (err, response) => {
+  agentSocket.timeout(300000).emit('trigger-sync-request', (err, response) => {
     console.log(`[Sync] Received response from agent for user ${req.user.username}:`, { err, response });
     if (err) {
       console.error(`[Sync] Timeout or error waiting for sync response from user ${req.user.username}`);
