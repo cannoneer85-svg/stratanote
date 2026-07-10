@@ -60,7 +60,6 @@ const getFileHash = async (filePath) => {
   }
 };
 
-// Retrieve file hash from cache if stats (mtime, size) match, otherwise compute and cache
 const getFileHashWithCache = async (filePath, stat) => {
   const cached = fileHashCache.get(filePath);
   if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
@@ -69,6 +68,8 @@ const getFileHashWithCache = async (filePath, stat) => {
   const hash = await getFileHash(filePath);
   fileHashCache.set(filePath, { hash, mtime: stat.mtimeMs, size: stat.size });
   return hash;
+};
+
 // Recursive function to get all files in vaultPath asynchronously
 const getFilesRecursiveAsync = async (dir, rootDir, state = { count: 0 }) => {
   let results = [];
