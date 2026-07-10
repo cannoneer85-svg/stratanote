@@ -321,9 +321,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     last_sync_at: string;
     status: 'success' | 'error' | 'online' | 'offline';
     sync_mode: 'auto' | 'manual' | null;
+    conflict_resolution?: 'suggest' | 'local-wins' | 'server-wins' | 'interactive' | null;
     error_message: string | null;
   }[]>([]);
   const [loadingSync, setLoadingSync] = useState(false);
+  const [updatingConfig, setUpdatingConfig] = useState(false);
   const [triggeringSync, setTriggeringSync] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[] | null>(null);
   const [syncTriggerError, setSyncTriggerError] = useState<string | null>(null);
@@ -519,6 +521,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       console.error('Failed to fetch sync statuses:', err);
     } finally {
       setLoadingSync(false);
+    }
+  };
+
+  const handleUpdateConfig = async (syncMode: string, conflictResolution: string) => {
+    setUpdatingConfig(true);
+    try {
+      const res = await fetch('/api/sync/update-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ syncMode, conflictResolution })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to update configuration');
+      } else {
+        await fetchSyncStatuses();
+      }
+    } catch (err) {
+      console.error('Error updating config:', err);
+      alert('Network error when updating configuration');
+    } finally {
+      setUpdatingConfig(false);
     }
   };
 
@@ -1717,10 +1744,46 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               : t('settings_sync_status_error', lang)}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-text-disabled">
-                          <span>{t('settings_sync_mode_label', lang, { mode: status.sync_mode === 'auto' ? t('settings_sync_mode_auto', lang) : t('settings_sync_mode_manual', lang) })}</span>
-                          <span>{t('settings_sync_activity_label', lang, { time: formatToMoscowTime(status.last_sync_at) })}</span>
-                        </div>
+                        {status.status !== 'offline' ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-lg text-[10px] text-left">
+                              <div className="space-y-1">
+                                <label className="text-text-muted font-medium block">{t('settings_sync_mode_select_label', lang)}</label>
+                                <select
+                                  value={status.sync_mode || 'manual'}
+                                  disabled={updatingConfig || triggeringSync}
+                                  onChange={(e) => handleUpdateConfig(e.target.value, status.conflict_resolution || 'suggest')}
+                                  className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-white text-[10px] focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                                >
+                                  <option value="manual">{t('settings_sync_mode_manual', lang)}</option>
+                                  <option value="auto">{t('settings_sync_mode_auto', lang)}</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-text-muted font-medium block">{t('settings_sync_conflict_resolution_label', lang)}</label>
+                                <select
+                                  value={status.conflict_resolution || 'suggest'}
+                                  disabled={updatingConfig || triggeringSync}
+                                  onChange={(e) => handleUpdateConfig(status.sync_mode || 'manual', e.target.value)}
+                                  className="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-white text-[10px] focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                                >
+                                  <option value="suggest">{t('settings_sync_strategy_suggest', lang)}</option>
+                                  <option value="local-wins">{t('settings_sync_strategy_local_wins', lang)}</option>
+                                  <option value="server-wins">{t('settings_sync_strategy_server_wins', lang)}</option>
+                                  <option value="interactive">{t('settings_sync_strategy_interactive', lang)}</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="text-[9px] text-text-disabled text-right pr-1">
+                              {t('settings_sync_activity_label', lang, { time: formatToMoscowTime(status.last_sync_at) })}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between items-center text-[10px] text-text-disabled">
+                            <span>{t('settings_sync_mode_label', lang, { mode: status.sync_mode === 'auto' ? t('settings_sync_mode_auto', lang) : t('settings_sync_mode_manual', lang) })}</span>
+                            <span>{t('settings_sync_activity_label', lang, { time: formatToMoscowTime(status.last_sync_at) })}</span>
+                          </div>
+                        )}
                         {status.error_message && (
                           <div className="p-2 rounded bg-red-500/5 border border-red-500/10 text-[10px] text-red-400 font-mono whitespace-pre-wrap break-all">
                             {t('settings_sync_error_label', lang, { error: status.error_message })}

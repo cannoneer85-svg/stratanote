@@ -118,7 +118,8 @@ function setupSocketConnection(config) {
         userId: payload.id,
         username: payload.username,
         deviceName: os.hostname(),
-        syncMode: config.SYNC_MODE
+        syncMode: config.SYNC_MODE,
+        conflictResolution: config.CONFLICT_RESOLUTION
       });
     } catch (err) {
       console.error('[Socket] Failed to parse JWT for agent registration:', err);
@@ -131,6 +132,35 @@ function setupSocketConnection(config) {
 
   socket.on('register-failed', (data) => {
     console.error('[Socket] Registration failed on server:', data.error);
+  });
+
+  // Handle remote configuration update request from server admin panel
+  socket.on('update-config-request', async (data, callback) => {
+    const { syncMode, conflictResolution } = data;
+    console.error(`[Socket] Received remote config update request: syncMode=${syncMode}, conflictResolution=${conflictResolution}`);
+    
+    try {
+      const updatedConfig = saveConfig({
+        SYNC_MODE: syncMode,
+        CONFLICT_RESOLUTION: conflictResolution
+      });
+      console.error('[Socket] Configuration updated and saved to config.json');
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+
+      // Re-initialize watcher and socket connection to apply new settings
+      setTimeout(() => {
+        setupWatcher(updatedConfig);
+        setupSocketConnection(updatedConfig);
+      }, 500);
+    } catch (err) {
+      console.error('[Socket] Failed to update configuration:', err);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message });
+      }
+    }
   });
 
   // Handle remote sync trigger from server admin panel

@@ -136,26 +136,34 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (socket.userId && socket.userId !== userId) {
+      console.log(`[Socket] Registration rejected. Socket already registered for user ${socket.username}`);
+      socket.disconnect();
+      return;
+    }
+
     socket.userId = userId;
     socket.username = username;
     socket.isSyncAgent = true;
     socket.deviceName = deviceName;
     socket.syncMode = syncMode;
+    socket.conflictResolution = conflictResolution;
     activeSyncAgents.set(userId, socket);
-    console.log(`[Socket] Sync agent registered: User ${username} on ${deviceName} (${syncMode})`);
+    console.log(`[Socket] Sync agent registered: User ${username} on ${deviceName} (${syncMode}, ${conflictResolution})`);
     
     try {
       await run(`
-        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode)
-        VALUES (?, ?, ?, datetime('now'), 'online', NULL, ?)
+        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode, conflict_resolution)
+        VALUES (?, ?, ?, datetime('now'), 'online', NULL, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
           username = excluded.username,
           device_name = excluded.device_name,
           last_sync_at = datetime('now'),
           status = 'online',
           error_message = NULL,
-          sync_mode = excluded.sync_mode
-      `, [userId, username, deviceName, syncMode]);
+          sync_mode = excluded.sync_mode,
+          conflict_resolution = excluded.conflict_resolution
+      `, [userId, username, deviceName, syncMode, conflictResolution]);
       io.emit('sync-status-changed');
     } catch (err) {
       console.error('[Socket] Failed to update status on register:', err);

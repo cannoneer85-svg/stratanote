@@ -24,18 +24,46 @@ const isBinaryFile = (filePath) => {
   return BINARY_EXTENSIONS.includes(ext) || filePath.replace(/\\/g, '/').startsWith('assets/');
 };
 
-// In-memory cache for file hashes to avoid re-reading files on every local scan
-const fileHashCache = new Map();
+// Persistent cache for file hashes to avoid re-reading files on every local scan
+const clientTempDir = join(__dirname, '.temp');
+if (!fs.existsSync(clientTempDir)) {
+  fs.mkdirSync(clientTempDir, { recursive: true });
+}
+const cachePath = join(clientTempDir, 'hash_cache.json');
+let fileHashCache = new Map();
+if (fs.existsSync(cachePath)) {
+  try {
+    const raw = fs.readFileSync(cachePath, 'utf8');
+    fileHashCache = new Map(JSON.parse(raw));
+  } catch (e) {
+    console.error('[SyncEngine Cache] Failed to load hash cache:', e);
+  }
+}
 
-// Helper to compute SHA-256 hash of a file asynchronously and stream-wise
-const getFileHash = (filePath) => {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', chunk => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', err => reject(err));
-  });
+const saveHashCache = () => {
+  try {
+    fs.writeFileSync(cachePath, JSON.stringify(Array.from(fileHashCache.entries())), 'utf8');
+  } catch (e) {
+    console.error('[SyncEngine Cache] Failed to save hash cache:', e);
+  }
+};
+
+// Helper to compute SHA-256 hash of a file asynchronously
+const getFileHash = async (filePath) => {
+  const isBinary = isBinaryFile(filePath);
+  if (isBinary) {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', chunk => hash.update(chunk));
+      stream.on('end', () => resolve(hash.digest('hex')));
+      stream.on('error', err => reject(err));
+    });
+  } else {
+    const content = await fs.promises.readFile(filePath, 'utf8');
+    const normalized = content.replace(/\r\n/g, '\n');
+    return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  }
 };
 
 // Retrieve file hash from cache if stats (mtime, size) match, otherwise compute and cache
@@ -733,6 +761,7 @@ export class SyncEngine {
       }
 
       this.saveSyncState(nextSyncState);
+      saveHashCache();
       log('Synchronization process finished.');
       this.onProgress('done', totalTasks, totalTasks, 'Синхронизация завершена успешно!');
 
@@ -741,7 +770,8 @@ export class SyncEngine {
           await retryOperation(() => api.post('/api/sync/status', {
             deviceName: os.hostname(),
             status: 'success',
-            syncMode: this.config.SYNC_MODE
+            syncMode: this.config.SYNC_MODE,
+            conflictResolution: this.config.CONFLICT_RESOLUTION
           }), 3, 1000);
         } catch (statusErr) {
           console.error('[SyncEngine] Failed to send success status to server:', statusErr.message);
@@ -758,7 +788,8 @@ export class SyncEngine {
             deviceName: os.hostname(),
             status: 'error',
             errorMessage: err.message,
-            syncMode: this.config.SYNC_MODE
+            syncMode: this.config.SYNC_MODE,
+            conflictResolution: this.config.CONFLICT_RESOLUTION
           }), 3, 1000);
         } catch (statusErr) {
           console.error('[SyncEngine] Failed to send error status to server:', statusErr.message);

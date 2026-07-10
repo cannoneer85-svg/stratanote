@@ -22,18 +22,42 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// In-memory cache for file hashes to avoid re-reading files on every manifest generation
-const fileHashCache = new Map();
+// Persistent cache for file hashes to avoid re-reading files on every manifest generation
+const cachePath = join(tempDir, 'hash_cache.json');
+let fileHashCache = new Map();
+if (fs.existsSync(cachePath)) {
+  try {
+    const raw = fs.readFileSync(cachePath, 'utf8');
+    fileHashCache = new Map(JSON.parse(raw));
+  } catch (e) {
+    console.error('[Sync Cache] Failed to load hash cache:', e);
+  }
+}
 
-// Helper to compute SHA-256 hash of a file asynchronously and stream-wise
-const getFileHash = (filePath) => {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', chunk => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', err => reject(err));
-  });
+const saveHashCache = () => {
+  try {
+    fs.writeFileSync(cachePath, JSON.stringify(Array.from(fileHashCache.entries())), 'utf8');
+  } catch (e) {
+    console.error('[Sync Cache] Failed to save hash cache:', e);
+  }
+};
+
+// Helper to compute SHA-256 hash of a file asynchronously
+const getFileHash = async (filePath) => {
+  const isBinary = isBinaryFile(filePath);
+  if (isBinary) {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', chunk => hash.update(chunk));
+      stream.on('end', () => resolve(hash.digest('hex')));
+      stream.on('error', err => reject(err));
+    });
+  } else {
+    const content = await fs.promises.readFile(filePath, 'utf8');
+    const normalized = content.replace(/\r\n/g, '\n');
+    return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  }
 };
 
 // Retrieve file hash from cache if stats (mtime, size) match, otherwise compute and cache
@@ -45,8 +69,6 @@ const getFileHashWithCache = async (filePath, stat) => {
   const hash = await getFileHash(filePath);
   fileHashCache.set(filePath, { hash, mtime: stat.mtimeMs, size: stat.size });
   return hash;
-};
-
 // Recursive function to get all files in vaultPath asynchronously
 const getFilesRecursiveAsync = async (dir, rootDir, state = { count: 0 }) => {
   let results = [];
@@ -108,6 +130,7 @@ const getFilesRecursiveAsync = async (dir, rootDir, state = { count: 0 }) => {
 router.get('/manifest', authenticateJWT, async (req, res) => {
   try {
     const files = await getFilesRecursiveAsync(vaultPath, vaultPath, { count: 0 });
+    saveHashCache();
     res.json({ files });
   } catch (err) {
     console.error('[Sync] Error generating manifest:', err);
@@ -568,20 +591,21 @@ router.post('/delete', authenticateJWT, async (req, res) => {
 
 // 5. POST /api/sync/status - Update sync status for user
 router.post('/status', authenticateJWT, async (req, res) => {
-  const { deviceName, status, errorMessage, syncMode } = req.body;
+  const { deviceName, status, errorMessage, syncMode, conflictResolution } = req.body;
   
   try {
     await run(`
-      INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, sync_mode, error_message)
-      VALUES (?, ?, ?, datetime('now'), ?, ?, ?)
+      INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, sync_mode, conflict_resolution, error_message)
+      VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET
         username = excluded.username,
         device_name = excluded.device_name,
         last_sync_at = datetime('now'),
         status = excluded.status,
         sync_mode = COALESCE(excluded.sync_mode, sync_status.sync_mode),
+        conflict_resolution = COALESCE(excluded.conflict_resolution, sync_status.conflict_resolution),
         error_message = excluded.error_message
-    `, [req.user.id, req.user.username, deviceName || 'Unknown Device', status, syncMode || null, errorMessage || null]);
+    `, [req.user.id, req.user.username, deviceName || 'Unknown Device', status, syncMode || null, conflictResolution || null, errorMessage || null]);
 
     // Broadcast sync status update to all connected clients
     const io = req.app.get('io');
@@ -636,6 +660,59 @@ router.post('/trigger', authenticateJWT, async (req, res) => {
         finalResponse = response[0];
       }
     }
+    res.json(finalResponse || { success: true });
+  });
+});
+
+// 8. POST /api/sync/update-config - Update sync agent configuration
+router.post('/update-config', authenticateJWT, async (req, res) => {
+  const { syncMode, conflictResolution } = req.body;
+  if (!syncMode || !conflictResolution) {
+    return res.status(400).json({ error: 'syncMode and conflictResolution are required' });
+  }
+
+  const activeSyncAgents = req.app.get('activeSyncAgents');
+  if (!activeSyncAgents) {
+    return res.status(500).json({ error: 'Sync agent system not initialized' });
+  }
+
+  const agentSocket = activeSyncAgents.get(req.user.id);
+  if (!agentSocket) {
+    return res.status(404).json({ error: 'Локальный агент синхронизации оффлайн. Запустите его на вашем ПК.' });
+  }
+
+  console.log(`[Sync] Updating config for user ${req.user.username} via socket ${agentSocket.id}:`, { syncMode, conflictResolution });
+
+  agentSocket.timeout(10000).emit('update-config-request', { syncMode, conflictResolution }, async (err, response) => {
+    if (err) {
+      console.error(`[Sync] Timeout or error updating config for user ${req.user.username}:`, err);
+      return res.status(504).json({ error: 'Локальный агент не ответил вовремя' });
+    }
+
+    let finalResponse = response;
+    if (Array.isArray(response)) {
+      if (response.length > 1 && (response[0] === null || response[0] === undefined)) {
+        finalResponse = response[1];
+      } else {
+        finalResponse = response[0];
+      }
+    }
+
+    if (finalResponse && finalResponse.success) {
+      try {
+        await run(`
+          UPDATE sync_status 
+          SET sync_mode = ?, conflict_resolution = ?, last_sync_at = datetime('now') 
+          WHERE user_id = ?
+        `, [syncMode, conflictResolution, req.user.id]);
+        
+        const io = req.app.get('io');
+        if (io) io.emit('sync-status-changed');
+      } catch (dbErr) {
+        console.error('[Sync] Failed to update sync_status table after config change:', dbErr);
+      }
+    }
+
     res.json(finalResponse || { success: true });
   });
 });

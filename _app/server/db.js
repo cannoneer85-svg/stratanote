@@ -159,6 +159,13 @@ export const initDb = async () => {
     // Column already exists, ignore
   }
 
+  try {
+    await run('ALTER TABLE sync_status ADD COLUMN conflict_resolution TEXT');
+    console.log('[DB] Added conflict_resolution column to sync_status table');
+  } catch (err) {
+    // Column already exists, ignore
+  }
+
   // 7. Trash Table
   await run(`
     CREATE TABLE IF NOT EXISTS trash (
