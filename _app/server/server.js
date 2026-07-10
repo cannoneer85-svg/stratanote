@@ -96,7 +96,7 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
   // Register Sync Agent
-  socket.on('register-sync-agent', async ({ userId, username, deviceName, syncMode }) => {
+  socket.on('register-sync-agent', async ({ userId, username, deviceName, syncMode, conflictResolution }) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       console.error('[Socket] Sync agent registration rejected: No token provided');
@@ -163,7 +163,7 @@ io.on('connection', (socket) => {
           error_message = NULL,
           sync_mode = excluded.sync_mode,
           conflict_resolution = excluded.conflict_resolution
-      `, [userId, username, deviceName, syncMode, conflictResolution]);
+      `, [userId, username, deviceName, syncMode || null, conflictResolution || null]);
       io.emit('sync-status-changed');
     } catch (err) {
       console.error('[Socket] Failed to update status on register:', err);
