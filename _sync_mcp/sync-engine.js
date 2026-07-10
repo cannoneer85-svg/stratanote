@@ -589,6 +589,22 @@ export class SyncEngine {
           log(`Conflict detected in ${item.path}. Resolution strategy: ${this.config.CONFLICT_RESOLUTION}`);
 
           if (this.config.CONFLICT_RESOLUTION === 'suggest') {
+            const isMarkdown = item.path.endsWith('.md');
+            if (!isMarkdown) {
+              log(`Suggest strategy is only supported for Markdown (.md) notes. Falling back to 'interactive' strategy for non-markdown file: ${item.path}`);
+              const ext = extname(item.path);
+              const baseName = item.path.substring(0, item.path.length - ext.length);
+              const conflictPath = `${baseName}.conflict-${Date.now()}${ext}`;
+              const conflictFilePath = join(this.config.LOCAL_VAULT_PATH, conflictPath);
+
+              const res = await retryOperation(() => api.post('/api/sync/pull', { path: item.path }, { responseType: 'arraybuffer' }), 3, 1000);
+              await fs.promises.writeFile(conflictFilePath, Buffer.from(res.data));
+              log(`Saved server copy as: ${relative(this.config.LOCAL_VAULT_PATH, conflictFilePath)}. Please merge manually.`);
+
+              if (item.base) nextSyncState[item.path] = item.base;
+              continue;
+            }
+
             log(`Sending local changes for ${item.path} as Suggestion to server...`);
             const fileContent = await fs.promises.readFile(fullLocalPath, 'utf8');
 
