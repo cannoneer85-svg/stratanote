@@ -100,8 +100,8 @@ io.on('connection', (socket) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       console.error('[Socket] Sync agent registration rejected: No token provided');
-      socket.emit('register-failed', { error: 'No token provided' });
-      socket.disconnect();
+      socket.emit('register-failed', { error: 'No token provided. Please generate a new API token in the settings panel and paste it into config.json.' });
+      setTimeout(() => socket.disconnect(), 500);
       return;
     }
 
@@ -112,7 +112,7 @@ io.on('connection', (socket) => {
       }
     } catch (jwtErr) {
       console.error(`[Socket] Sync agent registration rejected: ${jwtErr.message}`);
-      socket.emit('register-failed', { error: `Invalid or expired token: ${jwtErr.message}` });
+      socket.emit('register-failed', { error: `Invalid or expired token: ${jwtErr.message}. Please generate a new API token in the settings panel and paste it into config.json.` });
       
       // Update sync status in DB to reflect the error
       try {
@@ -132,13 +132,14 @@ io.on('connection', (socket) => {
       }
       
       io.emit('sync-status-changed');
-      socket.disconnect();
+      setTimeout(() => socket.disconnect(), 500);
       return;
     }
 
     if (socket.userId && socket.userId !== userId) {
       console.log(`[Socket] Registration rejected. Socket already registered for user ${socket.username}`);
-      socket.disconnect();
+      socket.emit('register-failed', { error: 'Device is already registered with another active connection.' });
+      setTimeout(() => socket.disconnect(), 500);
       return;
     }
 

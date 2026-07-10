@@ -337,7 +337,37 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   } | null>(null);
 
   const [customTokenDuration, setCustomTokenDuration] = useState('7d');
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [generatedToken, setGeneratedToken] = useState<string | null>(() => {
+    return localStorage.getItem('sync_agent_token');
+  });
+
+  const getExpirationText = (jwtString: string | null) => {
+    if (!jwtString) return '';
+    try {
+      const parts = jwtString.split('.');
+      if (parts.length !== 3) return '';
+      const payload = JSON.parse(atob(parts[1]));
+      if (!payload || !payload.exp) return '';
+      
+      const expDate = new Date(payload.exp * 1000);
+      const remainingMs = expDate.getTime() - Date.now();
+      
+      if (remainingMs <= 0) {
+        return lang === 'en' ? '⚠️ Token expired!' : '⚠️ Токен истек!';
+      }
+      
+      const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      const timeStr = lang === 'en'
+        ? `🕒 Expires: ${expDate.toLocaleDateString()} (remains: ${days > 0 ? `${days}d ` : ''}${hours}h)`
+        : `🕒 Истекает: ${expDate.toLocaleDateString()} (осталось: ${days > 0 ? `${days}д ` : ''}${hours}ч)`;
+        
+      return timeStr;
+    } catch (e) {
+      return '';
+    }
+  };
 
   useEffect(() => {
     if (socket) {
@@ -408,6 +438,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const data = await res.json();
       if (res.ok) {
         setGeneratedToken(data.token);
+        localStorage.setItem('sync_agent_token', data.token);
         alert(t('sync_generate_success', lang));
       } else {
         alert(data.error || t('sync_generate_failed', lang));
@@ -1676,6 +1707,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     {t('settings_sync_btn_copy', lang)}
                   </button>
                 </div>
+                {(generatedToken || token) && (
+                  <div className="text-[9px] text-text-muted mt-1 px-1">
+                    {getExpirationText(generatedToken || token)}
+                  </div>
+                )}
                 
                 <div className="flex items-center space-x-2 pt-2 border-t border-white/5">
                   <span className="text-[10px] text-text-muted">{t('settings_sync_token_lifespan', lang)}</span>
