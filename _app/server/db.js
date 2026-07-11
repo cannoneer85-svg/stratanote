@@ -11,6 +11,7 @@ const dbPath = process.env.DATABASE_PATH
 
 // Connect to SQLite
 const db = new sqlite3.Database(dbPath);
+db.run('PRAGMA foreign_keys = ON');
 
 // Helper to run query with Promise
 export const run = (sql, params = []) => {
@@ -178,6 +179,53 @@ export const initDb = async () => {
       versions_json TEXT
     )
   `);
+
+  // 8. Comments Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      relative_path TEXT NOT NULL,
+      parent_id INTEGER,
+      author_id INTEGER NOT NULL,
+      author_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      quoted_text TEXT,
+      status TEXT DEFAULT 'open' CHECK(status IN ('open', 'resolved')),
+      resolved_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME,
+      FOREIGN KEY (relative_path) REFERENCES notes(relative_path) ON DELETE CASCADE,
+      FOREIGN KEY (author_id) REFERENCES users(id),
+      FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+    )
+  `);
+  await run('CREATE INDEX IF NOT EXISTS idx_comments_note ON comments(relative_path)');
+  await run('CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(relative_path, status)');
+
+  // Migration: Add 'approved' column for comment moderation
+  try {
+    await run('ALTER TABLE comments ADD COLUMN approved BOOLEAN DEFAULT 0');
+  } catch (e) {
+    // Column already exists, skip
+  }
+  // Auto-approve only pre-existing comments (before moderation column was added)
+  await run('UPDATE comments SET approved = 1 WHERE approved IS NULL');
+
+  // 9. Notification Reads Table
+  await run(`
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      notification_type TEXT NOT NULL CHECK(notification_type IN ('comment', 'suggestion')),
+      notification_id INTEGER NOT NULL,
+      is_read BOOLEAN DEFAULT 0,
+      is_dismissed BOOLEAN DEFAULT 0,
+      read_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, notification_type, notification_id)
+    )
+  `);
+  await run('CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads(user_id, notification_type)');
 
   // Seed default admin if table is empty
   const adminExists = await get('SELECT id FROM users WHERE username = ?', ['admin']);

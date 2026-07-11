@@ -47,6 +47,13 @@ export default function App() {
   const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
   const [autoOpenSuggestion, setAutoOpenSuggestion] = useState<any | null>(null);
 
+  // Comments notifications state  
+  const [pendingComments, setPendingComments] = useState<any[]>([]);
+  const [autoOpenComments, setAutoOpenComments] = useState<boolean>(false);
+
+  // Notification reads/dismissals tracking
+  const [notificationReads, setNotificationReads] = useState<Record<string, { is_read: boolean; is_dismissed: boolean }>>({}); 
+
   const loadPendingSuggestions = async () => {
     if (!token || !currentUser || currentUser?.role === 'Viewer') return;
     try {
@@ -59,6 +66,111 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to load pending suggestions:', err);
+    }
+  };
+
+  const loadPendingComments = async () => {
+    if (!token || !currentUser) return;
+    try {
+      const res = await fetch('/api/comments/pending/all', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingComments(data);
+      }
+    } catch (err) {
+      console.error('Failed to load pending comments:', err);
+    }
+  };
+
+  const loadNotificationReads = async () => {
+    if (!token || !currentUser) return;
+    try {
+      const res = await fetch('/api/notifications/reads', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const map: Record<string, { is_read: boolean; is_dismissed: boolean }> = {};
+        for (const r of data.reads) {
+          map[`${r.notification_type}:${r.notification_id}`] = {
+            is_read: !!r.is_read,
+            is_dismissed: !!r.is_dismissed,
+          };
+        }
+        setNotificationReads(map);
+      }
+    } catch (err) {
+      console.error('Failed to load notification reads:', err);
+    }
+  };
+
+  const markNotificationRead = async (type: string, id: number) => {
+    const key = `${type}:${id}`;
+    setNotificationReads(prev => ({ ...prev, [key]: { ...prev[key], is_read: true, is_dismissed: prev[key]?.is_dismissed || false } }));
+    try {
+      await fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ notification_type: type, notification_id: id })
+      });
+    } catch (err) {
+      console.error('Failed to mark notification read:', err);
+    }
+  };
+
+  const dismissNotification = async (type: string, id: number) => {
+    const key = `${type}:${id}`;
+    setNotificationReads(prev => ({ ...prev, [key]: { is_read: true, is_dismissed: true } }));
+    try {
+      await fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ notification_type: type, notification_id: id })
+      });
+    } catch (err) {
+      console.error('Failed to dismiss notification:', err);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const items: { type: string; id: number }[] = [];
+    for (const s of pendingSuggestions) items.push({ type: 'suggestion', id: s.id });
+    for (const c of pendingComments) items.push({ type: 'comment', id: c.id });
+    const newReads = { ...notificationReads };
+    for (const item of items) {
+      newReads[`${item.type}:${item.id}`] = { is_read: true, is_dismissed: newReads[`${item.type}:${item.id}`]?.is_dismissed || false };
+    }
+    setNotificationReads(newReads);
+    try {
+      await fetch('/api/notifications/read-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ items })
+      });
+    } catch (err) {
+      console.error('Failed to mark all read:', err);
+    }
+  };
+
+  const dismissAllNotifications = async () => {
+    const items: { type: string; id: number }[] = [];
+    for (const s of pendingSuggestions) items.push({ type: 'suggestion', id: s.id });
+    for (const c of pendingComments) items.push({ type: 'comment', id: c.id });
+    const newReads = { ...notificationReads };
+    for (const item of items) {
+      newReads[`${item.type}:${item.id}`] = { is_read: true, is_dismissed: true };
+    }
+    setNotificationReads(newReads);
+    try {
+      await fetch('/api/notifications/dismiss-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ items })
+      });
+    } catch (err) {
+      console.error('Failed to dismiss all:', err);
     }
   };
 
@@ -205,6 +317,8 @@ export default function App() {
     loadNotes();
     fetchVersionInfo();
     loadPendingSuggestions();
+    loadPendingComments();
+    loadNotificationReads();
 
     // Setup Socket
     const socketInstance = io(window.location.origin);
@@ -289,6 +403,19 @@ export default function App() {
       loadPendingSuggestions();
     });
 
+    socketInstance.on('comment:created', () => {
+      loadPendingComments();
+    });
+    socketInstance.on('comment:resolved', () => {
+      loadPendingComments();
+    });
+    socketInstance.on('comment:deleted', () => {
+      loadPendingComments();
+    });
+    socketInstance.on('comment:approved', () => {
+      loadPendingComments();
+    });
+
     return () => {
       socketInstance.disconnect();
     };
@@ -364,9 +491,16 @@ export default function App() {
     window.history.replaceState(null, '', `#${path}`);
   };
 
-  const handleNotificationClick = (suggestion: any) => {
-    openNote(suggestion.relative_path);
-    setAutoOpenSuggestion(suggestion);
+  const handleNotificationClick = (notification: any) => {
+    openNote(notification.relative_path);
+    // Only auto-open suggestion review for actual suggestions (not comments)
+    if (notification.type !== 'comment') {
+      setAutoOpenSuggestion(notification);
+      markNotificationRead('suggestion', notification.id);
+    } else {
+      setAutoOpenComments(true);
+      markNotificationRead('comment', notification.id);
+    }
   };
 
   // Save note file
@@ -625,7 +759,12 @@ export default function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             pendingSuggestions={pendingSuggestions}
+            pendingComments={pendingComments}
+            notificationReads={notificationReads}
             onNotificationClick={handleNotificationClick}
+            onDismissNotification={dismissNotification}
+            onMarkAllRead={markAllNotificationsRead}
+            onDismissAll={dismissAllNotifications}
             onOpenExport={() => setExportModalOpen(true)}
             selectedParentFolder={selectedParentFolder}
             onSelectedParentFolderChange={setSelectedParentFolder}
@@ -770,6 +909,8 @@ export default function App() {
                       socket={socket}
                       autoOpenSuggestion={autoOpenSuggestion}
                       onClearAutoOpenSuggestion={() => setAutoOpenSuggestion(null)}
+                      autoOpenComments={autoOpenComments}
+                      onClearAutoOpenComments={() => setAutoOpenComments(false)}
                       lang={lang}
                     />
                   )}

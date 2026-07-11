@@ -14,6 +14,8 @@ import authRouter, { authenticateJWT, JWT_SECRET } from './routes/auth.js';
 import notesRouter, { rawHandler } from './routes/notes.js';
 import historyRouter from './routes/history.js';
 import syncRouter from './routes/sync.js';
+import commentsRouter from './routes/comments.js';
+import notificationsRouter from './routes/notifications.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -53,6 +55,8 @@ app.get('/api/raw/*', authenticateJWT, rawHandler);
 app.use('/api/notes', notesRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/sync', syncRouter);
+app.use('/api/comments', commentsRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // System Version and Changelog Endpoint
 app.get('/api/version', (req, res) => {

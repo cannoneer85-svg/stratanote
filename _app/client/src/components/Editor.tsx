@@ -7,8 +7,10 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { 
   Heading1, Heading2, Heading3, Bold, Italic, List, CheckSquare, 
   Link as LinkIcon, Image as ImageIcon, Eye, Code, Save, FileLock, User,
-  Download, GitBranch, GitPullRequest, Check, X, MessageSquare, ArrowLeft
+  Download, GitBranch, GitPullRequest, Check, X, MessageSquare, ArrowLeft,
+  MessageCircle
 } from 'lucide-react';
+import CommentsPanel from './CommentsPanel';
 import { DiffViewer } from './DiffViewer';
 import { t, type Lang } from '../utils/translations';
 import mermaid from 'mermaid';
@@ -512,6 +514,8 @@ interface EditorProps {
   socket: any;
   autoOpenSuggestion?: any | null;
   onClearAutoOpenSuggestion?: () => void;
+  autoOpenComments?: boolean;
+  onClearAutoOpenComments?: () => void;
   lang: Lang;
 }
 
@@ -526,6 +530,8 @@ export const Editor: React.FC<EditorProps> = ({
   socket,
   autoOpenSuggestion = null,
   onClearAutoOpenSuggestion,
+  autoOpenComments = false,
+  onClearAutoOpenComments,
   lang
 }) => {
   const [content, setContent] = useState(initialContent);
@@ -546,6 +552,13 @@ export const Editor: React.FC<EditorProps> = ({
   const [suggestionViewMode, setSuggestionViewMode] = useState<'original' | 'preview' | 'diff'>('diff');
   const [showSuggestionsSidebar, setShowSuggestionsSidebar] = useState(false);
   const [conflictData, setConflictData] = useState<{ id: number; mergedText: string } | null>(null);
+
+  // Comments states
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
+  const [hasActiveComments, setHasActiveComments] = useState(false);
+  const [pendingQuote, setPendingQuote] = useState<string | null>(null);
+  const [commentTooltip, setCommentTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -578,11 +591,8 @@ export const Editor: React.FC<EditorProps> = ({
   const [activeMermaidSvg, setActiveMermaidSvg] = useState<string | null>(null);
   const [prevNotePath, setPrevNotePath] = useState(notePath);
   const [prevInitialContent, setPrevInitialContent] = useState(initialContent);
-
   const currentNote = useMemo(() => allNotes.find(n => n.relative_path === notePath), [allNotes, notePath]);
-  const isOwnNote = useMemo(() => {
-    return currentUser.role === 'Admin' || (currentNote && currentNote.created_by === currentUser.username);
-  }, [currentUser, currentNote]);
+
 
   // Sync state with prop updates during render to avoid transient rendering of old content
   if (notePath !== prevNotePath || initialContent !== prevInitialContent) {
@@ -590,9 +600,11 @@ export const Editor: React.FC<EditorProps> = ({
     setPrevInitialContent(initialContent);
     setContent(initialContent);
     
-    const noteObj = allNotes.find(n => n.relative_path === notePath);
-    const own = currentUser.role === 'Admin' || (noteObj && noteObj.created_by === currentUser.username);
-    setIsSuggestMode(!own);
+    
+    // Viewers never enter suggest mode (they can only comment)
+    // Editors don't auto-enter suggest mode (they toggle it manually)
+    // Admins/owners always have direct edit
+    setIsSuggestMode(false);
     
     setSelectedSuggestion(null);
     setConflictData(null);
@@ -1110,6 +1122,16 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, [autoOpenSuggestion, notePath, onClearAutoOpenSuggestion]);
 
+  // Handle autoOpenComments from notifications
+  useEffect(() => {
+    if (autoOpenComments) {
+      setShowCommentsPanel(true);
+      if (onClearAutoOpenComments) {
+        onClearAutoOpenComments();
+      }
+    }
+  }, [autoOpenComments, onClearAutoOpenComments]);
+
   // Auto save every 10 seconds if modified (disabled in Suggest Mode)
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1362,6 +1384,47 @@ export const Editor: React.FC<EditorProps> = ({
         socket.off('suggestion:changed', handleSuggestionChange);
       };
     }
+  }, [socket, notePath]);
+
+  // Load comment count for the current document (only active/open comments are counted)
+  const loadCommentCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/comments/for/${encodeURIComponent(notePath)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rootComments = data.filter((c: any) => c.parent_id === null);
+        setCommentCount(rootComments.length);
+        const active = rootComments.some((c: any) => c.status === 'open');
+        setHasActiveComments(active);
+      }
+    } catch (err) {
+      console.error('Failed to load comment count:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (notePath) loadCommentCount();
+  }, [notePath]);
+
+  // Listen to socket events for comments (to update badge counter)
+  useEffect(() => {
+    if (!socket) return;
+    const handleCommentUpdate = (data: { relative_path: string }) => {
+      if (data.relative_path === notePath) loadCommentCount();
+    };
+    socket.on('comment:created', handleCommentUpdate);
+    socket.on('comment:resolved', handleCommentUpdate);
+    socket.on('comment:deleted', handleCommentUpdate);
+    socket.on('comment:approved', handleCommentUpdate);
+    return () => {
+      socket.off('comment:created', handleCommentUpdate);
+      socket.off('comment:resolved', handleCommentUpdate);
+      socket.off('comment:deleted', handleCommentUpdate);
+      socket.off('comment:approved', handleCommentUpdate);
+    };
   }, [socket, notePath]);
 
   const handleAcceptSuggestion = async (id: number) => {
@@ -2744,9 +2807,9 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
 
           {/* Status and Action Buttons */}
-          <div className="flex items-center justify-between sm:justify-end space-x-2.5 w-full sm:w-auto overflow-x-auto scrollbar-none flex-nowrap pb-1 sm:pb-0">
-            {/* Suggest mode toggle */}
-            {!isReadOnly && (
+          <div className="flex items-center justify-between sm:justify-end space-x-2.5 w-full sm:w-auto overflow-x-auto scrollbar-none flex-nowrap py-1 sm:py-1">
+            {/* Suggest mode toggle — hidden for Viewers who cannot submit code suggestions */}
+            {!isReadOnly && currentUser.role !== 'Viewer' && (
               <button
                 onClick={() => {
                   const nextMode = !isSuggestMode;
@@ -2755,23 +2818,14 @@ export const Editor: React.FC<EditorProps> = ({
                     setMode('edit');
                   }
                 }}
-                disabled={!isOwnNote}
-                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all shrink-0 ${
-                  !isOwnNote ? 'cursor-not-allowed opacity-60 bg-primary/10 border-primary/25 text-primary' : 'cursor-pointer'
-                } ${
-                  isSuggestMode && isOwnNote
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer ${
+                  isSuggestMode
                     ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]' 
-                    : !isSuggestMode && isOwnNote
-                    ? 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
-                    : 'font-semibold font-mono text-[11px]'
+                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
                 }`}
-                title={!isOwnNote 
-                  ? (lang === 'en' 
-                      ? "Only review mode is available for this document (it is owned by another user or system)" 
-                      : "Для этого документа доступен только режим рецензирования (он принадлежит другому пользователю или системе)") 
-                  : isSuggestMode 
-                    ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") 
-                    : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
+                title={isSuggestMode 
+                  ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") 
+                  : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
               >
                 <GitBranch className="w-3.5 h-3.5 text-primary" />
                 <span className="text-[11px] hidden md:inline">{lang === 'en' ? 'Review' : 'Рецензирование'}</span>
@@ -2791,11 +2845,34 @@ export const Editor: React.FC<EditorProps> = ({
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 <span className="text-[11px] hidden md:inline">{lang === 'en' ? 'Suggestions' : 'Предложения'}</span>
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[9px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-background-editor shadow-glow animate-pulse">
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[9px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center border border-background-editor shadow-glow animate-pulse">
                   {suggestions.length}
                 </span>
               </button>
             )}
+
+            {/* Comments sidebar toggle */}
+            <button
+              onClick={() => setShowCommentsPanel(!showCommentsPanel)}
+              className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${
+                showCommentsPanel 
+                  ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]' 
+                  : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+              }`}
+              title={t('comments_btn_tooltip', lang)}
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden md:inline">{t('comments_title', lang)}</span>
+              {commentCount > 0 && (
+                <span className={`absolute -top-1 -right-1 text-[9px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center border border-background-editor shadow-glow ${
+                  hasActiveComments 
+                    ? 'bg-primary text-white' 
+                    : 'bg-white/10 text-text-disabled border-white/10'
+                }`}>
+                  {commentCount}
+                </span>
+              )}
+            </button>
 
             {/* Normal Lock / Saving Status Indicator */}
             {isSuggestMode ? (
@@ -2986,13 +3063,53 @@ export const Editor: React.FC<EditorProps> = ({
                 />
               </div>
             ) : (
-              <div 
-                ref={previewRef}
-                onClick={handlePreviewClick}
-                onScroll={handlePreviewScroll}
-                className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
-                dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
-              />
+              <div className="w-full h-full relative">
+                <div 
+                  ref={previewRef}
+                  onClick={handlePreviewClick}
+                  onScroll={handlePreviewScroll}
+                  onMouseUp={() => {
+                    const selection = window.getSelection();
+                    const selectedText = selection?.toString().trim();
+                    if (selectedText && selectedText.length > 0) {
+                      const range = selection!.getRangeAt(0);
+                      const rect = range.getBoundingClientRect();
+                      setCommentTooltip({
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 8,
+                        text: selectedText.slice(0, 500),
+                      });
+                    } else {
+                      setCommentTooltip(null);
+                    }
+                  }}
+                  className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
+                  dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
+                />
+
+                {/* Floating comment tooltip on text selection */}
+                {commentTooltip && (
+                  <button
+                    className="fixed z-50 flex items-center space-x-1.5 px-3 py-1.5 bg-primary/90 text-white text-[11px] font-semibold rounded-lg shadow-lg hover:bg-primary transition-all cursor-pointer animate-in fade-in zoom-in-95 duration-150"
+                    style={{ 
+                      top: `${commentTooltip.y}px`, 
+                      left: `${commentTooltip.x}px`,
+                      transform: 'translate(-50%, -100%)'
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPendingQuote(commentTooltip.text);
+                      setShowCommentsPanel(true);
+                      setCommentTooltip(null);
+                      window.getSelection()?.removeAllRanges();
+                    }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>{t('comments_add_comment', lang)}</span>
+                  </button>
+                )}
+              </div>
             )
           )}
         </div>
@@ -3058,6 +3175,20 @@ export const Editor: React.FC<EditorProps> = ({
               ))}
             </div>
           </div>
+        )}
+
+        {/* Right Side: Comments Panel */}
+        {showCommentsPanel && (
+          <CommentsPanel
+            notePath={notePath}
+            currentUser={currentUser}
+            noteCreator={rawNoteCreator}
+            socket={socket}
+            lang={lang}
+            onClose={() => setShowCommentsPanel(false)}
+            pendingQuote={pendingQuote}
+            onClearPendingQuote={() => setPendingQuote(null)}
+          />
         )}
       </div>
 

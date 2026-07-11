@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
-  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell, X
+  Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell, X, CheckCheck, EyeOff
 } from 'lucide-react';
 import { t, type Lang } from '../utils/translations';
 
@@ -36,7 +36,12 @@ interface SidebarProps {
   systemVersion?: string;
   onOpenAbout?: () => void;
   pendingSuggestions?: any[];
-  onNotificationClick?: (suggestion: any) => void;
+  pendingComments?: any[];
+  notificationReads?: Record<string, { is_read: boolean; is_dismissed: boolean }>;
+  onNotificationClick?: (notification: any) => void;
+  onDismissNotification?: (type: string, id: number) => void;
+  onMarkAllRead?: () => void;
+  onDismissAll?: () => void;
   lang: Lang;
 }
 
@@ -57,7 +62,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   systemVersion = '1.0.0',
   onOpenAbout,
   pendingSuggestions = [],
+  pendingComments = [],
+  notificationReads = {},
   onNotificationClick,
+  onDismissNotification,
+  onMarkAllRead,
+  onDismissAll,
   lang
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -356,80 +366,208 @@ export const Sidebar: React.FC<SidebarProps> = ({
         
         <div className="flex items-center space-x-1.5">
           {/* Notifications Bell & Popover */}
-          {currentUser.role !== 'Viewer' && (
+          {(() => {
+            // Filter out dismissed notifications
+            const visibleSuggestions = pendingSuggestions.filter(s => !notificationReads[`suggestion:${s.id}`]?.is_dismissed);
+            const visibleComments = pendingComments.filter(c => !notificationReads[`comment:${c.id}`]?.is_dismissed);
+            const totalVisible = visibleSuggestions.length + visibleComments.length;
+            const unreadCount = visibleSuggestions.filter(s => !notificationReads[`suggestion:${s.id}`]?.is_read).length
+              + visibleComments.filter(c => !notificationReads[`comment:${c.id}`]?.is_read).length;
+
+            if (currentUser.role === 'Viewer' && visibleComments.length === 0 && visibleSuggestions.length === 0) return null;
+
+            return (
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={`p-1.5 hover:bg-white/5 rounded-lg transition-colors cursor-pointer relative ${
-                  pendingSuggestions.length > 0 ? 'text-primary animate-pulse' : 'text-text-disabled hover:text-white'
+                  unreadCount > 0 ? 'text-primary animate-pulse' : totalVisible > 0 ? 'text-primary/60' : 'text-text-disabled hover:text-white'
                 }`}
                 title={t('sidebar_notifications_tooltip', lang)}
               >
                 <Bell className="w-4 h-4" />
-                {pendingSuggestions.length > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute top-0 right-0 bg-primary w-2 h-2 rounded-full ring-2 ring-background-panel" />
                 )}
               </button>
 
               {showNotifications && (
-                <div className="absolute right-[-85px] mt-2 w-72 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
-                  <div className="p-3 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                    <span className="font-bold text-white">{t('sidebar_notifications_title', lang)}</span>
-                    <div className="flex items-center space-x-2">
-                      {pendingSuggestions.length > 0 && (
-                        <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
-                          {pendingSuggestions.length}
-                        </span>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowNotifications(false);
-                        }}
-                        className="p-1 hover:bg-white/10 hover:text-white text-text-disabled rounded transition-colors cursor-pointer"
-                        title={t('sidebar_notifications_close', lang)}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                <div className="absolute left-0 mt-2 w-80 bg-background-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
+                  {/* Header */}
+                  <div className="p-3 border-b border-white/5 bg-black/20">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-white">{t('sidebar_notifications_title', lang)}</span>
+                      <div className="flex items-center space-x-1.5">
+                        {unreadCount > 0 && (
+                          <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            {unreadCount}
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNotifications(false);
+                          }}
+                          className="p-1 hover:bg-white/10 hover:text-white text-text-disabled rounded transition-colors cursor-pointer"
+                          title={t('sidebar_notifications_close', lang)}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
+                    {/* Action buttons row */}
+                    {totalVisible > 0 && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMarkAllRead?.();
+                            }}
+                            className="flex items-center space-x-1 text-[9px] text-primary/70 hover:text-primary transition-colors cursor-pointer"
+                          >
+                            <CheckCheck className="w-3 h-3" />
+                            <span>{t('sidebar_notifications_mark_all_read', lang)}</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDismissAll?.();
+                          }}
+                          className="flex items-center space-x-1 text-[9px] text-text-disabled hover:text-red-400 transition-colors cursor-pointer"
+                        >
+                          <EyeOff className="w-3 h-3" />
+                          <span>{t('sidebar_notifications_dismiss_all', lang)}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="max-h-60 overflow-y-auto divide-y divide-white/5">
-                    {pendingSuggestions.length === 0 ? (
+
+                  {/* Content */}
+                  <div className="max-h-72 overflow-y-auto">
+                    {totalVisible === 0 ? (
                       <div className="p-4 text-center text-text-disabled">
                         {t('sidebar_notifications_empty', lang)}
                       </div>
                     ) : (
-                      pendingSuggestions.map((s: any) => (
-                        <button
-                          key={s.id}
-                          onClick={() => {
-                            if (onNotificationClick) onNotificationClick(s);
-                            setShowNotifications(false);
-                          }}
-                          className="w-full p-3 hover:bg-white/5 transition-colors text-left flex flex-col space-y-1 cursor-pointer"
-                        >
-                          <div className="flex justify-between items-start">
-                            <span className="font-semibold text-white truncate max-w-[160px]">
-                              {s.title}
-                            </span>
-                            <span className="text-[9px] text-text-disabled shrink-0 bg-white/5 px-1.5 py-0.5 rounded">
-                              {s.author_name}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-text-disabled truncate">
-                            {t('sidebar_notifications_path', lang)}: {s.relative_path}
-                          </span>
-                          <span className="text-[9px] text-primary/80 uppercase font-semibold">
-                            {t('sidebar_notifications_click_tip', lang)}
-                          </span>
-                        </button>
-                      ))
+                      <>
+                        {/* Suggestions section */}
+                        {visibleSuggestions.length > 0 && (
+                          <>
+                            <div className="px-3 py-1.5 bg-black/30 border-b border-white/5">
+                              <span className="text-[9px] text-text-disabled uppercase font-bold tracking-wider">
+                                {t('sidebar_notifications_suggestions_section', lang)} ({visibleSuggestions.length})
+                              </span>
+                            </div>
+                            {visibleSuggestions.map((s: any) => {
+                              const isRead = !!notificationReads[`suggestion:${s.id}`]?.is_read;
+                              return (
+                                <div
+                                  key={`s-${s.id}`}
+                                  className={`relative group border-b border-white/5 transition-colors ${
+                                    isRead ? 'opacity-50 hover:opacity-70' : 'border-l-2 border-l-primary'
+                                  }`}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      if (onNotificationClick) onNotificationClick(s);
+                                      setShowNotifications(false);
+                                    }}
+                                    className="w-full p-3 hover:bg-white/5 transition-colors text-left flex flex-col space-y-1 cursor-pointer"
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <span className={`font-semibold truncate max-w-[160px] ${isRead ? 'text-text-muted' : 'text-white'}`}>
+                                        {s.title}
+                                      </span>
+                                      <span className="text-[9px] text-text-disabled shrink-0 bg-white/5 px-1.5 py-0.5 rounded">
+                                        {s.author_name}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-text-disabled truncate">
+                                      {t('sidebar_notifications_path', lang)}: {s.relative_path}
+                                    </span>
+                                    <span className={`text-[9px] uppercase font-semibold ${isRead ? 'text-primary/50' : 'text-primary/80'}`}>
+                                      {t('sidebar_notifications_click_tip', lang)}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDismissNotification?.('suggestion', s.id);
+                                    }}
+                                    className="absolute bottom-2 right-2 p-0.5 hover:bg-white/10 text-text-disabled hover:text-red-400 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                                    title={t('sidebar_notifications_dismiss', lang)}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
+                        {/* Comments section */}
+                        {visibleComments.length > 0 && (
+                          <>
+                            <div className="px-3 py-1.5 bg-black/30 border-b border-white/5">
+                              <span className="text-[9px] text-text-disabled uppercase font-bold tracking-wider">
+                                {t('sidebar_notifications_comments_section', lang)} ({visibleComments.length})
+                              </span>
+                            </div>
+                            {visibleComments.slice(0, 10).map((c: any) => {
+                              const isRead = !!notificationReads[`comment:${c.id}`]?.is_read;
+                              return (
+                                <div
+                                  key={`c-${c.id}`}
+                                  className={`relative group border-b border-white/5 transition-colors ${
+                                    isRead ? 'opacity-50 hover:opacity-70' : 'border-l-2 border-l-primary'
+                                  }`}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      if (onNotificationClick) onNotificationClick({ relative_path: c.relative_path, type: 'comment', id: c.id });
+                                      setShowNotifications(false);
+                                    }}
+                                    className="w-full p-3 hover:bg-white/5 transition-colors text-left flex flex-col space-y-1 cursor-pointer"
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <span className={`font-semibold truncate max-w-[160px] ${isRead ? 'text-text-muted' : 'text-white'}`}>
+                                        {c.note_title || c.relative_path}
+                                      </span>
+                                      <span className="text-[9px] text-text-disabled shrink-0 bg-white/5 px-1.5 py-0.5 rounded">
+                                        {c.author_name}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-text-muted truncate">
+                                      {c.content?.slice(0, 80)}{c.content?.length > 80 ? '...' : ''}
+                                    </span>
+                                    <span className={`text-[9px] uppercase font-semibold ${isRead ? 'text-primary/50' : 'text-primary/80'}`}>
+                                      {c.parent_id ? t('sidebar_notifications_new_reply', lang) : t('sidebar_notifications_new_comment', lang)}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDismissNotification?.('comment', c.id);
+                                    }}
+                                    className="absolute bottom-2 right-2 p-0.5 hover:bg-white/10 text-text-disabled hover:text-red-400 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                                    title={t('sidebar_notifications_dismiss', lang)}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {currentUser.role === 'Admin' && onOpenSettings && (
             <button
