@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, Award } from 'lucide-react';
+import { X, Calendar, Award, AlertTriangle, ExternalLink } from 'lucide-react';
 import { t, type Lang } from '../utils/translations';
 
 interface Release {
@@ -20,6 +20,9 @@ interface AboutModalProps {
     version: string;
     history: Release[];
     env?: string;
+    updateAvailable?: boolean;
+    latestVersion?: string;
+    latestReleaseUrl?: string;
   };
   lang: Lang;
 }
@@ -74,6 +77,34 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+          {/* Update Alert Banner */}
+          {versionInfo.updateAvailable && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start space-x-3 text-amber-200">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <div className="text-xs font-bold">
+                  {t('system_update_available', lang, { version: versionInfo.latestVersion || '' })}
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  {lang === 'ru' 
+                    ? 'Доступна новая версия StrataNote. Рекомендуется обновиться для получения последних исправлений и функций.'
+                    : 'A new version of StrataNote is available. It is recommended to update for the latest fixes and features.'}
+                </p>
+                <div className="pt-1">
+                  <a
+                    href={versionInfo.latestReleaseUrl || "https://github.com/cannoneer85-svg/stratanote"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/35 active:scale-[0.98] text-amber-400 hover:text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/35 transition-all cursor-pointer no-underline"
+                  >
+                    <span>{t('system_update_download', lang)}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Platform intro */}
           <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">{t('system_intro_title', lang)}</h3>

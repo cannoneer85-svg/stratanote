@@ -34,6 +34,7 @@ interface SidebarProps {
   onSelectedParentFolderChange: (folder: string) => void;
   onOpenSettings?: () => void;
   systemVersion?: string;
+  versionInfo?: any;
   onOpenAbout?: () => void;
   pendingSuggestions?: any[];
   pendingComments?: any[];
@@ -60,6 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectedParentFolderChange,
   onOpenSettings,
   systemVersion = '1.0.0',
+  versionInfo,
   onOpenAbout,
   pendingSuggestions = [],
   pendingComments = [],
@@ -706,10 +708,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="font-medium">StrataNote</span>
           <button
             onClick={onOpenAbout}
-            className="hover:text-primary transition-colors cursor-pointer underline font-bold"
-            title={t('sidebar_about', lang)}
+            className={`flex items-center space-x-0.5 transition-colors cursor-pointer underline font-bold ${
+              versionInfo?.updateAvailable 
+                ? 'text-amber-500 hover:text-amber-400 font-extrabold animate-pulse' 
+                : 'hover:text-primary'
+            }`}
+            title={
+              versionInfo?.updateAvailable 
+                ? `${t('sidebar_about', lang)} (${t('system_update_available', lang, { version: versionInfo.latestVersion })})` 
+                : t('sidebar_about', lang)
+            }
           >
-            v{systemVersion}
+            {versionInfo?.updateAvailable && (
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500 text-black text-[9px] font-black mr-0.5 select-none no-underline border border-black/10">
+                !
+              </span>
+            )}
+            <span>v{systemVersion}</span>
           </button>
         </div>
       )}

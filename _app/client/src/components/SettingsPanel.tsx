@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe, Play } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe, Play, ExternalLink } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 import { t, type Lang } from '../utils/translations';
 
@@ -31,7 +31,13 @@ interface SettingsPanelProps {
       keynotes?: string[];
     }>;
     env?: string;
+    updateAvailable?: boolean;
+    latestVersion?: string;
+    latestReleaseUrl?: string;
+    updateCheckedAt?: number;
+    updateError?: string | null;
   };
+  onCheckForUpdates?: () => Promise<any>;
   socket?: any;
   lang: Lang;
   onLangChange: (lang: Lang) => void;
@@ -260,6 +266,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   token,
   onVaultReload,
   versionInfo = { version: '1.0.0', history: [], env: 'Development' },
+  onCheckForUpdates,
   socket,
   lang,
   onLangChange
@@ -283,6 +290,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [overwrite, setOverwrite] = useState(false);
   const [mdFile, setMdFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  
+  // Software Update Checker State
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [updateCheckError, setUpdateCheckError] = useState<string | null>(null);
+
+  const handleManualCheck = async () => {
+    if (!onCheckForUpdates) return;
+    setIsCheckingUpdates(true);
+    setUpdateCheckError(null);
+    try {
+      await onCheckForUpdates();
+    } catch (err: any) {
+      setUpdateCheckError(err.message || 'Check failed');
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  };
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadProgressBytes, setUploadProgressBytes] = useState<{ loaded: number; total: number } | null>(null);
@@ -2035,6 +2059,77 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <span className="text-lg font-extrabold text-white">{versionInfo.env || 'Development'}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Software Update Checker Box */}
+              <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      {lang === 'ru' ? 'Обновление ПО' : 'Software Update'}
+                    </h4>
+                    <p className="text-[10px] text-text-muted">
+                      {isCheckingUpdates 
+                        ? t('system_update_checking', lang) 
+                        : versionInfo.updateAvailable 
+                          ? t('system_update_available', lang, { version: versionInfo.latestVersion || '' })
+                          : t('system_update_up_to_date', lang)
+                      }
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleManualCheck}
+                    disabled={isCheckingUpdates}
+                    className="px-3 py-1.5 bg-primary/20 hover:bg-primary/35 disabled:opacity-50 text-primary text-xs font-bold rounded-lg border border-primary/35 flex items-center space-x-1.5 transition-all cursor-pointer select-none active:scale-[0.98]"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                    <span>{t('system_update_btn_check', lang)}</span>
+                  </button>
+                </div>
+
+                {updateCheckError && (
+                  <div className="text-[10px] text-red-400 flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{t('system_update_failed', lang)}: {updateCheckError}</span>
+                  </div>
+                )}
+                
+                {versionInfo.updateError && !updateCheckError && (
+                  <div className="text-[10px] text-red-400 flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{t('system_update_failed', lang)}: {versionInfo.updateError}</span>
+                  </div>
+                )}
+
+                {/* Last checked timestamp */}
+                {versionInfo.updateCheckedAt && (
+                  <div className="text-[9px] text-text-disabled">
+                    {lang === 'ru' ? 'Последняя проверка:' : 'Last checked:'} {new Date(versionInfo.updateCheckedAt).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}
+                  </div>
+                )}
+
+                {/* Action card if update is available */}
+                {versionInfo.updateAvailable && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-start space-x-2 text-amber-200 animate-fade-in">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] leading-relaxed">
+                        {lang === 'ru'
+                          ? `Доступна новая сборка v${versionInfo.latestVersion}. Вы можете обновиться на GitHub.`
+                          : `New build v${versionInfo.latestVersion} is available. You can update it on GitHub.`}
+                      </p>
+                      <a
+                        href={versionInfo.latestReleaseUrl || "https://github.com/cannoneer85-svg/stratanote"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center space-x-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer no-underline pt-0.5"
+                      >
+                        <span>{t('system_update_download', lang)}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Release Timeline */}

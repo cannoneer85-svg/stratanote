@@ -273,7 +273,16 @@ export default function App() {
 
   // System Version & About state
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [versionInfo, setVersionInfo] = useState<{ version: string; history: any[]; env?: string }>({
+  const [versionInfo, setVersionInfo] = useState<{
+    version: string;
+    history: any[];
+    env?: string;
+    updateAvailable?: boolean;
+    latestVersion?: string;
+    latestReleaseUrl?: string;
+    updateCheckedAt?: number;
+    updateError?: string | null;
+  }>({
     version: '1.0.0',
     history: [],
     env: 'Development'
@@ -433,6 +442,37 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to load version info:', err);
+    }
+  };
+
+  // Trigger manual update check on server
+  const triggerVersionCheck = async () => {
+    try {
+      const res = await fetch('/api/version/check', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVersionInfo(prev => ({
+          ...prev,
+          updateAvailable: data.updateAvailable,
+          latestVersion: data.latestVersion,
+          latestReleaseUrl: data.latestReleaseUrl,
+          updateCheckedAt: data.updateCheckedAt,
+          updateError: data.updateError
+        }));
+        return data;
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Check failed');
+      }
+    } catch (err: any) {
+      console.error('Failed to run update check:', err);
+      setVersionInfo(prev => ({
+        ...prev,
+        updateError: err.message || 'Check failed'
+      }));
+      throw err;
     }
   };
 
@@ -773,6 +813,7 @@ export default function App() {
               if (window.innerWidth < 768) setSidebarOpen(false);
             }}
             systemVersion={versionInfo.version}
+            versionInfo={versionInfo}
             onOpenAbout={() => {
               setAboutOpen(true);
               if (window.innerWidth < 768) setSidebarOpen(false);
@@ -1016,6 +1057,7 @@ export default function App() {
         token={token}
         onVaultReload={loadNotes}
         versionInfo={versionInfo}
+        onCheckForUpdates={triggerVersionCheck}
         socket={socket}
         lang={lang}
         onLangChange={handleSetLang}

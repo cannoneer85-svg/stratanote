@@ -16,6 +16,7 @@ import historyRouter from './routes/history.js';
 import syncRouter from './routes/sync.js';
 import commentsRouter from './routes/comments.js';
 import notificationsRouter from './routes/notifications.js';
+import { checkGitHubUpdate } from './update-checker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -59,20 +60,60 @@ app.use('/api/comments', commentsRouter);
 app.use('/api/notifications', notificationsRouter);
 
 // System Version and Changelog Endpoint
-app.get('/api/version', (req, res) => {
+app.get('/api/version', async (req, res) => {
   try {
     const releasesPath = join(__dirname, '..', 'releases.json');
     const isProd = process.env.NODE_ENV === 'production';
     const envName = isProd ? 'Production' : 'Development';
+    let currentVersion = '1.0.0';
+    let releases = [];
     if (fs.existsSync(releasesPath)) {
-      const releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
-      const currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
-      return res.json({ version: currentVersion, history: releases, env: envName });
+      releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
+      currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
     }
-    return res.json({ version: '1.0.0', history: [], env: envName });
+    
+    // Check GitHub update (cached for 1 hour by default)
+    const updateInfo = await checkGitHubUpdate(currentVersion, false);
+    
+    return res.json({ 
+      version: currentVersion, 
+      history: releases, 
+      env: envName,
+      updateAvailable: updateInfo.updateAvailable,
+      latestVersion: updateInfo.latestVersion,
+      latestReleaseUrl: updateInfo.latestReleaseUrl,
+      updateCheckedAt: updateInfo.checkedAt,
+      updateError: updateInfo.error
+    });
   } catch (err) {
     console.error('Error reading version metadata:', err);
     return res.status(500).json({ error: 'Failed to retrieve version info' });
+  }
+});
+
+// Force update check (authenticated users)
+app.get('/api/version/check', authenticateJWT, async (req, res) => {
+  try {
+    const releasesPath = join(__dirname, '..', 'releases.json');
+    let currentVersion = '1.0.0';
+    if (fs.existsSync(releasesPath)) {
+      const releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
+      currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
+    }
+    
+    // Force fresh check
+    const updateInfo = await checkGitHubUpdate(currentVersion, true);
+    
+    return res.json({
+      updateAvailable: updateInfo.updateAvailable,
+      latestVersion: updateInfo.latestVersion,
+      latestReleaseUrl: updateInfo.latestReleaseUrl,
+      updateCheckedAt: updateInfo.checkedAt,
+      updateError: updateInfo.error
+    });
+  } catch (err) {
+    console.error('Error forcing update check:', err);
+    return res.status(500).json({ error: 'Failed to perform update check' });
   }
 });
 
