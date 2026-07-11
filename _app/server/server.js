@@ -1,0 +1,374 @@
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import fs from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+import { initDb, run, get, all } from './db.js';
+import { initWatcher, vaultPath } from './watcher.js';
+
+import jwt from 'jsonwebtoken';
+import authRouter, { authenticateJWT, JWT_SECRET } from './routes/auth.js';
+import notesRouter, { rawHandler } from './routes/notes.js';
+import historyRouter from './routes/history.js';
+import syncRouter from './routes/sync.js';
+import commentsRouter from './routes/comments.js';
+import notificationsRouter from './routes/notifications.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 3001;
+
+export const activeSyncAgents = new Map();
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Allow connections from Vite client dev server
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+app.set('io', io);
+app.set('activeSyncAgents', activeSyncAgents);
+
+// Middlewares
+app.use(cors());
+app.use(express.json({ limit: '50mb' })); // Support larger base64 image uploads
+app.use(express.raw({ type: 'application/zip', limit: '1000mb' })); // Support binary ZIP uploads
+app.use(express.text({ type: 'text/markdown', limit: '10mb' })); // Support raw markdown uploads
+
+// Create Assets Folder in vault if missing
+const assetsDir = join(vaultPath, 'assets');
+if (!fs.existsSync(assetsDir)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
+}
+
+// Serve attachments statically (disabled for secure JWT-authenticated routing)
+// app.use('/assets', express.static(assetsDir));
+
+// API Routers
+app.use('/api/auth', authRouter);
+app.get('/api/raw/*', authenticateJWT, rawHandler);
+app.use('/api/notes', notesRouter);
+app.use('/api/history', historyRouter);
+app.use('/api/sync', syncRouter);
+app.use('/api/comments', commentsRouter);
+app.use('/api/notifications', notificationsRouter);
+
+// System Version and Changelog Endpoint
+app.get('/api/version', (req, res) => {
+  try {
+    const releasesPath = join(__dirname, '..', 'releases.json');
+    const isProd = process.env.NODE_ENV === 'production';
+    const envName = isProd ? 'Production' : 'Development';
+    if (fs.existsSync(releasesPath)) {
+      const releases = JSON.parse(fs.readFileSync(releasesPath, 'utf8'));
+      const currentVersion = releases.length > 0 ? releases[0].version : '1.0.0';
+      return res.json({ version: currentVersion, history: releases, env: envName });
+    }
+    return res.json({ version: '1.0.0', history: [], env: envName });
+  } catch (err) {
+    console.error('Error reading version metadata:', err);
+    return res.status(500).json({ error: 'Failed to retrieve version info' });
+  }
+});
+
+
+// Serve production frontend assets if built
+const clientDistPath = join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res) => {
+    res.sendFile(join(clientDistPath, 'index.html'));
+  });
+}
+
+// Active user connections tracking (socket.id -> { username, role, currentNote })
+const activeUsers = new Map();
+
+// Helper to broadcast active users list
+const broadcastActiveUsers = () => {
+  const usersList = Array.from(activeUsers.values());
+  io.emit('active-presence', usersList);
+};
+
+// WebSocket Logic (Real-time synchronization and Locks)
+io.on('connection', (socket) => {
+  console.log(`[Socket] Client connected: ${socket.id}`);
+
+  // Register Sync Agent
+  socket.on('register-sync-agent', async ({ userId, username, deviceName, syncMode, conflictResolution }) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      console.error('[Socket] Sync agent registration rejected: No token provided');
+      socket.emit('register-failed', { error: 'No token provided. Please generate a new API token in the settings panel and paste it into config.json.' });
+      setTimeout(() => socket.disconnect(), 500);
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded.id !== userId || decoded.username !== username) {
+        throw new Error('Token payload mismatch');
+      }
+    } catch (jwtErr) {
+      console.error(`[Socket] Sync agent registration rejected: ${jwtErr.message}`);
+      socket.emit('register-failed', { error: `Invalid or expired token: ${jwtErr.message}. Please generate a new API token in the settings panel and paste it into config.json.` });
+      
+      // Update sync status in DB to reflect the error
+      try {
+        await run(`
+          INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode)
+          VALUES (?, ?, ?, datetime('now'), 'error', ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            username = excluded.username,
+            device_name = excluded.device_name,
+            last_sync_at = datetime('now'),
+            status = 'error',
+            error_message = excluded.error_message,
+            sync_mode = excluded.sync_mode
+        `, [userId, username, deviceName || 'Unknown Device', `Ошибка авторизации сокета: ${jwtErr.message}`, syncMode || null]);
+      } catch (dbErr) {
+        console.error('[Socket] Failed to log socket auth error to DB:', dbErr);
+      }
+      
+      io.emit('sync-status-changed');
+      setTimeout(() => socket.disconnect(), 500);
+      return;
+    }
+
+    if (socket.userId && socket.userId !== userId) {
+      console.log(`[Socket] Registration rejected. Socket already registered for user ${socket.username}`);
+      socket.emit('register-failed', { error: 'Device is already registered with another active connection.' });
+      setTimeout(() => socket.disconnect(), 500);
+      return;
+    }
+
+    socket.userId = userId;
+    socket.username = username;
+    socket.isSyncAgent = true;
+    socket.deviceName = deviceName;
+    socket.syncMode = syncMode;
+    socket.conflictResolution = conflictResolution;
+    activeSyncAgents.set(userId, socket);
+    console.log(`[Socket] Sync agent registered: User ${username} on ${deviceName} (${syncMode}, ${conflictResolution})`);
+    
+    try {
+      await run(`
+        INSERT INTO sync_status (user_id, username, device_name, last_sync_at, status, error_message, sync_mode, conflict_resolution)
+        VALUES (?, ?, ?, datetime('now'), 'online', NULL, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          username = excluded.username,
+          device_name = excluded.device_name,
+          last_sync_at = datetime('now'),
+          status = 'online',
+          error_message = NULL,
+          sync_mode = excluded.sync_mode,
+          conflict_resolution = excluded.conflict_resolution
+      `, [userId, username, deviceName, syncMode || null, conflictResolution || null]);
+      io.emit('sync-status-changed');
+    } catch (err) {
+      console.error('[Socket] Failed to update status on register:', err);
+    }
+  });
+
+  // Forward sync agent progress to all client UIs
+  socket.on('sync-agent-progress', (data) => {
+    io.emit('sync-server-progress', {
+      userId: socket.userId,
+      username: socket.username || 'System',
+      ...data
+    });
+  });
+
+  // User presence login
+  socket.on('user-login', ({ username, role }) => {
+    activeUsers.set(socket.id, { socketId: socket.id, username, role, currentNote: null });
+    console.log(`[Socket] User logged in: ${username} (${role})`);
+    broadcastActiveUsers();
+  });
+
+  // User changes note viewing
+  socket.on('view-note', (relative_path) => {
+    const user = activeUsers.get(socket.id);
+    if (user) {
+      user.currentNote = relative_path;
+      activeUsers.set(socket.id, user);
+      broadcastActiveUsers();
+    }
+  });
+
+  // Lock a document for editing
+  socket.on('lock-note', async ({ relative_path, username, userId }) => {
+    console.log(`[Socket] Lock request for: ${relative_path} by ${username}`);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // Lock lasts 5 mins
+
+    try {
+      // Check if already locked by someone else and lock is not expired
+      const existingLock = await get('SELECT * FROM locks WHERE relative_path = ?', [relative_path]);
+      if (existingLock && existingLock.user_id !== userId && new Date(existingLock.expires_at) > new Date()) {
+        console.log(`[Socket] Lock request denied for: ${relative_path} by ${username} (already locked by ${existingLock.username})`);
+        return;
+      }
+
+      // Upsert lock in SQLite
+      await run(
+        'INSERT OR REPLACE INTO locks (relative_path, user_id, username, expires_at) VALUES (?, ?, ?, ?)',
+        [relative_path, userId, username, expiresAt]
+      );
+      
+      // Notify other clients
+      socket.broadcast.emit('note-locked', { relative_path, username });
+      console.log(`[Socket] Document locked: ${relative_path} by ${username}`);
+    } catch (err) {
+      console.error('[Socket] Failed to lock document:', err);
+    }
+  });
+
+  // Unlock a document
+  socket.on('unlock-note', async ({ relative_path }) => {
+    console.log(`[Socket] Unlock request for: ${relative_path}`);
+    try {
+      await run('DELETE FROM locks WHERE relative_path = ?', [relative_path]);
+      io.emit('note-unlocked', { relative_path });
+      console.log(`[Socket] Document unlocked: ${relative_path}`);
+    } catch (err) {
+      console.error('[Socket] Failed to unlock document:', err);
+    }
+  });
+
+  // Disconnect & cleanup locks and presence
+  socket.on('disconnect', async () => {
+    if (socket.isSyncAgent && socket.userId) {
+      activeSyncAgents.delete(socket.userId);
+      console.log(`[Socket] Sync agent disconnected: User ID ${socket.userId}`);
+      try {
+        await run(`
+          UPDATE sync_status SET status = 'offline' WHERE user_id = ? AND status != 'offline'
+        `, [socket.userId]);
+        io.emit('sync-status-changed');
+      } catch (err) {
+        console.error('[Socket] Failed to update status on disconnect:', err);
+      }
+      return;
+    }
+
+    const user = activeUsers.get(socket.id);
+    if (user) {
+      console.log(`[Socket] User disconnected: ${user.username}`);
+      
+      // Clean up locks held by this user
+      try {
+        const locksHeld = await all('SELECT relative_path FROM locks WHERE user_id = (SELECT id FROM users WHERE username = ?)', [user.username]);
+        if (locksHeld.length > 0) {
+          await run('DELETE FROM locks WHERE user_id = (SELECT id FROM users WHERE username = ?)', [user.username]);
+          for (const lock of locksHeld) {
+            io.emit('note-unlocked', { relative_path: lock.relative_path });
+            console.log(`[Socket] Auto-released lock on disconnect: ${lock.relative_path}`);
+          }
+        }
+      } catch (err) {
+        console.error('[Socket] Failed to cleanup locks on disconnect:', err);
+      }
+
+      activeUsers.delete(socket.id);
+      broadcastActiveUsers();
+    }
+  });
+});
+
+// Auto-reindex embeddings on startup for any missing notes (plug-and-play for Railway/production)
+const autoReindexEmbeddings = async () => {
+  try {
+    // Find notes that are missing their vector embeddings
+    const missingNotes = await all(`
+      SELECT n.relative_path 
+      FROM notes n
+      LEFT JOIN note_embeddings ne ON n.relative_path = ne.relative_path
+      WHERE n.is_directory = 0 AND ne.relative_path IS NULL
+    `);
+
+    if (missingNotes && missingNotes.length > 0) {
+      console.log(`[Embeddings] Found ${missingNotes.length} notes missing embeddings. Starting background auto-reindex...`);
+      
+      // Run the reindexing process asynchronously in the background so it doesn't block server startup
+      (async () => {
+        try {
+          const { getEmbedding } = await import('./embeddings.js');
+          const crypto = await import('crypto');
+          
+          let successCount = 0;
+          for (const note of missingNotes) {
+            const absolutePath = join(vaultPath, note.relative_path);
+            if (!fs.existsSync(absolutePath)) continue;
+            
+            const content = fs.readFileSync(absolutePath, 'utf8');
+            const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+            
+            const embedding = await getEmbedding(content);
+            await run(`
+              INSERT INTO note_embeddings (relative_path, embedding, content_hash)
+              VALUES (?, ?, ?)
+              ON CONFLICT(relative_path) DO UPDATE SET
+                embedding = excluded.embedding,
+                content_hash = excluded.content_hash
+            `, [note.relative_path, JSON.stringify(embedding), contentHash]);
+            
+            successCount++;
+          }
+          console.log(`[Embeddings Auto-Reindex] Completed! Successfully indexed ${successCount} missing notes.`);
+        } catch (e) {
+          console.error('[Embeddings Auto-Reindex] Failed:', e);
+        }
+      })();
+    } else {
+      console.log('[Embeddings] Verified note embeddings database: all notes are fully indexed.');
+    }
+  } catch (err) {
+    console.error('[Embeddings] Verification error during startup:', err);
+  }
+};
+
+// Bootstrapping
+const startServer = async () => {
+  try {
+    // 1. Initialize SQLite
+    await initDb();
+
+    // Reset all sync statuses to offline on startup
+    await run("UPDATE sync_status SET status = 'offline' WHERE status != 'offline'");
+
+    // Prune system and repository directories if they accidentally slipped into notes database
+    const systemDirs = ['_app', '_sync_mcp', 'node_modules', '.git', '.obsidian', '.agents', '.sync_backup'];
+    for (const dir of systemDirs) {
+      await run("DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+      await run("DELETE FROM versions WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+      await run("DELETE FROM note_embeddings WHERE relative_path = ? OR relative_path LIKE ?", [dir, `${dir}/%`]);
+    }
+
+    // 2. Start Chokidar watcher (watches files and handles live SQLite / Socket sync)
+    const watcher = initWatcher(io);
+
+    // 3. Auto-reindex embeddings in the background once the initial filesystem scan is complete
+    watcher.on('ready', () => {
+      console.log('[Watcher] Initial scan complete. Verifying note embeddings...');
+      autoReindexEmbeddings();
+    });
+
+    // 4. Start Listening
+    server.listen(PORT, () => {
+      console.log(`==================================================`);
+      console.log(`🚀 StrataNote Collaborative Server running on port ${PORT}`);
+      console.log(`📁 Vault Directory: ${vaultPath}`);
+      console.log(`==================================================`);
+    });
+  } catch (err) {
+    console.error('Fatal server boot error:', err);
+    process.exit(1);
+  }
+};
+
+startServer();

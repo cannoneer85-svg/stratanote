@@ -1,0 +1,23 @@
+{
+  "name": "stratanote-monorepo",
+  "version": "1.11.1",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm run install:all",
+    "install:all": "npm install --prefix client --omit=none && npm install --prefix server && node -e \"const fs = require('fs'); if (fs.existsSync('../_sync_mcp')) { require('child_process').execSync('npm install --prefix ../_sync_mcp', {stdio: 'inherit'}); }\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev:sync": "npm --prefix ../_sync_mcp start",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:sync\"",
+    "test:media": "node scripts/test_media_features.mjs",
+    "test:mobile": "node scripts/test-mobile-ui.js"
+  },
+  "dependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1"
+  }
+}
