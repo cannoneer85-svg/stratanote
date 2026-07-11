@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.11.1",
+    "date": "2026-07-11",
+    "title_ru": "Сохранение выделения и комментирование во всех режимах",
+    "title_en": "Preserve Selection and All-Views Commenting",
+    "keynotes_ru": [
+      "Сохранение нативного браузерного выделения текста при вызове кнопки 'Комментировать' благодаря мемоизации превью-контейнера.",
+      "Добавлена возможность комментирования по выделению в режиме редактирования (CodeMirror) и в режиме предложений (Suggest Mode)."
+    ],
+    "keynotes_en": [
+      "Preserved native browser text selection highlighting when the 'Comment' tooltip is shown by memoizing the HTML preview container.",
+      "Added text selection commenting support to Edit mode (CodeMirror) and Suggestion original/suggested view modes."
+    ]
+  },
+  {
     "version": "1.11.0",
     "date": "2026-07-11",
     "title_ru": "v1.11.0 - Совместные комментарии и модерация",

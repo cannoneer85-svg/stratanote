@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.1] - 2026-07-11
+### Preserve Selection and All-Views Commenting
+
+- Preserved native browser text selection highlighting when the 'Comment' tooltip is shown by memoizing the HTML preview container.
+- Added text selection commenting support to Edit mode (CodeMirror) and Suggestion original/suggested view modes.
+
+# Changelog
+
 ## [1.11.0] - 2026-07-11
 ### v1.11.0 - Collaborative Comments & Moderation
 

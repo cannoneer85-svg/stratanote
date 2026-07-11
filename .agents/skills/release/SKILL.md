@@ -18,8 +18,9 @@ This skill automates the release process for StrataNote.
       - `MAJOR` if there are breaking changes (e.g. `feat!:`, `tweak!:`, or `BREAKING CHANGE:`).
       - `MINOR` if there are major feature commits (e.g. `feat:`).
       - `PATCH` if there are only tweaks, bugfixes, chores, docs, or other non-feat commits (e.g. `tweak:`, `fix:`, `docs:`, `chore:`, `ref:`, `style:`, `perf:`).
-3.  **Collect Bilingual Keynotes**:
+3.  **Collect Bilingual Keynotes & Titles**:
     - Summarize the commits since the last release into bullet points in both English and Russian.
+    - **Crucial Title Formatting Rule**: Propose only the short feature name as the title (e.g., `Preserve Selection and All-Views Commenting` / `Сохранение выделения и комментирование во всех режимах`). Do **NOT** prefix the titles with "Version", "Version X.Y.Z", "Версия", "vX.Y.Z" or similar, since the release script automatically prepends the version prefix `v<version>: ` to the title.
 4.  **Review and Update Documentation**:
     - Analyze if the release commits contain changes affecting the repository structure, project stack, local sync configuration, APIs, or installation flow.
     - If so, the agent **MUST** proactively update both `README.md` (English) and `README.ru.md` (Russian) to match the new architecture before proceeding.
