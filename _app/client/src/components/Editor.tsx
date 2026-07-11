@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { WidgetType, Decoration, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import type { DecorationSet } from '@codemirror/view';
@@ -559,6 +559,8 @@ export const Editor: React.FC<EditorProps> = ({
   const [hasActiveComments, setHasActiveComments] = useState(false);
   const [pendingQuote, setPendingQuote] = useState<string | null>(null);
   const [commentTooltip, setCommentTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const selectionRangeRef = useRef<any>(null);
+  const selectionTimeoutRef = useRef<any>(null);
 
   const [renderedDiagrams, setRenderedDiagrams] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -655,7 +657,7 @@ export const Editor: React.FC<EditorProps> = ({
   }, [notePath]);
 
   // Save preview scroll position
-  const handlePreviewScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  const handlePreviewScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     if (target && mode === 'preview') {
       if (!(window as any).__previewScrollPositions) {
@@ -663,7 +665,36 @@ export const Editor: React.FC<EditorProps> = ({
       }
       (window as any).__previewScrollPositions[notePath] = target.scrollTop;
     }
-  };
+  }, [notePath, mode]);
+
+  // Handle mouseup in preview to show floating comment tooltip
+  const handlePreviewMouseUp = useCallback(() => {
+    if (selectionTimeoutRef.current) {
+      clearTimeout(selectionTimeoutRef.current);
+    }
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    
+    if (selectedText && selectedText.length > 0) {
+      const range = selection!.getRangeAt(0);
+      selectionRangeRef.current = range.cloneRange();
+      const rect = range.getBoundingClientRect();
+      
+      selectionTimeoutRef.current = setTimeout(() => {
+        setCommentTooltip({
+          x: rect.left + rect.width / 2,
+          y: rect.top - 8,
+          text: selectedText.slice(0, 500),
+        });
+      }, 20);
+    } else {
+      if (selectionTimeoutRef.current) {
+        clearTimeout(selectionTimeoutRef.current);
+      }
+      setCommentTooltip(null);
+      selectionRangeRef.current = null;
+    }
+  }, []);
 
   // Restore preview scroll position on tab switch or content load
   useEffect(() => {
@@ -1132,6 +1163,22 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, [autoOpenComments, onClearAutoOpenComments]);
 
+  // Helper: remove all existing highlight marks from the preview DOM
+  // Restore text selection highlight when comment tooltip appears
+  useEffect(() => {
+    if (commentTooltip && selectionRangeRef.current) {
+      try {
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(selectionRangeRef.current);
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }, [commentTooltip]);
+
   // Auto save every 10 seconds if modified (disabled in Suggest Mode)
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1232,6 +1279,15 @@ export const Editor: React.FC<EditorProps> = ({
     window.addEventListener('delete-inline-file', handleDeleteInlineFile);
     return () => window.removeEventListener('delete-inline-file', handleDeleteInlineFile);
   }, [lang]);
+
+  // Cleanup selection timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (selectionTimeoutRef.current) {
+        clearTimeout(selectionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Render Mermaid diagrams on preview mode change or content update, using MutationObserver to handle async React re-renders
   useEffect(() => {
@@ -2395,7 +2451,7 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   // Handle WikiLink click inside HTML preview
-  const handlePreviewClick = (e: React.MouseEvent) => {
+  const handlePreviewClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     
     // In-page anchor link scroll support
@@ -2453,7 +2509,7 @@ export const Editor: React.FC<EditorProps> = ({
         }
       }
     }
-  };
+  }, [allNotes, socket, notePath, lang]);
 
   // Keyboard navigation for CodeMirror editor (intercepting typing '[[')
   const handleEditorChange = (value: string, viewUpdate: any) => {
@@ -2553,6 +2609,25 @@ export const Editor: React.FC<EditorProps> = ({
       setDropdownCoords(null);
     }
   };
+
+  // Memoize markdown preview HTML to prevent DOM recreation and preserve selection highlight
+  const previewHtml = useMemo(() => {
+    return parseMarkdown(content);
+  }, [content, renderedDiagrams]);
+
+  // Memoize the entire HTML preview container to skip reconciliation and keep native selection active when tooltip state changes
+  const memoizedPreviewElement = useMemo(() => {
+    return (
+      <div 
+        ref={previewRef}
+        onClick={handlePreviewClick}
+        onScroll={handlePreviewScroll}
+        onMouseUp={handlePreviewMouseUp}
+        className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
+        dangerouslySetInnerHTML={{ __html: previewHtml }}
+      />
+    );
+  }, [previewHtml, handlePreviewClick, handlePreviewScroll, handlePreviewMouseUp]);
 
   return (
     <div className="flex flex-col h-full bg-background-panel border border-white/5 rounded-xl overflow-hidden shadow-glass relative">
@@ -3038,17 +3113,23 @@ export const Editor: React.FC<EditorProps> = ({
             ) : suggestionViewMode === 'original' ? (
               <div 
                 className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
+                onMouseUp={handlePreviewMouseUp}
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.base_content) }}
               />
             ) : (
               <div 
                 className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
+                onMouseUp={handlePreviewMouseUp}
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.suggested_content) }}
               />
             )
           ) : (
             mode === 'edit' ? (
-              <div className="w-full h-full text-left">
+              <div 
+                className="w-full h-full text-left"
+                onMouseUp={handlePreviewMouseUp}
+                onKeyUp={handlePreviewMouseUp}
+              >
                 <CodeMirror
                   ref={editorRef}
                   value={content}
@@ -3064,54 +3145,34 @@ export const Editor: React.FC<EditorProps> = ({
               </div>
             ) : (
               <div className="w-full h-full relative">
-                <div 
-                  ref={previewRef}
-                  onClick={handlePreviewClick}
-                  onScroll={handlePreviewScroll}
-                  onMouseUp={() => {
-                    const selection = window.getSelection();
-                    const selectedText = selection?.toString().trim();
-                    if (selectedText && selectedText.length > 0) {
-                      const range = selection!.getRangeAt(0);
-                      const rect = range.getBoundingClientRect();
-                      setCommentTooltip({
-                        x: rect.left + rect.width / 2,
-                        y: rect.top - 8,
-                        text: selectedText.slice(0, 500),
-                      });
-                    } else {
-                      setCommentTooltip(null);
-                    }
-                  }}
-                  className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert"
-                  dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
-                />
-
-                {/* Floating comment tooltip on text selection */}
-                {commentTooltip && (
-                  <button
-                    className="fixed z-50 flex items-center space-x-1.5 px-3 py-1.5 bg-primary/90 text-white text-[11px] font-semibold rounded-lg shadow-lg hover:bg-primary transition-all cursor-pointer animate-in fade-in zoom-in-95 duration-150"
-                    style={{ 
-                      top: `${commentTooltip.y}px`, 
-                      left: `${commentTooltip.x}px`,
-                      transform: 'translate(-50%, -100%)'
-                    }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPendingQuote(commentTooltip.text);
-                      setShowCommentsPanel(true);
-                      setCommentTooltip(null);
-                      window.getSelection()?.removeAllRanges();
-                    }}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>{t('comments_add_comment', lang)}</span>
-                  </button>
-                )}
+                {memoizedPreviewElement}
               </div>
             )
           )}
+
+          {/* Floating comment tooltip on text selection (always mounted to prevent DOM mutations and keep native selection highlight) */}
+          <button
+            className={`fixed z-50 flex items-center space-x-1.5 px-3 py-1.5 bg-primary/90 text-white text-[11px] font-semibold rounded-lg shadow-lg hover:bg-primary transition-all cursor-pointer duration-150 ${
+              commentTooltip ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+            }`}
+            style={{ 
+              top: commentTooltip ? `${commentTooltip.y}px` : '-9999px', 
+              left: commentTooltip ? `${commentTooltip.x}px` : '-9999px',
+              transform: 'translate(-50%, -100%)'
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (commentTooltip) {
+                setPendingQuote(commentTooltip.text);
+                setShowCommentsPanel(true);
+                setCommentTooltip(null);
+              }
+            }}
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>{t('comments_add_comment', lang)}</span>
+          </button>
         </div>
 
         {/* Right Side: Suggestions List Panel */}
