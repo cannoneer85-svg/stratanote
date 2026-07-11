@@ -250,7 +250,7 @@
   * Результаты запросов к GitHub кэшируются в оперативной памяти сервера на **1 час**, предотвращая превышение лимитов запросов к API.
   * Добавлен защищенный эндпоинт `/api/version/check` для ручного запуска проверки обновлений администраторами.
   * **Визуальные индикаторы**:
-    * В футере боковой панели [Sidebar.tsx](file:///d:/YandexDisk/AWG/md_obsidian/_app/client/src/components/Sidebar.tsx) рядом с номером версии появляется оранжевый мигающий индикатор с подсказкой при наличии новой версии.
+    * В футере боковой панели [Sidebar.tsx](file:///d:/YandexDisk/AWG/md_obsidian/_app/client/src/components/Sidebar.tsx) рядом с номером версии появляется оранжевый индикатор с подсказкой при наличии новой версии.
     * В окне [AboutModal.tsx](file:///d:/YandexDisk/AWG/md_obsidian/_app/client/src/components/AboutModal.tsx) отображается баннер с предложением обновиться и ссылкой на GitHub.
     * Во вкладке «О системе» в [SettingsPanel.tsx](file:///d:/YandexDisk/AWG/md_obsidian/_app/client/src/components/SettingsPanel.tsx) выводится статус актуальности версии, дата последней проверки и кнопка «Проверить обновления» с анимацией загрузки.
 

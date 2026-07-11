@@ -710,7 +710,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onOpenAbout}
             className={`flex items-center space-x-0.5 transition-colors cursor-pointer underline font-bold ${
               versionInfo?.updateAvailable 
-                ? 'text-amber-500 hover:text-amber-400 font-extrabold animate-pulse' 
+                ? 'text-amber-500 hover:text-amber-400 font-extrabold' 
                 : 'hover:text-primary'
             }`}
             title={
