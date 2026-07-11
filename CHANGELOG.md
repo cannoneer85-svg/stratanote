@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.12.1] - 2026-07-12
+### Static Update Indicator
+
+- Removed the pulsing animation from the sidebar's update indicator for a cleaner and less distracting user interface.
+
 ## [1.12.0] - 2026-07-12
 ### GitHub Update Checker and Advanced Commenting
 
