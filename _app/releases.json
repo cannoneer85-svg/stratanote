@@ -1,5 +1,29 @@
 [
   {
+    "version": "1.10.0",
+    "date": "2026-07-11",
+    "title_ru": "Динамическая синхронизация и полировка медиафайлов",
+    "title_en": "Dynamic Sync & Media Management Polish",
+    "keynotes_ru": [
+      "Динамическое переключение режима и стратегии синхронизации из админки",
+      "Постоянный кэш хешей файлов для ускорения повторного сканирования до 100 мс",
+      "Массовое удаление медиа, удаление вложений прямо из превью и фильтр непривязанных файлов",
+      "Эффект интерактивной лупы (увеличение при наведении) на картинках",
+      "Ограничение на редактирование админских/внешних заметок для редакторов",
+      "Надежное распознавание бинарных файлов для защиты от повреждения при слияниях",
+      "Информативные логи авторизации с отложенным закрытием сокета"
+    ],
+    "keynotes_en": [
+      "Dynamic sync mode and conflict strategy switching from the Admin UI",
+      "Disk hash caching to accelerate initial repository scanning to under 100ms",
+      "Bulk media deletion, inline preview deletion, and orphaned file filters",
+      "Interactive magnifier zoom effect on image preview hover",
+      "Access control restrictions on external/admin documents for editor roles",
+      "Robust binary validation preventing file corruption in conflict resolution",
+      "Informative socket registration logs with delayed disconnection"
+    ]
+  },
+  {
     "version": "1.9.0",
     "date": "2026-07-09",
     "title_ru": "Поблочная загрузка медиа, диалог коллизий и локальная история",

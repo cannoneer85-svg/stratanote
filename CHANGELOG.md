@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.10.0] - 2026-07-11
+### Dynamic Sync & Media Management Polish
+
+- Dynamic sync mode and conflict strategy switching from the Admin UI
+- Disk hash caching to accelerate initial repository scanning to under 100ms
+- Bulk media deletion, inline preview deletion, and orphaned file filters
+- Interactive magnifier zoom effect on image preview hover
+- Access control restrictions on external/admin documents for editor roles
+- Robust binary validation preventing file corruption in conflict resolution
+- Informative socket registration logs with delayed disconnection
+
 ## [1.9.0] - 2026-07-09
 ### Media chunked uploads, collision prompt and localized history UI
 
