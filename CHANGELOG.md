@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0] - 2026-07-12
+### GitHub Update Checker and Advanced Commenting
+
+- Integrated an automatic and manual update checker querying the GitHub API for new releases of StrataNote.
+- Implemented background checking, local caching (1-hour TTL), and an API endpoint /api/version/check to check for updates.
+- Added UI indicators: a pulsing update warning badge in the sidebar footer, a download alert banner in the About dialog, and a manual update checker box in the Settings panel (under the \
+- System\ tab).
+- Preserved native browser text selection when clicking \
+- Comment\ by memoizing the preview container.
+- Added commenting support to CodeMirror Edit mode and Suggestion original/suggested diff views.
+- Cleaned up the release workflow to only push to the public GitHub repository.
+
 ## [1.11.1] - 2026-07-11
 ### Preserve Selection and All-Views Commenting
 
