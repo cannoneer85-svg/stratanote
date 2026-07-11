@@ -34,7 +34,7 @@ This skill automates the release process for StrataNote.
       ```
 7.  **Create release commit, tag, and push**:
     - Present the file modifications.
-    - Ask confirmation to commit, tag, and push to both private (origin) and public (open) remotes.
+    - Ask confirmation to commit, tag, and push to the public (open) remote.
     - **Crucial Security Rule:** To prevent pushing private development history and drafts to the public repository, the push to `open` remote MUST be done as a flat squashed release commit using a temporary orphan branch.
     - Run the following commands:
       ```bash
@@ -45,17 +45,14 @@ This skill automates the release process for StrataNote.
       # 2. Создать тег локально
       git tag v<new_version>
       
-      # 3. Отправить полную историю коммитов и тег в приватный репозиторий:
-      git push origin master --tags
-      
-      # 4. Отправить чистый «плоский» коммит релиза и тег в публичный репозиторий:
+      # 3. Отправить чистый «плоский» коммит релиза и тег в публичный репозиторий:
       git checkout --orphan temp-open-release
       git add -A
       git commit -m "release: v<new_version>"
       git tag -f v<new_version>
       git push open temp-open-release:master --force --tags
       
-      # 5. Вернуться обратно в master и удалить временную ветку:
+      # 4. Вернуться обратно в master и удалить временную ветку:
       git checkout master
       git branch -D temp-open-release
       ```
