@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.0] - 2026-07-11
+### v1.11.0 - Collaborative Comments & Moderation
+
+- Implement document commenting system with root comments and nested replies
+- Implement comment moderation workflow with Admin and Owner approval
+- Add real-time notifications read and dismiss tracking
+- Implement automatic reopening of resolved comment threads when a new reply is posted
+- Add automatic cascade resolution of nested replies when resolving parent comment
+- Cascade deletion of comment replies in database using SQLite foreign keys
+- Dynamic counter badge on toolbar (purple for active unresolved comments, grey for resolved archive comments)
+- Fix timestamp timezone offsets between SQLite (UTC) and browser timezone
+- Fix toolbar button layout to prevent badge clipping due to horizontal scrolling
+
 ## [1.10.0] - 2026-07-11
 ### Dynamic Sync & Media Management Polish
 

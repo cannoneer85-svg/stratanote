@@ -1,5 +1,33 @@
 [
   {
+    "version": "1.11.0",
+    "date": "2026-07-11",
+    "title_ru": "v1.11.0 - Совместные комментарии и модерация",
+    "title_en": "v1.11.0 - Collaborative Comments & Moderation",
+    "keynotes_ru": [
+      "Внедрена система двухсторонних комментариев к документам",
+      "Реализован процесс модерации комментариев для авторов заметок и администраторов",
+      "Добавлен трекинг прочтения и скрытия уведомлений о комментариях",
+      "Реализовано автоматическое переоткрытие решенных веток обсуждений при добавлении новых ответов",
+      "Добавлено автоматическое каскадное закрытие ответов при разрешении родительского комментария",
+      "Обеспечено каскадное удаление ответов в базе данных с помощью внешних ключей в SQLite",
+      "Внедрен динамический счетчик тем на панели",
+      "Исправлено расхождение часовых поясов между базой данных SQLite (UTC) и браузером пользователя",
+      "Устранено обрезание верхушек круглых бейджей"
+    ],
+    "keynotes_en": [
+      "Implement document commenting system with root comments and nested replies",
+      "Implement comment moderation workflow with Admin and Owner approval",
+      "Add real-time notifications read and dismiss tracking",
+      "Implement automatic reopening of resolved comment threads when a new reply is posted",
+      "Add automatic cascade resolution of nested replies when resolving parent comment",
+      "Cascade deletion of comment replies in database using SQLite foreign keys",
+      "Dynamic counter badge on toolbar (purple for active unresolved comments, grey for resolved archive comments)",
+      "Fix timestamp timezone offsets between SQLite (UTC) and browser timezone",
+      "Fix toolbar button layout to prevent badge clipping due to horizontal scrolling"
+    ]
+  },
+  {
     "version": "1.10.0",
     "date": "2026-07-11",
     "title_ru": "Динамическая синхронизация и полировка медиафайлов",
