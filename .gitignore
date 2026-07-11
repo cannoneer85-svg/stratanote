@@ -1,0 +1,53 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Database & local data
+_app/server/database.sqlite
+_app/server/database.sqlite-journal
+_app/server/.cache/
+_app/server/cache/
+**/server/.cache/
+**/server/cache/
+**/.cache/
+assets/
+
+# Dependency directories
+node_modules/
+_app/node_modules/
+_app/client/node_modules/
+_app/server/node_modules/
+
+# Build outputs
+_app/client/dist/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Exclude all top-level note folders and untracked files, keeping only application code
+/*
+!/_app/
+!/_sync_mcp/
+!/.gitignore
+!/start.bat
+!/README.md
+!/README.ru.md
+!/.agents/
+!/CHANGELOG.md
+
+# Gemini system generated tasks and logs
+.system_generated/
+brain/
+scratch/
+task.md
+walkthrough.md
+implementation_plan.md
+
+# Environment variables
+.env
+_app/.env
+_app/server/.env
+
