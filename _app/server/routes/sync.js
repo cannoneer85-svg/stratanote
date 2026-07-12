@@ -6,6 +6,7 @@ import { run, get, all } from '../db.js';
 import { vaultPath } from '../watcher.js';
 import { authenticateJWT } from './auth.js';
 import { updateNoteEmbedding } from './notes.js';
+import { reindexDatabase } from '../reindex-db.js';
 
 const router = express.Router();
 
@@ -716,6 +717,60 @@ router.post('/update-config', authenticateJWT, async (req, res) => {
 
     res.json(finalResponse || { success: true });
   });
+});
+
+let isReindexing = false;
+
+// 9. POST /api/sync/reindex-embeddings - Reindex AI search database
+router.post('/reindex-embeddings', authenticateJWT, async (req, res) => {
+  if (req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Доступ запрещен. Требуются права администратора.' });
+  }
+
+  if (isReindexing) {
+    return res.status(409).json({ error: 'Процесс переиндексации ИИ-поиска уже запущен.' });
+  }
+
+  isReindexing = true;
+  res.status(202).json({ message: 'Переиндексация базы ИИ успешно запущена в фоновом режиме.' });
+
+  const io = req.app.get('io');
+
+  try {
+    console.log(`[Reindex Route] Starting database embeddings reindex (forced) by admin ${req.user.username}...`);
+    if (io) io.emit('reindex-progress', { current: 0, total: 100, file: 'Starting...', status: 'started' });
+
+    const result = await reindexDatabase(true, (current, total, file, status) => {
+      if (io) {
+        io.emit('reindex-progress', {
+          current,
+          total,
+          file,
+          status: status === 'updated' ? 'calculating' : 'skipping'
+        });
+      }
+    });
+
+    console.log(`[Reindex Route] Database reindex finished successfully.`, result);
+    if (io) {
+      io.emit('reindex-completed', {
+        success: true,
+        successCount: result.successCount,
+        skipCount: result.skipCount,
+        total: result.total
+      });
+    }
+  } catch (err) {
+    console.error(`[Reindex Route] Error during database reindex:`, err);
+    if (io) {
+      io.emit('reindex-completed', {
+        success: false,
+        error: err.message || 'Внутренняя ошибка сервера'
+      });
+    }
+  } finally {
+    isReindexing = false;
+  }
 });
 
 export default router;

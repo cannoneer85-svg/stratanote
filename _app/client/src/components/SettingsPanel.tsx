@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe, Play, ExternalLink } from 'lucide-react';
+import { X, Upload, UserPlus, Trash2, AlertTriangle, Check, Users, ShieldAlert, FolderOpen, Edit2, Image, Search, Info, RefreshCw, Globe, Play, ExternalLink, Sparkles, CheckCheck } from 'lucide-react';
 import { formatToMoscowTime } from '../utils/date';
 import { t, type Lang } from '../utils/translations';
 
@@ -273,6 +273,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'import' | 'users' | 'media' | 'about' | 'sync' | 'trash'>('general');
   
+  // AI Reindexing State
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexProgress, setReindexProgress] = useState<{ current: number; total: number; file: string } | null>(null);
+  const [reindexStatus, setReindexStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+  
   // Trash Bin State
   interface TrashItem {
     id: number;
@@ -393,6 +398,40 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
+  const handleTriggerReindex = async () => {
+    try {
+      setReindexing(true);
+      setReindexProgress(null);
+      setReindexStatus({
+        type: 'info',
+        message: lang === 'en' ? 'Starting AI reindexing...' : 'Запуск переиндексации ИИ...'
+      });
+
+      const res = await fetch('/api/sync/reindex-embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setReindexStatus({
+          type: 'error',
+          message: data.error || (lang === 'en' ? 'Reindexing failed' : 'Ошибка запуска переиндексации')
+        });
+        setReindexing(false);
+      }
+    } catch (err) {
+      setReindexStatus({
+        type: 'error',
+        message: lang === 'en' ? 'Network error' : 'Сетевая ошибка'
+      });
+      setReindexing(false);
+    }
+  };
+
   useEffect(() => {
     if (socket) {
       const handleProgress = (data: any) => {
@@ -414,15 +453,55 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         fetchSyncStatuses();
       };
 
+      const handleReindexProgress = (data: any) => {
+        setReindexing(true);
+        setReindexProgress({
+          current: data.current,
+          total: data.total,
+          file: data.file
+        });
+        setReindexStatus({
+          type: 'info',
+          message: data.status === 'started'
+            ? (lang === 'en' ? 'Initializing AI index...' : 'Инициализация индекса ИИ...')
+            : `${lang === 'en' ? 'Indexing' : 'Индексация'}: ${data.file}`
+        });
+      };
+
+      const handleReindexCompleted = (data: any) => {
+        setReindexing(false);
+        setReindexProgress(null);
+        if (data.success) {
+          setReindexStatus({
+            type: 'success',
+            message: lang === 'en'
+              ? `Success! Updated/Created: ${data.successCount}, skipped: ${data.skipCount}.`
+              : `Готово! Обновлено/Создано: ${data.successCount}, пропущено: ${data.skipCount}.`
+          });
+          setTimeout(() => setReindexStatus(null), 5000);
+        } else {
+          setReindexStatus({
+            type: 'error',
+            message: lang === 'en'
+              ? `AI Indexing failed: ${data.error}`
+              : `Ошибка индексации ИИ: ${data.error}`
+          });
+        }
+      };
+
       socket.on('sync-server-progress', handleProgress);
       socket.on('sync-status-changed', handleStatusChange);
+      socket.on('reindex-progress', handleReindexProgress);
+      socket.on('reindex-completed', handleReindexCompleted);
 
       return () => {
         socket.off('sync-server-progress', handleProgress);
         socket.off('sync-status-changed', handleStatusChange);
+        socket.off('reindex-progress', handleReindexProgress);
+        socket.off('reindex-completed', handleReindexCompleted);
       };
     }
-  }, [socket, currentUser]);
+  }, [socket, currentUser, lang]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1909,6 +1988,69 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* AI Indexing Administration (Only for Admin) */}
+              {currentUser.role === 'Admin' && (
+                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3.5 text-left select-none">
+                  <div className="flex items-center space-x-2 text-primary">
+                    <Sparkles className="w-4 h-4" />
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      {lang === 'en' ? 'AI Search Indexing' : 'Индексация ИИ-поиска'}
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-text-muted leading-relaxed">
+                    {lang === 'en' 
+                      ? 'Forces re-generation of vector embeddings for all documents. Use this if you update system exclusion folders or experience semantic search inconsistencies.' 
+                      : 'Принудительно пересчитывает векторные эмбеддинги для всех заметок. Используйте это при изменении системных папок-исключений или если семантический поиск выдает неточные результаты.'}
+                  </p>
+
+                  {reindexStatus && (
+                    <div className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${
+                      reindexStatus.type === 'success'
+                        ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                        : reindexStatus.type === 'error'
+                        ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                        : 'bg-primary/10 border-primary/20 text-primary-light'
+                    }`}>
+                      {reindexStatus.type === 'success' ? (
+                        <CheckCheck className="w-3.5 h-3.5 shrink-0 text-green-400" />
+                      ) : reindexStatus.type === 'error' ? (
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                      ) : (
+                        <RefreshCw className="w-3.5 h-3.5 shrink-0 animate-spin text-primary" />
+                      )}
+                      <span className="truncate">{reindexStatus.message}</span>
+                    </div>
+                  )}
+
+                  {reindexProgress && (
+                    <div className="space-y-1.5 p-3 rounded-lg bg-black/35 border border-white/5 animate-fade-in">
+                      <div className="flex justify-between items-center text-[10px] text-text-muted">
+                        <span className="font-semibold text-white truncate max-w-[200px]">
+                          {reindexProgress.file}
+                        </span>
+                        <span>{reindexProgress.current} / {reindexProgress.total}</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-black/45 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300 rounded-full"
+                          style={{ width: `${(reindexProgress.current / reindexProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {!reindexing && (
+                    <button
+                      onClick={handleTriggerReindex}
+                      className="px-3 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/30 hover:border-primary/50 text-[11px] font-semibold text-primary-light hover:text-white rounded-lg transition-colors cursor-pointer inline-flex items-center space-x-1.5"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>{lang === 'en' ? 'Reindex AI Search Now' : 'Переиндексировать ИИ-поиск'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Instructions */}
               <div className="p-4 bg-white/[0.01] border border-white/5 rounded-xl space-y-3">

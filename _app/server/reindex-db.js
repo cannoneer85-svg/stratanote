@@ -4,37 +4,35 @@ import { run, get, all, initDb } from './db.js';
 import { getEmbedding } from './embeddings.js';
 import crypto from 'crypto';
 import { vaultPath } from './watcher.js';
+import { fileURLToPath } from 'url';
 
-async function reindex() {
-  console.log('[Embeddings Reindex] Connecting to database...');
-  // Ensure DB tables are initialized
+export async function reindexDatabase(force = false, onProgress = null) {
   await initDb();
 
   const notesList = await all('SELECT relative_path FROM notes WHERE is_directory = 0');
-  console.log(`[Embeddings Reindex] Found ${notesList.length} total notes in database.`);
+  const total = notesList.length;
 
   let successCount = 0;
   let skipCount = 0;
   
-  for (const note of notesList) {
+  for (let i = 0; i < total; i++) {
+    const note = notesList[i];
     const absolutePath = join(vaultPath, note.relative_path);
     if (!fs.existsSync(absolutePath)) {
-      console.log(`[Embeddings Reindex] Skipping missing file on disk: ${note.relative_path}`);
+      if (onProgress) onProgress(i + 1, total, note.relative_path, 'skip');
       continue;
     }
 
     const content = fs.readFileSync(absolutePath, 'utf8');
     const contentHash = crypto.createHash('sha256').update(content).digest('hex');
 
-    // Check if embedding with this hash already exists
-    const force = process.argv.includes('--force');
     const existing = await get('SELECT content_hash FROM note_embeddings WHERE relative_path = ?', [note.relative_path]);
     if (!force && existing && existing.content_hash === contentHash) {
       skipCount++;
+      if (onProgress) onProgress(i + 1, total, note.relative_path, 'up-to-date');
       continue;
     }
 
-    console.log(`[Embeddings Reindex] Calculating embedding for: ${note.relative_path}...`);
     const embedding = await getEmbedding(content, note.relative_path);
     await run(`
       INSERT INTO note_embeddings (relative_path, embedding, content_hash)
@@ -45,15 +43,30 @@ async function reindex() {
     `, [note.relative_path, JSON.stringify(embedding), contentHash]);
     
     successCount++;
+    if (onProgress) onProgress(i + 1, total, note.relative_path, 'updated');
   }
 
-  console.log(`\n[Embeddings Reindex] Completed!`);
-  console.log(`- Updated/Created: ${successCount}`);
-  console.log(`- Already up to date: ${skipCount}`);
-  process.exit(0);
+  return { successCount, skipCount, total };
 }
 
-reindex().catch(err => {
-  console.error('[Embeddings Reindex] Critical error occurred:', err);
-  process.exit(1);
-});
+// CLI entry point
+const nodePath = fileURLToPath(import.meta.url);
+const runDirectly = process.argv[1] && (process.argv[1].endsWith('reindex-db.js') || process.argv[1] === nodePath);
+
+if (runDirectly) {
+  console.log('[Embeddings Reindex] Starting CLI reindex...');
+  const force = process.argv.includes('--force');
+  reindexDatabase(force, (current, total, file, status) => {
+    if (status === 'updated') {
+      console.log(`[Embeddings Reindex] [${current}/${total}] Calculating embedding for: ${file}...`);
+    }
+  }).then(result => {
+    console.log(`\n[Embeddings Reindex] Completed!`);
+    console.log(`- Updated/Created: ${result.successCount}`);
+    console.log(`- Already up to date: ${result.skipCount}`);
+    process.exit(0);
+  }).catch(err => {
+    console.error('[Embeddings Reindex] Critical error occurred:', err);
+    process.exit(1);
+  });
+}
