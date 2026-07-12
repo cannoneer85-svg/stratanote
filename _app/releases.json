@@ -1,5 +1,25 @@
 [
   {
+    "version": "1.13.0",
+    "date": "2026-07-12",
+    "title_ru": "Глобальный полнотекстовый и семантический поиск с фильтрацией директорий",
+    "title_en": "Global Full-Text and Semantic Search with Directory Filtering",
+    "keynotes_ru": [
+      "Реализован глобальный полнотекстовый поиск (SQLite FTS5) с подсветкой совпадений и выводом текстовых сниппетов.",
+      "Реализован семантический ИИ-поиск на базе локальной модели paraphrase-multilingual-MiniLM-L12-v2 с вычислением косинусного сходства.",
+      "Добавлен выпадающий фильтр папок, позволяющий динамически исключать из выдачи корневые директории и файлы в корне.",
+      "Добавлено автоматическое сохранение и восстановление исходного вида свернутых папок в сайдбаре при локальном поиске.",
+      "Внедрена панель управления переиндексацией ИИ-поиска в настройках синхронизации с трансляцией прогресса по WebSockets в реальном времени."
+    ],
+    "keynotes_en": [
+      "Implemented global full-text search (SQLite FTS5) with search term highlighting and snippets rendering.",
+      "Implemented AI-based semantic search using local paraphrase-multilingual-MiniLM-L12-v2 model with cosine similarity matching.",
+      "Added folder filtering dropdown allowing users to dynamically exclude root directories (including root-level files) from search results.",
+      "Preserved sidebar explorer folder expansion state when local folder search query is entered and cleared.",
+      "Added AI search reindexing dashboard with WebSocket-based real-time progress indicators in the synchronization settings."
+    ]
+  },
+  {
     "version": "1.12.1",
     "date": "2026-07-12",
     "title_ru": "Статичный индикатор обновлений",

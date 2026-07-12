@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.13.0] - 2026-07-12
+### Global Full-Text and Semantic Search with Directory Filtering
+
+- Implemented global full-text search (SQLite FTS5) with search term highlighting and snippets rendering.
+- Implemented AI-based semantic search using local paraphrase-multilingual-MiniLM-L12-v2 model with cosine similarity matching.
+- Added folder filtering dropdown allowing users to dynamically exclude root directories (including root-level files) from search results.
+- Preserved sidebar explorer folder expansion state when local folder search query is entered and cleared.
+- Added AI search reindexing dashboard with WebSocket-based real-time progress indicators in the synchronization settings.
+
 ## [1.12.1] - 2026-07-12
 ### Static Update Indicator
 
