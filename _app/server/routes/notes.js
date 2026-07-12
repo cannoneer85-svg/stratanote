@@ -26,7 +26,7 @@ export const updateNoteEmbedding = async (relPath, content) => {
       return;
     }
 
-    const embedding = await getEmbedding(content);
+    const embedding = await getEmbedding(content, relPath);
     await run(`
       INSERT INTO note_embeddings (relative_path, embedding, content_hash)
       VALUES (?, ?, ?)
@@ -382,6 +382,8 @@ router.post('/rename', authenticateJWT, canEdit, async (req, res) => {
         [childNewPath, note.relative_path]);
       await run('UPDATE note_embeddings SET relative_path = ? WHERE relative_path = ?', 
         [childNewPath, note.relative_path]);
+      await run('UPDATE notes_fts SET relative_path = ?, title = ? WHERE relative_path = ?', 
+        [childNewPath, childNewTitle, note.relative_path]);
     }
 
     // 3. Broadcast rename event instantly to all clients via WebSockets
@@ -1636,6 +1638,100 @@ router.delete('/trash/clear', authenticateJWT, checkAdmin, async (req, res) => {
   } catch (err) {
     console.error('[API Trash] Failed to clear trash bin:', err);
     res.status(500).json({ error: 'Failed to clear trash bin' });
+  }
+});
+
+// 9. Global Search (Full-Text, Semantic AI, Title)
+router.get('/search', authenticateJWT, async (req, res) => {
+  const { q, mode = 'fts' } = req.query;
+  if (!q) {
+    return res.status(400).json({ error: 'Query parameter q is required' });
+  }
+
+  try {
+    if (mode === 'title') {
+      const results = await all(
+        'SELECT relative_path, title FROM notes WHERE is_directory = 0 AND (title LIKE ? OR relative_path LIKE ?) LIMIT 30',
+        [`%${q}%`, `%${q}%`]
+      );
+      return res.json(results.map(r => ({ relative_path: r.relative_path, title: r.title, score: 1 })));
+    }
+
+    if (mode === 'semantic') {
+      const queryVector = await getEmbedding(q);
+      const allEmbeddings = await all('SELECT relative_path, embedding FROM note_embeddings');
+      
+      const results = [];
+      for (const item of allEmbeddings) {
+        try {
+          const vec = JSON.parse(item.embedding);
+          const score = cosineSimilarity(queryVector, vec);
+          results.push({ relative_path: item.relative_path, score });
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      results.sort((a, b) => b.score - a.score);
+      const topResults = results.slice(0, 20);
+      
+      const output = [];
+      for (const r of topResults) {
+        const note = await get('SELECT title FROM notes WHERE relative_path = ?', [r.relative_path]);
+        if (note) {
+          output.push({
+            relative_path: r.relative_path,
+            title: note.title,
+            score: r.score
+          });
+        }
+      }
+      return res.json(output);
+    }
+
+    // Default: fts (Full-Text Search)
+    const cleanQuery = q.replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s]/g, ' ').trim();
+    if (!cleanQuery) {
+      return res.json([]);
+    }
+
+    const ftsQuery = cleanQuery.split(/\s+/).filter(w => w.length > 0).map(w => `${w}*`).join(' AND ');
+    if (!ftsQuery) {
+      return res.json([]);
+    }
+
+    const ftsResults = await all(`
+      SELECT 
+        relative_path, 
+        title, 
+        snippet(notes_fts, 2, '<mark class="bg-primary/30 text-white font-bold px-0.5 rounded">', '</mark>', '...', 15) as snippet,
+        bm25(notes_fts) as rank
+      FROM notes_fts 
+      WHERE notes_fts MATCH ? 
+      ORDER BY rank 
+      LIMIT 20
+    `, [ftsQuery]);
+
+    res.json(ftsResults.map(r => ({
+      relative_path: r.relative_path,
+      title: r.title,
+      snippet: r.snippet,
+      score: -r.rank
+    })));
+
+  } catch (err) {
+    console.error('Search error:', err);
+    // Fallback if FTS search fails (e.g. FTS5 table doesn't exist)
+    try {
+      console.log('[Search] FTS failed, falling back to LIKE search...');
+      const results = await all(
+        'SELECT relative_path, title FROM notes WHERE is_directory = 0 AND (title LIKE ? OR relative_path LIKE ?) LIMIT 20',
+        [`%${q}%`, `%${q}%`]
+      );
+      return res.json(results.map(r => ({ relative_path: r.relative_path, title: r.title, score: 0.5 })));
+    } catch (fallbackErr) {
+      res.status(500).json({ error: 'Failed to execute search' });
+    }
   }
 });
 

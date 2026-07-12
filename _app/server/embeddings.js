@@ -34,27 +34,55 @@ export async function getExtractor() {
  * @param {string} text - Raw markdown text
  * @returns {Promise<number[]>} - Float array representing the semantic vector (length 384)
  */
-export async function getEmbedding(text) {
+export async function getEmbedding(text, relPath = '') {
   if (!text || typeof text !== 'string') {
     return new Array(384).fill(0);
   }
 
+  // If calculating for a note document, ignore test directories
+  if (relPath) {
+    const normalizedPath = relPath.toLowerCase().replace(/\\/g, '/');
+    if (normalizedPath.startsWith('test/') || normalizedPath.includes('/test/')) {
+      // Exclude test notes from semantic index
+      return new Array(384).fill(0);
+    }
+  }
+
   // Clean markdown layout to keep only semantic text content
-  const cleanText = text
+  let cleanText = text
     .replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, '$1') // [[wiki links]] -> wiki links
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')         // [links](url) -> links
     .replace(/[#*`_~]/g, '')                         // remove markdown symbols
     .replace(/\s+/g, ' ')                            // collapse whitespace
     .trim();
 
+  // If calculating for a note document, ignore the title itself to verify content length
+  const title = relPath ? relPath.split('/').pop().replace('.md', '') : '';
+  if (relPath && title) {
+    const titleRegex = new RegExp(title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi');
+    const contentWithoutTitle = cleanText.replace(titleRegex, '').trim();
+    if (contentWithoutTitle.length < 20) {
+      // Document content is too short/empty to be semantically indexed
+      return new Array(384).fill(0);
+    }
+  }
+
   if (cleanText.length === 0) {
     return new Array(384).fill(0);
+  }
+
+  // Compose text to embed: prepend title for stronger alignment in search
+  let textToEmbed = cleanText;
+  if (relPath && title) {
+    textToEmbed = `Title: ${title}. Content: ${cleanText.slice(0, 1200)}`;
+  } else {
+    textToEmbed = cleanText.slice(0, 1200);
   }
 
   try {
     const extractorInstance = await getExtractor();
     // Use mean pooling and L2 normalization (output vector will be unit normalized)
-    const output = await extractorInstance(cleanText, { pooling: 'mean', normalize: true });
+    const output = await extractorInstance(textToEmbed, { pooling: 'mean', normalize: true });
     
     // Extract Float32Array from the output tensor data
     return Array.from(output.data);

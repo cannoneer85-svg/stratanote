@@ -139,6 +139,20 @@ export const initDb = async () => {
     )
   `);
 
+  // 5.5. FTS5 Search Table
+  try {
+    await run(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+        relative_path,
+        title,
+        content
+      )
+    `);
+  } catch (err) {
+    console.error('[DB] Failed to create notes_fts virtual table (FTS5 may be unsupported):', err);
+  }
+
+
   // 6. Sync Status Table
   await run(`
     CREATE TABLE IF NOT EXISTS sync_status (
@@ -239,7 +253,56 @@ export const initDb = async () => {
     console.log('[DB] Created default admin user (admin / admin)');
   }
 
+  // Trigger background FTS indexing without blocking
+  indexExistingNotesFTS().catch(err => {
+    console.error('[DB] Background FTS indexing failed:', err);
+  });
+
   console.log('[DB] SQLite database initialized successfully.');
+};
+
+// Background FTS Indexing of existing notes (if index is empty)
+export const indexExistingNotesFTS = async () => {
+  try {
+    const ftsCount = await get('SELECT COUNT(*) as count FROM notes_fts');
+    if (ftsCount && ftsCount.count === 0) {
+      console.log('[DB FTS] FTS index is empty. Starting background indexing...');
+      const allNotes = await all('SELECT relative_path, title FROM notes WHERE is_directory = 0');
+      
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const vaultPath = process.env.VAULT_PATH 
+        ? resolve(process.env.VAULT_PATH) 
+        : join(__dirname, '..', '..');
+
+      let indexedCount = 0;
+      await run('BEGIN TRANSACTION');
+      for (const note of allNotes) {
+        try {
+          const absPath = join(vaultPath, note.relative_path);
+          if (fs.existsSync(absPath)) {
+            const content = fs.readFileSync(absPath, 'utf8');
+            await run('INSERT OR REPLACE INTO notes_fts (relative_path, title, content) VALUES (?, ?, ?)', [
+              note.relative_path,
+              note.title,
+              content
+            ]);
+            indexedCount++;
+          }
+        } catch (e) {
+          console.error(`[DB FTS] Failed to index note ${note.relative_path}:`, e);
+        }
+      }
+      await run('COMMIT');
+      console.log(`[DB FTS] Background indexing complete. Indexed ${indexedCount} notes.`);
+    }
+  } catch (err) {
+    console.error('[DB FTS] Error checking/indexing FTS notes:', err);
+    try {
+      await run('ROLLBACK');
+    } catch (e) {
+      // Ignore rollback error if transaction wasn't started
+    }
+  }
 };
 
 export default db;

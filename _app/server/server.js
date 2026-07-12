@@ -349,7 +349,7 @@ const autoReindexEmbeddings = async () => {
             const content = fs.readFileSync(absolutePath, 'utf8');
             const contentHash = crypto.createHash('sha256').update(content).digest('hex');
             
-            const embedding = await getEmbedding(content);
+            const embedding = await getEmbedding(content, note.relative_path);
             await run(`
               INSERT INTO note_embeddings (relative_path, embedding, content_hash)
               VALUES (?, ?, ?)

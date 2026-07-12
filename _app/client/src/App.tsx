@@ -8,6 +8,7 @@ import { Auth } from './components/Auth';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AboutModal } from './components/AboutModal';
 import { ExportModal } from './components/ExportModal';
+import { SearchModal } from './components/SearchModal';
 import { formatToMoscowTime } from './utils/date';
 import { t, type Lang } from './utils/translations';
 import { 
@@ -180,6 +181,25 @@ export default function App() {
   const [noteContents, setNoteContents] = useState<Record<string, string>>({});
   const [openedTabs, setOpenedTabs] = useState<string[]>([]);
   const [activeNotePath, setActiveNotePath] = useState<string | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Global shortcut listeners (Ctrl+P / Ctrl+K)
+  useEffect(() => {
+    if (!token) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isModifier = e.ctrlKey || e.metaKey;
+      if (isModifier && (e.code === 'KeyP' || e.code === 'KeyK')) {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [token]);
 
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return typeof window !== 'undefined' ? window.innerWidth > 768 : true;
@@ -818,6 +838,7 @@ export default function App() {
               setAboutOpen(true);
               if (window.innerWidth < 768) setSidebarOpen(false);
             }}
+            onOpenSearch={() => setIsSearchOpen(true)}
             lang={lang}
           />
         </div>
@@ -1075,6 +1096,15 @@ export default function App() {
         onClose={() => setExportModalOpen(false)}
         onExport={handleExportVault}
         lang={lang}
+      />
+
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelect={openNote}
+        token={token}
+        lang={lang}
+        notes={notes}
       />
     </div>
   );

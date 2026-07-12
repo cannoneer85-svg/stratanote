@@ -27,14 +27,15 @@ async function reindex() {
     const contentHash = crypto.createHash('sha256').update(content).digest('hex');
 
     // Check if embedding with this hash already exists
+    const force = process.argv.includes('--force');
     const existing = await get('SELECT content_hash FROM note_embeddings WHERE relative_path = ?', [note.relative_path]);
-    if (existing && existing.content_hash === contentHash) {
+    if (!force && existing && existing.content_hash === contentHash) {
       skipCount++;
       continue;
     }
 
     console.log(`[Embeddings Reindex] Calculating embedding for: ${note.relative_path}...`);
-    const embedding = await getEmbedding(content);
+    const embedding = await getEmbedding(content, note.relative_path);
     await run(`
       INSERT INTO note_embeddings (relative_path, embedding, content_hash)
       VALUES (?, ?, ?)

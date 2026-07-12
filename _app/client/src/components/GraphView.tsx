@@ -31,9 +31,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const hasInitialFit = useRef(false);
 
   // States for semantic graph filtering
-  const [showWikiLinks, setShowWikiLinks] = useState(true);
+  const [showWikiLinks, setShowWikiLinks] = useState(false);
   const [showSemanticLinks, setShowSemanticLinks] = useState(true);
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.85); // Default similarity threshold 85%
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.80); // Default similarity threshold 80%
   const [excludedFolders, setExcludedFolders] = useState<Set<string>>(new Set());
 
   const handleSelectAllFolders = () => {

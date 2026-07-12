@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Folder, FolderOpen, FileText, Plus, FolderPlus, Download, 
   Search, LogOut, Users, ChevronRight, ChevronDown, Trash2, Edit2, Settings, Bell, X, CheckCheck, EyeOff
@@ -43,6 +43,7 @@ interface SidebarProps {
   onDismissNotification?: (type: string, id: number) => void;
   onMarkAllRead?: () => void;
   onDismissAll?: () => void;
+  onOpenSearch?: () => void;
   lang: Lang;
 }
 
@@ -70,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDismissNotification,
   onMarkAllRead,
   onDismissAll,
+  onOpenSearch,
   lang
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,8 +96,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [activeNotePath]);
 
-  // Auto-expand folders when searching
+  const prevSearchQuery = useRef('');
+  const savedExpandedState = useRef<Record<string, boolean>>({});
+
+  // Auto-expand folders when searching & restore state on clear
   useEffect(() => {
+    // If search just started, save the state
+    if (searchQuery && !prevSearchQuery.current) {
+      savedExpandedState.current = { ...expandedFolders };
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matched = notes.filter(n => n.title.toLowerCase().includes(query));
@@ -112,7 +122,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         });
         return next;
       });
+    } else if (!searchQuery && prevSearchQuery.current) {
+      // Restore previous state when search is cleared
+      setExpandedFolders(savedExpandedState.current);
+      savedExpandedState.current = {};
     }
+
+    prevSearchQuery.current = searchQuery;
   }, [searchQuery, notes]);
 
   // Normalize path helpers
@@ -611,17 +627,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Search Input */}
-      <div className="p-3">
-        <div className="relative">
+      <div className="px-3 py-2 flex items-center space-x-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
             placeholder={t('sidebar_search_placeholder', lang)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-black/30 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50 transition-colors"
+            className="w-full pl-9 pr-4 py-1.5 bg-black/30 border border-white/5 rounded-lg text-xs text-text placeholder-text-disabled focus:outline-none focus:border-primary/50 transition-colors"
           />
         </div>
+        {onOpenSearch && (
+          <button
+            onClick={onOpenSearch}
+            className="p-1.5 bg-black/30 border border-white/5 rounded-lg text-text-muted hover:text-white hover:border-primary/50 transition-all cursor-pointer flex items-center justify-center shrink-0"
+            title={lang === 'en' ? 'Global Search (Ctrl+P)' : 'Глобальный поиск (Ctrl+P)'}
+          >
+            <Search className="w-4 h-4 text-primary" />
+          </button>
+        )}
       </div>
 
       {/* Mirrored File Tree Root */}

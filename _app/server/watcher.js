@@ -15,7 +15,7 @@ const updateNoteEmbedding = async (relPath, content) => {
     if (existing && existing.content_hash === contentHash) {
       return;
     }
-    const embedding = await getEmbedding(content);
+    const embedding = await getEmbedding(content, relPath);
     await run(`
       INSERT INTO note_embeddings (relative_path, embedding, content_hash)
       VALUES (?, ?, ?)
@@ -28,6 +28,31 @@ const updateNoteEmbedding = async (relPath, content) => {
     console.error(`[Watcher Embeddings] Failed to update embedding for ${relPath}:`, err);
   }
 };
+
+// Helper to update FTS index for watcher events
+const updateNoteFTS = async (relPath, title, content) => {
+  try {
+    await run('INSERT OR REPLACE INTO notes_fts (relative_path, title, content) VALUES (?, ?, ?)', [
+      relPath,
+      title,
+      content
+    ]);
+    console.log(`[Watcher FTS] Successfully updated FTS index for: ${relPath}`);
+  } catch (err) {
+    console.error(`[Watcher FTS] Failed to update FTS index for ${relPath}:`, err);
+  }
+};
+
+// Helper to delete FTS index for watcher events
+const deleteNoteFTS = async (relPath) => {
+  try {
+    await run('DELETE FROM notes_fts WHERE relative_path = ?', [relPath]);
+    console.log(`[Watcher FTS] Successfully deleted FTS index for: ${relPath}`);
+  } catch (err) {
+    console.error(`[Watcher FTS] Failed to delete FTS index for ${relPath}:`, err);
+  }
+};
+
 
 // Resolve vault path (parent directory of _app, or custom env path)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -94,6 +119,9 @@ export const initWatcher = (io) => {
               console.error('[Watcher] Background embedding creation failed:', err);
             });
           }
+          updateNoteFTS(relPath, title, content).catch(err => {
+            console.error('[Watcher] Background FTS index creation failed:', err);
+          });
           console.log(`[Watcher] Indexed new file: ${relPath}`);
           io.emit('file-create', { relative_path: relPath, title, is_directory: false, parent_path: parentPath });
         } else {
@@ -113,6 +141,9 @@ export const initWatcher = (io) => {
                 console.error('[Watcher] Background embedding update failed:', err);
               });
             }
+            updateNoteFTS(relPath, title, content).catch(err => {
+              console.error('[Watcher] Background FTS index update failed:', err);
+            });
             console.log(`[Watcher] Updated existing file from disk: ${relPath}`);
             io.emit('file-update', { relative_path: relPath, content });
           }
@@ -164,6 +195,10 @@ export const initWatcher = (io) => {
               console.error('[Watcher] Background embedding update failed:', err);
             });
           }
+          const title = getTitleFromPath(relPath);
+          updateNoteFTS(relPath, title, content).catch(err => {
+            console.error('[Watcher] Background FTS index update failed:', err);
+          });
           console.log(`[Watcher] File changed externally: ${relPath}`);
           io.emit('file-update', { relative_path: relPath, content });
         }
@@ -179,6 +214,9 @@ export const initWatcher = (io) => {
         await archiveNoteBeforeDelete(relPath, 'Внешняя система');
         await run('DELETE FROM notes WHERE relative_path = ?', [relPath]);
         // Foreign keys cascade delete versions & locks
+        deleteNoteFTS(relPath).catch(err => {
+          console.error('[Watcher] Background FTS index deletion failed:', err);
+        });
         console.log(`[Watcher] Deleted file: ${relPath}`);
         io.emit('file-delete', { relative_path: relPath });
       } catch (err) {
@@ -197,6 +235,7 @@ export const initWatcher = (io) => {
         }
 
         await run('DELETE FROM notes WHERE relative_path = ? OR relative_path LIKE ?', [relPath, relPath + '/%']);
+        await run('DELETE FROM notes_fts WHERE relative_path = ? OR relative_path LIKE ?', [relPath, relPath + '/%']);
         console.log(`[Watcher] Deleted directory: ${relPath}`);
         io.emit('file-delete', { relative_path: relPath });
       } catch (err) {
