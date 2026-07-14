@@ -4,8 +4,8 @@ import { WidgetType, Decoration, ViewPlugin, ViewUpdate } from '@codemirror/view
 import type { DecorationSet } from '@codemirror/view';
 import { Range } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { 
-  Heading1, Heading2, Heading3, Bold, Italic, List, CheckSquare, 
+import {
+  Heading1, Heading2, Heading3, Bold, Italic, List, CheckSquare,
   Link as LinkIcon, Image as ImageIcon, Eye, Code, Save, FileLock, User,
   Download, GitBranch, GitPullRequest, Check, X, MessageSquare, ArrowLeft,
   MessageCircle
@@ -42,7 +42,7 @@ class ImagePreviewWidget extends WidgetType {
   toDOM() {
     const wrap = document.createElement("div");
     wrap.className = "block my-2 p-1.5 bg-black/40 rounded-lg border border-white/10 select-none max-w-xs w-fit relative group/preview";
-    
+
     const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v'];
     const isVideo = videoExtensions.some(ext => this.url.toLowerCase().includes(ext));
 
@@ -61,7 +61,7 @@ class ImagePreviewWidget extends WidgetType {
       img.src = this.url;
       img.alt = this.filename;
       img.className = "max-w-full max-h-32 rounded-lg object-contain bg-black/20 transition-all duration-300 hover:max-h-72 hover:scale-[1.03] cursor-zoom-in";
-      
+
       img.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -79,7 +79,7 @@ class ImagePreviewWidget extends WidgetType {
     deleteBtn.className = "absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/20 hover:bg-red-500 hover:text-white border border-red-500/40 text-red-200 flex items-center justify-center transition-all cursor-pointer shadow-lg opacity-0 group-hover/preview:opacity-100 z-10 active:scale-95";
     deleteBtn.title = "Удалить файл с сервера и из текста";
     deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
-    
+
     deleteBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -127,7 +127,7 @@ const imagePreviewPlugin = ViewPlugin.fromClass(class {
 
     for (const { from, to } of view.visibleRanges) {
       const text = doc.sliceString(from, to);
-      
+
       let match;
       while ((match = mdRegex.exec(text)) !== null) {
         const [full, alt, path] = match;
@@ -166,7 +166,7 @@ const imagePreviewPlugin = ViewPlugin.fromClass(class {
         const parts = content.split('|');
         const filename = parts[0].trim();
         const relativePath = `assets/${filename}`;
-        
+
         const params = [];
         const lowercasePath = filename.toLowerCase();
         const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some(ext => lowercasePath.endsWith(ext));
@@ -258,7 +258,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
         } else {
           svgTag = svgTag.replace(/<svg/i, '<svg height="100%"');
         }
-        
+
         cleaned = cleaned.replace(/^<svg[^>]*>/i, svgTag);
       }
       return cleaned;
@@ -324,11 +324,11 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
     if (!containerRef.current) return;
     const containerWidth = window.innerWidth * 0.95;
     const containerHeight = window.innerHeight * 0.85;
-    
+
     const scaleX = containerWidth / dimensions.width;
     const scaleY = containerHeight / dimensions.height;
     const fitScale = Math.min(Math.min(scaleX, scaleY), 1.5);
-    
+
     setAnimate(false);
     setScale(fitScale);
     setOffset({ x: 0, y: 0 });
@@ -346,9 +346,9 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
     if (!isDragging) return;
     const newX = e.clientX - dragStart.x;
     const newY = e.clientY - dragStart.y;
-    
+
     offsetRef.current = { x: newX, y: newY };
-    
+
     if (contentRef.current) {
       contentRef.current.style.transform = `translate(${newX}px, ${newY}px) scale(${scaleRef.current})`;
     }
@@ -367,28 +367,28 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
     const currentScale = scaleRef.current;
     const nextScale = e.deltaY < 0 ? currentScale * zoomFactor : currentScale / zoomFactor;
     const clampedScale = Math.max(0.1, Math.min(10, nextScale));
-    
+
     let newOffset = offsetRef.current;
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const mouseX = e.clientX - rect.left - rect.width / 2;
       const mouseY = e.clientY - rect.top - rect.height / 2;
-      
+
       const factor = clampedScale / currentScale;
       newOffset = {
         x: mouseX - (mouseX - offsetRef.current.x) * factor,
         y: mouseY - (mouseY - offsetRef.current.y) * factor
       };
-      
+
       offsetRef.current = newOffset;
     }
-    
+
     scaleRef.current = clampedScale;
-    
+
     if (contentRef.current) {
       contentRef.current.style.transform = `translate(${newOffset.x}px, ${newOffset.y}px) scale(${clampedScale})`;
     }
-    
+
     setScale(clampedScale);
     setOffset(newOffset);
   };
@@ -429,7 +429,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-white z-10">
         <h3 className="text-sm font-semibold text-white/80">{lang === 'en' ? 'Interactive Diagram Viewer' : 'Интерактивный просмотр диаграммы'}</h3>
         <div className="flex items-center space-x-2 bg-black/60 border border-white/10 rounded-lg p-1">
-          <button 
+          <button
             onClick={handleZoomIn}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
             title={lang === 'en' ? "Zoom In" : "Увеличить"}
@@ -438,7 +438,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
-          <button 
+          <button
             onClick={handleZoomOut}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
             title={lang === 'en' ? "Zoom Out" : "Уменьшить"}
@@ -447,7 +447,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
             </svg>
           </button>
-          <button 
+          <button
             onClick={handleReset}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
             title={lang === 'en' ? "Reset scale & position" : "Сбросить масштаб и положение"}
@@ -458,7 +458,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
             </svg>
           </button>
           <div className="h-4 w-px bg-white/10 mx-1" />
-          <button 
+          <button
             onClick={onClose}
             className="p-1.5 hover:bg-white/10 rounded text-white/80 hover:text-white transition-colors cursor-pointer"
             title={lang === 'en' ? "Close (Esc)" : "Закрыть (Esc)"}
@@ -471,7 +471,7 @@ const MermaidZoomModal: React.FC<{ svgHtml: string; onClose: () => void; lang: L
       </div>
 
       {/* Main View Area */}
-      <div 
+      <div
         ref={containerRef}
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
         className="w-full h-full flex items-center justify-center overflow-hidden markdown-preview prose prose-invert"
@@ -569,7 +569,7 @@ export const Editor: React.FC<EditorProps> = ({
   const [uploadingFileIndex, setUploadingFileIndex] = useState<number>(0);
   const [applyToAllConflicts, setApplyToAllConflicts] = useState(false);
 
-  
+
   const activeXhrRef = useRef<XMLHttpRequest | null>(null);
   const uploadCancelledRef = useRef<boolean>(false);
   const bulkConflictActionRef = useRef<'overwrite' | 'rename' | 'cancel' | null>(null);
@@ -601,13 +601,13 @@ export const Editor: React.FC<EditorProps> = ({
     setPrevNotePath(notePath);
     setPrevInitialContent(initialContent);
     setContent(initialContent);
-    
-    
+
+
     // Viewers never enter suggest mode (they can only comment)
     // Editors don't auto-enter suggest mode (they toggle it manually)
     // Admins/owners always have direct edit
     setIsSuggestMode(false);
-    
+
     setSelectedSuggestion(null);
     setConflictData(null);
     setShowSuggestionsSidebar(false);
@@ -617,7 +617,7 @@ export const Editor: React.FC<EditorProps> = ({
     ? t('system_external', lang)
     : rawNoteCreator;
   const canReview = currentUser.username === rawNoteCreator || currentUser.role === 'Admin';
-  
+
   const filteredDropdownNotes = useMemo(() => {
     return allNotes
       .filter(n => !n.is_directory && n.relative_path !== notePath)
@@ -629,7 +629,7 @@ export const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     setWikiSelectedIndex(0);
   }, [wikiSearch]);
-  
+
   const editorRef = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -674,12 +674,12 @@ export const Editor: React.FC<EditorProps> = ({
     }
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
-    
+
     if (selectedText && selectedText.length > 0) {
       const range = selection!.getRangeAt(0);
       selectionRangeRef.current = range.cloneRange();
       const rect = range.getBoundingClientRect();
-      
+
       selectionTimeoutRef.current = setTimeout(() => {
         setCommentTooltip({
           x: rect.left + rect.width / 2,
@@ -738,7 +738,7 @@ export const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (mode === 'preview' && previewRef.current) {
       const container = previewRef.current;
-      
+
       const doScroll = () => {
         if (pendingPreviewScrollText) {
           let parsed: { type: string; text?: string; words?: string[] };
@@ -747,11 +747,11 @@ export const Editor: React.FC<EditorProps> = ({
           } catch (e) {
             parsed = { type: 'plain', text: pendingPreviewScrollText };
           }
-          
+
           console.log('[ScrollSync] Restoring preview scroll. Parsed:', parsed, 'Pct:', pendingScrollPct);
           const elements = container.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, td, th, pre, blockquote');
           let bestElement: HTMLElement | null = null;
-          
+
           if (parsed.type === 'heading' && parsed.text) {
             const searchText = parsed.text.toLowerCase();
             for (const el of Array.from(elements) as HTMLElement[]) {
@@ -794,7 +794,7 @@ export const Editor: React.FC<EditorProps> = ({
         } else if (pendingScrollPct !== null) {
           container.scrollTop = pendingScrollPct * (container.scrollHeight - container.clientHeight);
         }
-        
+
         setPendingPreviewScrollText(null);
         setPendingScrollPct(null);
       };
@@ -809,7 +809,7 @@ export const Editor: React.FC<EditorProps> = ({
     if (view) {
       const scroller = view.scrollDOM;
       const scrollTop = scroller.scrollTop;
-      
+
       // Determine the line that is currently visible at the top of the scrolled editor viewport
       let pos = view.state.selection.main.from;
       try {
@@ -818,10 +818,10 @@ export const Editor: React.FC<EditorProps> = ({
       } catch (err) {
         console.warn('[ScrollSync] Failed to get line block at scroll height, using cursor fallback:', err);
       }
-      
+
       const line = view.state.doc.lineAt(pos);
       const currentLineText = line.text.trim();
-      
+
       let headingText = '';
       let currentLineNum = line.number;
       while (currentLineNum >= 1) {
@@ -865,12 +865,12 @@ export const Editor: React.FC<EditorProps> = ({
     if (previewRef.current) {
       const container = previewRef.current;
       const rect = container.getBoundingClientRect();
-      
+
       const children = container.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, tr, pre, blockquote');
       let bestElement: HTMLElement | null = null;
       let bestDist = Infinity;
       const targetY = rect.top + 80;
-      
+
       for (const child of Array.from(children) as HTMLElement[]) {
         const childRect = child.getBoundingClientRect();
         const dist = Math.abs(childRect.top - targetY);
@@ -879,12 +879,12 @@ export const Editor: React.FC<EditorProps> = ({
           bestElement = child;
         }
       }
-      
+
       if (bestElement) {
         const isHeading = bestElement.tagName.startsWith('H');
         const text = bestElement.innerText || '';
         const cleanSearch = text.split('\n')[0].trim();
-        
+
         console.log('[ScrollSync] Switching to Edit. Best Preview element:', bestElement.tagName, cleanSearch);
 
         if (isHeading) {
@@ -899,7 +899,7 @@ export const Editor: React.FC<EditorProps> = ({
             return;
           }
         }
-        
+
         const cleaned = stripMarkdown(cleanSearch);
         const words = cleaned.split(/\s+/).filter(w => w.length > 2).slice(0, 3);
         if (words.length >= 2) {
@@ -913,7 +913,7 @@ export const Editor: React.FC<EditorProps> = ({
             return;
           }
         }
-        
+
         const pct = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
         console.log('[ScrollSync] No exact match in markdown, using fallback percentage:', pct);
         setPendingScrollPct(pct);
@@ -990,7 +990,7 @@ export const Editor: React.FC<EditorProps> = ({
             try {
               const resJson = JSON.parse(xhr.responseText);
               errMsg = resJson.error || errMsg;
-            } catch (_) {}
+            } catch (_) { }
             rejectPromise(new Error(errMsg));
           }
         };
@@ -1132,7 +1132,7 @@ export const Editor: React.FC<EditorProps> = ({
     if (socket && notePath && !isReadOnly && !lockedBy) {
       socket.emit('lock-note', { relative_path: notePath, username: currentUser.username, userId: currentUser.id });
       socket.emit('view-note', notePath);
-      
+
       // Auto-unlock when unmounting
       return () => {
         socket.emit('unlock-note', { relative_path: notePath });
@@ -1244,14 +1244,14 @@ export const Editor: React.FC<EditorProps> = ({
           if (view) {
             const docText = view.state.doc.toString();
             const escapedFilename = filename.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            
+
             // Build regexes to find the link in markdown
             const wikiRegex = new RegExp(`!?\\[\\[${escapedFilename}(?:\\|.*?)?\\]\\]`, 'g');
             const mdRegex = new RegExp(`!?\\[.*?\\]\\((?:.*?/)?${escapedFilename}(?:\\?.*?)?\\)`, 'g');
-            
+
             const changes: { from: number; to: number; insert: string }[] = [];
             let match;
-            
+
             // Search wiki links
             while ((match = wikiRegex.exec(docText)) !== null) {
               changes.push({ from: match.index, to: match.index + match[0].length, insert: '' });
@@ -1301,7 +1301,7 @@ export const Editor: React.FC<EditorProps> = ({
     const renderMermaid = async () => {
       console.log('[Mermaid Debug] renderMermaid called. isMounted:', isMounted, 'isRunning:', isRunning, 'notePath:', notePath);
       if (!isMounted || isRunning) return;
-      
+
       const allMermaid = previewRef.current?.querySelectorAll('.mermaid');
       const unrendered = Array.from(allMermaid || []).filter(el => {
         const status = el.getAttribute('data-processed');
@@ -1314,7 +1314,7 @@ export const Editor: React.FC<EditorProps> = ({
 
       if (unrendered.length > 0) {
         isRunning = true;
-        
+
         // Temporarily disconnect observer to avoid observing our own mutations
         if (observer) {
           observer.disconnect();
@@ -1328,7 +1328,7 @@ export const Editor: React.FC<EditorProps> = ({
             const code = el.textContent || '';
             const uniqueId = `mermaid-svg-${Math.random().toString(36).substring(2, 11)}`;
             console.log('[Mermaid Debug] Processing element', i, 'id:', uniqueId);
-            
+
             try {
               const { svg } = await mermaid.render(uniqueId, code);
               console.log('[Mermaid Debug] mermaid.render succeeded for', uniqueId);
@@ -1357,7 +1357,7 @@ export const Editor: React.FC<EditorProps> = ({
             }
           });
           isRunning = false;
-          
+
           // Reconnect observer after a small delay to let the DOM settle
           timeoutId = setTimeout(() => {
             if (isMounted && previewRef.current && observer) {
@@ -1493,7 +1493,7 @@ export const Editor: React.FC<EditorProps> = ({
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       const data = await res.json();
       if (res.ok) {
         setSelectedSuggestion(null);
@@ -1504,8 +1504,8 @@ export const Editor: React.FC<EditorProps> = ({
         setContent(data.mergedText);
         setSelectedSuggestion(null);
         setMode('edit');
-        alert(lang === 'en' 
-          ? 'Merge conflicts detected! They are marked in the editor with <<<<<<< and >>>>>>> symbols. Please resolve conflicts manually and save the file.' 
+        alert(lang === 'en'
+          ? 'Merge conflicts detected! They are marked in the editor with <<<<<<< and >>>>>>> symbols. Please resolve conflicts manually and save the file.'
           : 'Обнаружены конфликты слияния! Они отмечены в редакторе символами <<<<<<< и >>>>>>>. Пожалуйста, разрешите конфликты вручную и сохраните файл.');
       } else {
         alert(data.error || (lang === 'en' ? 'Failed to accept suggestion' : 'Не удалось принять предложение'));
@@ -1628,9 +1628,9 @@ export const Editor: React.FC<EditorProps> = ({
 
     const selection = view.state.selection.main;
     const selectedText = view.state.sliceDoc(selection.from, selection.to);
-    
+
     const replacement = before + selectedText + after;
-    
+
     view.dispatch({
       changes: {
         from: selection.from,
@@ -1640,7 +1640,7 @@ export const Editor: React.FC<EditorProps> = ({
       selection: { anchor: selection.from + before.length + selectedText.length },
       scrollIntoView: true
     });
-    
+
     // Update local content state
     setContent(view.state.doc.toString());
   };
@@ -1649,12 +1649,12 @@ export const Editor: React.FC<EditorProps> = ({
   const uploadMultipleFilesSequentially = async (files: File[], view: any, dragDropPos: number | null = null) => {
     setUploadingFilesCount(files.length);
     view.focus();
-    
+
     // Reset cancellation and bulk actions
     uploadCancelledRef.current = false;
     bulkConflictActionRef.current = null;
     setApplyToAllConflicts(false);
-    
+
     for (let i = 0; i < files.length; i++) {
       if (uploadCancelledRef.current) break;
       const file = files[i];
@@ -1667,10 +1667,10 @@ export const Editor: React.FC<EditorProps> = ({
             setUploadProgress(pct);
           }
         });
-        
+
         if (uploadCancelledRef.current) break;
         setUploadProgress(null);
-        
+
         view.focus();
         if (i === 0 && dragDropPos !== null) {
           view.dispatch({
@@ -1680,16 +1680,16 @@ export const Editor: React.FC<EditorProps> = ({
 
         const currentPos = view.state.selection.main.head;
         const linkText = `![${data.filename}](${data.url})`;
-        
+
         // If we are uploading multiple files, we append \n\n after each file
         const textToInsert = files.length > 1 ? `${linkText}\n\n` : linkText;
-        
+
         view.dispatch({
           changes: { from: currentPos, to: currentPos, insert: textToInsert },
           selection: { anchor: currentPos + textToInsert.length },
           scrollIntoView: true
         });
-        
+
         setContent(view.state.doc.toString());
       } catch (err: any) {
         setUploadProgress(null);
@@ -1702,7 +1702,7 @@ export const Editor: React.FC<EditorProps> = ({
         }
       }
     }
-    
+
     setUploadingFilesCount(0);
     setUploadingFileIndex(0);
   };
@@ -1781,13 +1781,13 @@ export const Editor: React.FC<EditorProps> = ({
       if (!/^https?:\/\//i.test(path)) {
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
         const token = localStorage.getItem('token') || '';
-        
+
         const params = [];
         if (token) params.push(`token=${encodeURIComponent(token)}`);
         if (!isVideo) {
           params.push(`width=${requestedWidth}`);
         }
-        
+
         mediaUrl = `/api/raw/${cleanPath}${params.length > 0 ? `?${params.join('&')}` : ''}`;
       }
 
@@ -1915,7 +1915,7 @@ export const Editor: React.FC<EditorProps> = ({
       const t = type.toLowerCase();
       let colorClass = 'info';
       let iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
-      
+
       if (t === 'note' || t === 'info' || t === 'todo') {
         colorClass = 'info';
         iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -1968,10 +1968,10 @@ export const Editor: React.FC<EditorProps> = ({
           return line;
         }
         if (
-          trimmed.startsWith('#') || 
-          trimmed === '---' || 
-          trimmed === '***' || 
-          trimmed === '___' || 
+          trimmed.startsWith('#') ||
+          trimmed === '---' ||
+          trimmed === '***' ||
+          trimmed === '___' ||
           trimmed.includes('|') || // Skip table lines containing pipe character
           /^\s*([-*+]\s|\d+\.\s)/.test(line) ||
           idx === contentLines.length - 1 ||
@@ -1985,7 +1985,7 @@ export const Editor: React.FC<EditorProps> = ({
       // Join content lines, unescape HTML, and parse them recursively
       const innerMd = unescapeHtml(processedLines.join('\n'));
       let innerHtml = parseMarkdown(innerMd);
-      
+
       // Restore line breaks
       innerHtml = innerHtml.replace(/ \[BR_PLACEHOLDER\]/g, '<br />');
 
@@ -2043,7 +2043,7 @@ export const Editor: React.FC<EditorProps> = ({
     };
 
     // 1. Escaping HTML to prevent XSS
-    let html = md
+    let html = md.replace(/\r/g, '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
@@ -2052,7 +2052,7 @@ export const Editor: React.FC<EditorProps> = ({
     html = parseBlockquotes(html);
 
     // 2. Extract code blocks and mermaid diagrams into placeholders
-    
+
     // Extract mermaid first
     html = html.replace(/```\s*mermaid\s*([\s\S]*?)```/g, (_match, code) => {
       let rawCode = code
@@ -2092,7 +2092,7 @@ export const Editor: React.FC<EditorProps> = ({
           if (trimmed.startsWith('subgraph ')) {
             // Extract the content after 'subgraph '
             const content = trimmed.substring(9).trim();
-            
+
             // Check if it already has a label in brackets, e.g. ID [Label] or ID ["Label"]
             const bracketMatch = content.match(/^([^[]+)\s*\[(.*?)\]$/);
             if (bracketMatch) {
@@ -2100,25 +2100,25 @@ export const Editor: React.FC<EditorProps> = ({
               const label = bracketMatch[2].trim();
               const cleanId = id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
               let cleanLabel = label;
-              if ((cleanLabel.startsWith('"') && cleanLabel.endsWith('"')) || 
-                  (cleanLabel.startsWith("'") && cleanLabel.endsWith("'"))) {
+              if ((cleanLabel.startsWith('"') && cleanLabel.endsWith('"')) ||
+                (cleanLabel.startsWith("'") && cleanLabel.endsWith("'"))) {
                 cleanLabel = cleanLabel.slice(1, -1);
               }
               cleanLabel = cleanLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
               const indent = line.match(/^\s*/)?.[0] || '';
               return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
             }
-            
+
             // If no brackets, check if it's already in quotes
             if ((content.startsWith('"') && content.endsWith('"')) ||
-                (content.startsWith("'") && content.endsWith("'"))) {
+              (content.startsWith("'") && content.endsWith("'"))) {
               let cleanLabel = content.slice(1, -1);
               const cleanId = cleanLabel.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
               cleanLabel = cleanLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
               const indent = line.match(/^\s*/)?.[0] || '';
               return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
             }
-            
+
             // Otherwise, it's just 'subgraph Label' or 'subgraph ID'
             const cleanId = content.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9\u0400-\u04FF_-]/g, '_');
             const cleanLabel = content.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -2126,7 +2126,7 @@ export const Editor: React.FC<EditorProps> = ({
             return `${indent}subgraph ${cleanId} ["${cleanLabel}"]`;
           } else {
             let processedLine = line;
-            
+
             // 3. Wrap node labels in quotes to support slashes and special characters
             processedLine = processedLine.replace(/([a-zA-Z0-9_-]+)\[(.*?)\]/g, (_m: string, id: string, content: string) => {
               let cleanContent = content.trim();
@@ -2281,10 +2281,10 @@ export const Editor: React.FC<EditorProps> = ({
         const processedLines = lines.map((line: string) => {
           // Replace em-dash, en-dash, minus with standard hyphens in arrows
           let processedLine = line.replace(/[\u2014\u2013\u2212]/g, '-');
-          
+
           const trimmed = processedLine.trim();
           const lowerTrimmed = trimmed.toLowerCase();
-          
+
           // Skip keywords and non-message lines
           if (
             lowerTrimmed.startsWith('sequencediagram') ||
@@ -2305,7 +2305,7 @@ export const Editor: React.FC<EditorProps> = ({
           ) {
             return processedLine;
           }
-          
+
           // If it is a message line (contains a colon)
           const colonIndex = processedLine.indexOf(':');
           if (colonIndex !== -1) {
@@ -2318,7 +2318,7 @@ export const Editor: React.FC<EditorProps> = ({
               .replace(/;/g, '&#59;');
             return participantPart + ':' + cleanMessagePart;
           }
-          
+
           return processedLine;
         });
         rawCode = processedLines.join('\n')
@@ -2453,7 +2453,7 @@ export const Editor: React.FC<EditorProps> = ({
   // Handle WikiLink click inside HTML preview
   const handlePreviewClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    
+
     // In-page anchor link scroll support
     const anchorLink = target.closest('a[data-anchor="true"]') as HTMLAnchorElement | null;
     if (anchorLink) {
@@ -2514,21 +2514,21 @@ export const Editor: React.FC<EditorProps> = ({
   // Keyboard navigation for CodeMirror editor (intercepting typing '[[')
   const handleEditorChange = (value: string, viewUpdate: any) => {
     setContent(value);
-    
+
     const state = viewUpdate.state;
     const selection = state.selection.main;
     const pos = selection.from;
     const view = viewUpdate.view;
-    
+
     // Check if user just typed '[['
     const textBefore = state.sliceDoc(Math.max(0, pos - 2), pos);
-    
+
     if (textBefore === '[[') {
       setWikiDropdownOpen(true);
       setWikiSearch('');
       setWikiSelectedIndex(0);
       setEditorSelection({ anchor: pos, head: pos });
-      
+
       // Get coordinates of cursor to display popup exactly there!
       if (view) {
         const coords = view.coordsAtPos(pos);
@@ -2543,14 +2543,14 @@ export const Editor: React.FC<EditorProps> = ({
       const triggerPos = editorSelection.anchor - 2;
       const currentTriggerText = state.sliceDoc(triggerPos, triggerPos + 2);
       const textAfterBracket = state.sliceDoc(editorSelection.anchor, pos);
-      
+
       // If brackets are deleted, or line break occurs, or link is closed -> close dropdown
       if (currentTriggerText !== '[[' || textAfterBracket.includes('\n') || textAfterBracket.includes(']]')) {
         setWikiDropdownOpen(false);
         setDropdownCoords(null);
       } else {
         setWikiSearch(textAfterBracket);
-        
+
         // Update coords dynamically as cursor moves
         if (view) {
           const coords = view.coordsAtPos(pos);
@@ -2618,7 +2618,7 @@ export const Editor: React.FC<EditorProps> = ({
   // Memoize the entire HTML preview container to skip reconciliation and keep native selection active when tooltip state changes
   const memoizedPreviewElement = useMemo(() => {
     return (
-      <div 
+      <div
         ref={previewRef}
         onClick={handlePreviewClick}
         onScroll={handlePreviewScroll}
@@ -2636,15 +2636,15 @@ export const Editor: React.FC<EditorProps> = ({
           <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin shadow-glow" />
           <div className="text-sm font-semibold text-white">
             {uploadingFilesCount > 1
-              ? (lang === 'en' 
-                ? `Uploading media files (${uploadingFileIndex + 1}/${uploadingFilesCount})...` 
+              ? (lang === 'en'
+                ? `Uploading media files (${uploadingFileIndex + 1}/${uploadingFilesCount})...`
                 : `Загрузка медиафайлов (${uploadingFileIndex + 1}/${uploadingFilesCount})...`)
-              : (lang === 'en' 
-                ? 'Uploading media file...' 
+              : (lang === 'en'
+                ? 'Uploading media file...'
                 : 'Загрузка медиафайла...')}
           </div>
           <div className="w-64 bg-white/10 h-2 rounded-full overflow-hidden border border-white/5">
-            <div 
+            <div
               className="bg-primary h-full transition-all duration-300 shadow-glow"
               style={{ width: `${uploadProgress}%` }}
             />
@@ -2670,22 +2670,22 @@ export const Editor: React.FC<EditorProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            
+
             <div className="space-y-1.5">
               <h3 className="text-sm font-bold text-white">
                 {lang === 'en' ? 'File Already Exists' : 'Файл уже существует'}
               </h3>
               <p className="text-xs text-text-muted break-all px-2 leading-relaxed">
-                {lang === 'en' 
-                  ? `File "${conflictFile.file.name}" is already uploaded. What would you like to do?` 
+                {lang === 'en'
+                  ? `File "${conflictFile.file.name}" is already uploaded. What would you like to do?`
                   : `Файл "${conflictFile.file.name}" уже загружен на сервер. Что вы хотите сделать?`}
               </p>
             </div>
 
             {uploadingFilesCount > 1 && (
               <label className="flex items-center space-x-2.5 text-xs text-text-muted cursor-pointer hover:text-white transition-colors py-1">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={applyToAllConflicts}
                   onChange={(e) => setApplyToAllConflicts(e.target.checked)}
                   className="rounded border-white/10 bg-black/40 text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
@@ -2695,7 +2695,7 @@ export const Editor: React.FC<EditorProps> = ({
                 </span>
               </label>
             )}
-            
+
             <div className="flex flex-col space-y-2 w-full pt-2">
               <button
                 onClick={() => conflictFile.resolve('overwrite', applyToAllConflicts)}
@@ -2719,7 +2719,7 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* Editor Toolbar */}
       {selectedSuggestion ? (
         // Specialized Toolbar for Suggestion Review
@@ -2736,25 +2736,22 @@ export const Editor: React.FC<EditorProps> = ({
             <div className="flex border border-white/10 rounded-lg p-0.5 bg-black/30 shrink-0">
               <button
                 onClick={() => setSuggestionViewMode('original')}
-                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
-                  suggestionViewMode === 'original' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-                }`}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${suggestionViewMode === 'original' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                  }`}
               >
                 <span>{lang === 'en' ? 'Original' : 'Оригинал'}</span>
               </button>
               <button
                 onClick={() => setSuggestionViewMode('preview')}
-                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
-                  suggestionViewMode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-                }`}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${suggestionViewMode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                  }`}
               >
                 <span>{lang === 'en' ? 'Result' : 'Результат'}</span>
               </button>
               <button
                 onClick={() => setSuggestionViewMode('diff')}
-                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${
-                  suggestionViewMode === 'diff' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-                }`}
+                className={`p-1 px-3 rounded text-[11px] flex items-center space-x-1 transition-all cursor-pointer ${suggestionViewMode === 'diff' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                  }`}
               >
                 <span>{lang === 'en' ? 'Diff' : 'Разница'}</span>
               </button>
@@ -2864,7 +2861,7 @@ export const Editor: React.FC<EditorProps> = ({
               [[ ]]
             </button>
             <button
-              onClick={() => insertText('[ссылка](', ')') }
+              onClick={() => insertText('[ссылка](', ')')}
               disabled={mode === 'preview' || isReadOnly || (!!lockedBy && !isSuggestMode)}
               className="p-1.5 hover:bg-white/5 rounded text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-30 shrink-0"
               title={lang === 'en' ? 'Insert standard link' : 'Вставить ссылку'}
@@ -2893,13 +2890,12 @@ export const Editor: React.FC<EditorProps> = ({
                     setMode('edit');
                   }
                 }}
-                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer ${
-                  isSuggestMode
-                    ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]' 
-                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
-                }`}
-                title={isSuggestMode 
-                  ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.") 
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer ${isSuggestMode
+                  ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold font-mono text-[11px]'
+                  : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                  }`}
+                title={isSuggestMode
+                  ? (lang === 'en' ? "Suggestions mode active. Saving will record changes as a suggestion." : "Режим предложений активен. Сохранение запишет изменения как предложение.")
                   : (lang === 'en' ? "Enable suggestions mode" : "Включить режим предложений (рецензирование)")}
               >
                 <GitBranch className="w-3.5 h-3.5 text-primary" />
@@ -2911,11 +2907,10 @@ export const Editor: React.FC<EditorProps> = ({
             {suggestions.length > 0 && (
               <button
                 onClick={() => setShowSuggestionsSidebar(!showSuggestionsSidebar)}
-                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${
-                  showSuggestionsSidebar 
-                    ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]' 
-                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
-                }`}
+                className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${showSuggestionsSidebar
+                  ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]'
+                  : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                  }`}
                 title={lang === 'en' ? "Show suggestions list" : "Показать список предложений"}
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -2929,21 +2924,19 @@ export const Editor: React.FC<EditorProps> = ({
             {/* Comments sidebar toggle */}
             <button
               onClick={() => setShowCommentsPanel(!showCommentsPanel)}
-              className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${
-                showCommentsPanel 
-                  ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]' 
-                  : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
-              }`}
+              className={`p-1.5 border rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer relative shrink-0 ${showCommentsPanel
+                ? 'bg-primary/20 border-primary/45 text-primary shadow-glow font-semibold text-[11px]'
+                : 'bg-white/5 border-white/10 text-text-muted hover:text-white text-[11px]'
+                }`}
               title={t('comments_btn_tooltip', lang)}
             >
               <MessageCircle className="w-3.5 h-3.5" />
               <span className="text-[11px] hidden md:inline">{t('comments_title', lang)}</span>
               {commentCount > 0 && (
-                <span className={`absolute -top-1 -right-1 text-[9px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center border border-background-editor shadow-glow ${
-                  hasActiveComments 
-                    ? 'bg-primary text-white' 
-                    : 'bg-white/10 text-text-disabled border-white/10'
-                }`}>
+                <span className={`absolute -top-1 -right-1 text-[9px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center border border-background-editor shadow-glow ${hasActiveComments
+                  ? 'bg-primary text-white'
+                  : 'bg-white/10 text-text-disabled border-white/10'
+                  }`}>
                   {commentCount}
                 </span>
               )}
@@ -2980,9 +2973,8 @@ export const Editor: React.FC<EditorProps> = ({
               <button
                 onClick={switchToEdit}
                 disabled={selectedSuggestion !== null}
-                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
-                  mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-                }`}
+                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${mode === 'edit' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                  }`}
               >
                 <Code className="w-3.5 h-3.5" />
                 <span>{lang === 'en' ? 'Code' : 'Код'}</span>
@@ -2990,9 +2982,8 @@ export const Editor: React.FC<EditorProps> = ({
               <button
                 onClick={switchToPreview}
                 disabled={selectedSuggestion !== null}
-                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${
-                  mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
-                }`}
+                className={`p-1 px-3 rounded text-xs flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-30 ${mode === 'preview' ? 'bg-primary text-white shadow-glow' : 'text-text-muted hover:text-white'
+                  }`}
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>{lang === 'en' ? 'Preview' : 'Просмотр'}</span>
@@ -3051,11 +3042,11 @@ export const Editor: React.FC<EditorProps> = ({
       <div className="flex-1 flex flex-row relative overflow-hidden bg-background-editor text-sm min-h-[300px]">
         {/* Floating WikiLinks Autocomplete Dropdown */}
         {wikiDropdownOpen && dropdownCoords && (
-          <div 
+          <div
             className="fixed z-50 w-64 glass-panel border border-primary/30 rounded-xl shadow-glass overflow-hidden flex flex-col glow-active"
-            style={{ 
-              top: `${dropdownCoords.top}px`, 
-              left: `${dropdownCoords.left}px` 
+            style={{
+              top: `${dropdownCoords.top}px`,
+              left: `${dropdownCoords.left}px`
             }}
           >
             <div className="p-2 border-b border-white/5 bg-black/30">
@@ -3076,11 +3067,10 @@ export const Editor: React.FC<EditorProps> = ({
                   <button
                     key={note.relative_path}
                     onClick={() => insertWikiLink(note.title)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer truncate ${
-                      isSelected 
-                        ? 'bg-primary text-white font-semibold shadow-sm' 
-                        : 'text-text-muted hover:bg-white/5 hover:text-white'
-                    }`}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer truncate ${isSelected
+                      ? 'bg-primary text-white font-semibold shadow-sm'
+                      : 'text-text-muted hover:bg-white/5 hover:text-white'
+                      }`}
                   >
                     [[{note.title}]]
                   </button>
@@ -3111,13 +3101,13 @@ export const Editor: React.FC<EditorProps> = ({
                 lang={lang}
               />
             ) : suggestionViewMode === 'original' ? (
-              <div 
+              <div
                 className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
                 onMouseUp={handlePreviewMouseUp}
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.base_content) }}
               />
             ) : (
-              <div 
+              <div
                 className="w-full h-full p-4 sm:p-8 overflow-y-auto markdown-preview text-text select-text text-left prose prose-invert bg-black/10"
                 onMouseUp={handlePreviewMouseUp}
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(selectedSuggestion.suggested_content) }}
@@ -3125,7 +3115,7 @@ export const Editor: React.FC<EditorProps> = ({
             )
           ) : (
             mode === 'edit' ? (
-              <div 
+              <div
                 className="w-full h-full text-left"
                 onMouseUp={handlePreviewMouseUp}
                 onKeyUp={handlePreviewMouseUp}
@@ -3152,11 +3142,10 @@ export const Editor: React.FC<EditorProps> = ({
 
           {/* Floating comment tooltip on text selection (always mounted to prevent DOM mutations and keep native selection highlight) */}
           <button
-            className={`fixed z-50 flex items-center space-x-1.5 px-3 py-1.5 bg-primary/90 text-white text-[11px] font-semibold rounded-lg shadow-lg hover:bg-primary transition-all cursor-pointer duration-150 ${
-              commentTooltip ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
-            }`}
-            style={{ 
-              top: commentTooltip ? `${commentTooltip.y}px` : '-9999px', 
+            className={`fixed z-50 flex items-center space-x-1.5 px-3 py-1.5 bg-primary/90 text-white text-[11px] font-semibold rounded-lg shadow-lg hover:bg-primary transition-all cursor-pointer duration-150 ${commentTooltip ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+              }`}
+            style={{
+              top: commentTooltip ? `${commentTooltip.y}px` : '-9999px',
               left: commentTooltip ? `${commentTooltip.x}px` : '-9999px',
               transform: 'translate(-50%, -100%)'
             }}
@@ -3184,17 +3173,16 @@ export const Editor: React.FC<EditorProps> = ({
             </h3>
             <div className="space-y-2">
               {suggestions.map((s) => (
-                <div 
-                  key={s.id} 
+                <div
+                  key={s.id}
                   onClick={() => {
                     setSelectedSuggestion(s);
                     setSuggestionViewMode('diff');
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer text-left hover:scale-[1.02] active:scale-95 ${
-                    selectedSuggestion?.id === s.id 
-                      ? 'bg-primary/10 border-primary shadow-glow' 
-                      : 'bg-white/[0.02] border-white/5 hover:bg-white/5 hover:border-white/10'
-                  }`}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer text-left hover:scale-[1.02] active:scale-95 ${selectedSuggestion?.id === s.id
+                    ? 'bg-primary/10 border-primary shadow-glow'
+                    : 'bg-white/[0.02] border-white/5 hover:bg-white/5 hover:border-white/10'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-bold text-white flex items-center space-x-1">
@@ -3260,16 +3248,16 @@ export const Editor: React.FC<EditorProps> = ({
       </div>
 
       {lightboxSrc && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm cursor-zoom-out select-none transition-opacity duration-300"
           onClick={() => setLightboxSrc(null)}
         >
-          <img 
-            src={lightboxSrc} 
-            alt="Enlarged Preview" 
+          <img
+            src={lightboxSrc}
+            alt="Enlarged Preview"
             className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl border border-white/10 object-contain animate-in fade-in zoom-in-95 duration-200"
           />
-          <button 
+          <button
             className="absolute top-4 right-4 text-white/50 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
             onClick={() => setLightboxSrc(null)}
           >
@@ -3281,9 +3269,9 @@ export const Editor: React.FC<EditorProps> = ({
       )}
 
       {activeMermaidSvg && (
-        <MermaidZoomModal 
-          svgHtml={activeMermaidSvg} 
-          onClose={() => setActiveMermaidSvg(null)} 
+        <MermaidZoomModal
+          svgHtml={activeMermaidSvg}
+          onClose={() => setActiveMermaidSvg(null)}
           lang={lang}
         />
       )}
