@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.13.2",
+    "date": "2026-07-15",
+    "title_ru": "Косметические правки стиля и форматирования в редакторе",
+    "title_en": "Code Style and Formatting Cleanup in Editor",
+    "keynotes_ru": [
+      "Косметическое форматирование кода и исправление отступов в клиентском компоненте Editor.tsx."
+    ],
+    "keynotes_en": [
+      "Cleaned up code formatting and layout alignment inside the client Editor.tsx component."
+    ]
+  },
+  {
     "version": "1.13.1",
     "date": "2026-07-14",
     "title_ru": "Поддержка настраиваемой внешней папки документов",

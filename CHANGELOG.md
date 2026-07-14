@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.13.2] - 2026-07-15
+### Code Style and Formatting Cleanup in Editor
+
+- Cleaned up code formatting and layout alignment inside the client Editor.tsx component.
+
 ## [1.13.1] - 2026-07-14
 ### Support Configurable External Vault Folder
 
