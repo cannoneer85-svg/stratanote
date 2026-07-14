@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1] - 2026-07-14
+### Support Configurable External Vault Folder
+
+- Added support for loading the VAULT_PATH environment variable from .env at startup.
+- Configured relative paths to resolve relative to the repository root directory.
+- Untracked config.json in the sync agent directory from Git and added config.template.json.
+- Updated README.md and README.ru.md with detailed instructions.
+
 ## [1.13.0] - 2026-07-12
 ### Global Full-Text and Semantic Search with Directory Filtering
 

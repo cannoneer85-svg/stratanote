@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.13.1",
+    "date": "2026-07-14",
+    "title_ru": "Поддержка настраиваемой внешней папки документов",
+    "title_en": "Support Configurable External Vault Folder",
+    "keynotes_ru": [
+      "Добавлена поддержка загрузки переменной окружения VAULT_PATH из файла .env при запуске сервера.",
+      "Настроено разрешение относительных путей от корня репозитория кодовой базы.",
+      "Исключен файл config.json агента синхронизации из Git, добавлен шаблон config.template.json.",
+      "Обновлены файлы README.md и README.ru.md с инструкциями по настройке."
+    ],
+    "keynotes_en": [
+      "Added support for loading the VAULT_PATH environment variable from .env at startup.",
+      "Configured relative paths to resolve relative to the repository root directory.",
+      "Untracked config.json in the sync agent directory from Git and added config.template.json.",
+      "Updated README.md and README.ru.md with detailed instructions."
+    ]
+  },
+  {
     "version": "1.13.0",
     "date": "2026-07-12",
     "title_ru": "Глобальный полнотекстовый и семантический поиск с фильтрацией директорий",
