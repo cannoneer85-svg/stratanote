@@ -1,6 +1,6 @@
 import chokidar from 'chokidar';
 import fs from 'fs';
-import { join, relative, dirname, basename, extname, resolve } from 'path';
+import { join, relative, dirname, basename, extname, resolve, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { run, get, all } from './db.js';
@@ -56,9 +56,37 @@ const deleteNoteFTS = async (relPath) => {
 
 // Resolve vault path (parent directory of _app, or custom env path)
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const vaultPath = process.env.VAULT_PATH 
-  ? resolve(process.env.VAULT_PATH) 
-  : join(__dirname, '..', '..');
+const projectRoot = join(__dirname, '..', '..');
+
+// Helper to manually parse .env file from project root
+const loadEnvFile = () => {
+  const dotEnvPath = join(projectRoot, '.env');
+  if (fs.existsSync(dotEnvPath)) {
+    try {
+      const content = fs.readFileSync(dotEnvPath, 'utf8');
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+          const idx = trimmed.indexOf('=');
+          const key = trimmed.substring(0, idx).trim();
+          const val = trimmed.substring(idx + 1).trim().replace(/^["']|["']$/g, '');
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Watcher] Failed to parse .env file:', e);
+    }
+  }
+};
+loadEnvFile();
+
+const rawVaultPath = process.env.VAULT_PATH;
+export const vaultPath = rawVaultPath
+  ? (isAbsolute(rawVaultPath) ? resolve(rawVaultPath) : resolve(projectRoot, rawVaultPath))
+  : join(projectRoot, 'docs');
 
 // Helper to normalize path separators to forward slashes for cross-platform matching
 const normalizePath = (p) => p.replace(/\\/g, '/');

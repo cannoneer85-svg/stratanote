@@ -96,12 +96,23 @@ npm run test:mobile
 
 ---
 
-## ⚙ Environment Variables
+## ⚙ Configuration and Environment Variables
 
-You can configure the server behavior using environment variables (or by creating a `.env` file in the `_app/server/` folder):
+### 1. Web Server Environment (`.env`)
+You can configure the server behavior by creating a `.env` file in the root directory (use [`.env.template`](file:///.env.template) as a starting point):
+*   `VAULT_PATH` — path to the notes vault directory that the application should serve. Supports absolute paths (e.g. `D:/Vaults/MyNotes`) and relative paths (e.g. `../phygital/docs`, resolved relative to the repository root). Default is `./docs`.
 *   `PORT` — port on which the backend server starts (default is `3001`).
-*   `VAULT_PATH` — path to the notes vault directory that the application should serve. Default is the parent directory of `_app` (repository root).
 *   `DATABASE_PATH` — absolute path to the SQLite database file. Default is `_app/server/database.sqlite`. In production environments, point this variable to a mounted persistent volume (e.g. `/data/database.sqlite`) to prevent data loss on container restarts.
+*   `GITHUB_TOKEN` — optional GitHub Personal Access Token to avoid API rate limits during update checks.
+
+### 2. Local MCP Sync Agent (`_sync_mcp/config.json`)
+The synchronization agent (`_sync_mcp`) reads settings from its own configuration file.
+To set it up:
+1. Copy [`_sync_mcp/config.template.json`](file:///_sync_mcp/config.template.json) to `_sync_mcp/config.json` (which is excluded from Git by default).
+2. Configure the following fields in `_sync_mcp/config.json`:
+   - `STRATANOTE_SERVER_URL` — the URL of the running StrataNote server (e.g., `http://localhost:3001` or your production domain).
+   - `STRATANOTE_API_TOKEN` — JWT API token generated inside the StrataNote settings panel (under the "Synchronization" tab).
+   - `LOCAL_VAULT_PATH` — local path to your notes vault (must match the `VAULT_PATH` directory or your local Obsidian vault).
 
 ---
 

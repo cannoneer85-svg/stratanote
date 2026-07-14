@@ -37,6 +37,7 @@ desktop.ini
 !/README.ru.md
 !/.agents/
 !/CHANGELOG.md
+!/.env.template
 
 # Gemini system generated tasks and logs
 .system_generated/
@@ -50,4 +51,5 @@ implementation_plan.md
 .env
 _app/.env
 _app/server/.env
+_sync_mcp/config.json
 

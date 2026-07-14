@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { dirname, join, resolve } from 'path';
+import { dirname, join, resolve, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
@@ -270,9 +270,11 @@ export const indexExistingNotesFTS = async () => {
       const allNotes = await all('SELECT relative_path, title FROM notes WHERE is_directory = 0');
       
       const __dirname = dirname(fileURLToPath(import.meta.url));
-      const vaultPath = process.env.VAULT_PATH 
-        ? resolve(process.env.VAULT_PATH) 
-        : join(__dirname, '..', '..');
+      const projectRoot = join(__dirname, '..', '..');
+      const rawVaultPath = process.env.VAULT_PATH;
+      const vaultPath = rawVaultPath
+        ? (isAbsolute(rawVaultPath) ? resolve(rawVaultPath) : resolve(projectRoot, rawVaultPath))
+        : join(projectRoot, 'docs');
 
       let indexedCount = 0;
       await run('BEGIN TRANSACTION');
