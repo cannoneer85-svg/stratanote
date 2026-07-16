@@ -1,0 +1,416 @@
+[
+  {
+    "version": "1.13.3",
+    "date": "2026-07-16",
+    "title_ru": "Исправление поиска и интеграция автоматической документации Mintlify",
+    "title_en": "Search Bugfixes and Automated Mintlify Documentation Integration",
+    "keynotes_ru": [
+      "Исправлено дублирование результатов поиска и экранирование HTML-сущностей в сниппетах.",
+      "Добавлена поддержка серверной фильтрации папок в наблюдателе (watcher).",
+      "Интегрирована автоматическая генерация технического справочника API с помощью TypeDoc.",
+      "Созданы подробные руководства для пользователей на Mintlify с визуальными плейсхолдерами.",
+      "Настроен скрипт GitHub Actions для автоматического обновления документации при изменениях."
+    ],
+    "keynotes_en": [
+      "Fixed search duplication and escaped HTML entities in snippets.",
+      "Added server-side folder filter support in watcher.",
+      "Integrated automated technical API reference generation using TypeDoc.",
+      "Created comprehensive user guides on Mintlify with visual placeholder cards.",
+      "Configured GitHub Actions workflow for automatic documentation deployments."
+    ]
+  },
+  {
+    "version": "1.13.2",
+    "date": "2026-07-15",
+    "title_ru": "Косметические правки стиля и форматирования в редакторе",
+    "title_en": "Code Style and Formatting Cleanup in Editor",
+    "keynotes_ru": [
+      "Косметическое форматирование кода и исправление отступов в клиентском компоненте Editor.tsx."
+    ],
+    "keynotes_en": [
+      "Cleaned up code formatting and layout alignment inside the client Editor.tsx component."
+    ]
+  },
+  {
+    "version": "1.13.1",
+    "date": "2026-07-14",
+    "title_ru": "Поддержка настраиваемой внешней папки документов",
+    "title_en": "Support Configurable External Vault Folder",
+    "keynotes_ru": [
+      "Добавлена поддержка загрузки переменной окружения VAULT_PATH из файла .env при запуске сервера.",
+      "Настроено разрешение относительных путей от корня репозитория кодовой базы.",
+      "Исключен файл config.json агента синхронизации из Git, добавлен шаблон config.template.json.",
+      "Обновлены файлы README.md и README.ru.md с инструкциями по настройке."
+    ],
+    "keynotes_en": [
+      "Added support for loading the VAULT_PATH environment variable from .env at startup.",
+      "Configured relative paths to resolve relative to the repository root directory.",
+      "Untracked config.json in the sync agent directory from Git and added config.template.json.",
+      "Updated README.md and README.ru.md with detailed instructions."
+    ]
+  },
+  {
+    "version": "1.13.0",
+    "date": "2026-07-12",
+    "title_ru": "Глобальный полнотекстовый и семантический поиск с фильтрацией директорий",
+    "title_en": "Global Full-Text and Semantic Search with Directory Filtering",
+    "keynotes_ru": [
+      "Реализован глобальный полнотекстовый поиск (SQLite FTS5) с подсветкой совпадений и выводом текстовых сниппетов.",
+      "Реализован семантический ИИ-поиск на базе локальной модели paraphrase-multilingual-MiniLM-L12-v2 с вычислением косинусного сходства.",
+      "Добавлен выпадающий фильтр папок, позволяющий динамически исключать из выдачи корневые директории и файлы в корне.",
+      "Добавлено автоматическое сохранение и восстановление исходного вида свернутых папок в сайдбаре при локальном поиске.",
+      "Внедрена панель управления переиндексацией ИИ-поиска в настройках синхронизации с трансляцией прогресса по WebSockets в реальном времени."
+    ],
+    "keynotes_en": [
+      "Implemented global full-text search (SQLite FTS5) with search term highlighting and snippets rendering.",
+      "Implemented AI-based semantic search using local paraphrase-multilingual-MiniLM-L12-v2 model with cosine similarity matching.",
+      "Added folder filtering dropdown allowing users to dynamically exclude root directories (including root-level files) from search results.",
+      "Preserved sidebar explorer folder expansion state when local folder search query is entered and cleared.",
+      "Added AI search reindexing dashboard with WebSocket-based real-time progress indicators in the synchronization settings."
+    ]
+  },
+  {
+    "version": "1.12.1",
+    "date": "2026-07-12",
+    "title_ru": "Статичный индикатор обновлений",
+    "title_en": "Static Update Indicator",
+    "keynotes_ru": [
+      "Убрана мигающая пульсация у индикатора обновлений в сайдбаре для более комфортного и спокойного отображения."
+    ],
+    "keynotes_en": [
+      "Removed the pulsing animation from the sidebar's update indicator for a cleaner and less distracting user interface."
+    ]
+  },
+  {
+    "version": "1.12.0",
+    "date": "2026-07-12",
+    "title_ru": "Проверка обновлений через GitHub и улучшенное комментирование",
+    "title_en": "GitHub Update Checker and Advanced Commenting",
+    "keynotes_ru": [
+      "Интегрирована автоматическая и ручная проверка обновлений через публичный API GitHub с кэшированием результатов на 1 час.",
+      "Добавлен новый защищенный эндпоинт /api/version/check для ручной проверки обновлений администраторами.",
+      "Добавлены визуальные элементы: оранжевый мигающий индикатор ! в футере боковой панели, предупреждающий баннер в окне «О системе» и интерактивный блок обновлений с кнопкой проверки в настройках.",
+      "Добавлено сохранение нативного выделения текста при комментировании за счет мемоизации превью-контейнера.",
+      "Реализована возможность комментирования по выделению в режиме редактирования (CodeMirror) и в режиме сравнения предложений (Suggest Mode).",
+      "Оптимизирован процесс релиза: автоматический пуш теперь выполняется только в публичный репозиторий GitHub."
+    ],
+    "keynotes_en": [
+      "Integrated an automatic and manual update checker querying the GitHub API for new releases of StrataNote.",
+      "Implemented background checking, local caching (1-hour TTL), and an API endpoint /api/version/check to check for updates.",
+      "Added UI indicators: a pulsing update warning badge in the sidebar footer, a download alert banner in the About dialog, and a manual update checker box in the Settings panel (under the \\",
+      "System\\ tab).",
+      "Preserved native browser text selection when clicking \\",
+      "Comment\\ by memoizing the preview container.",
+      "Added commenting support to CodeMirror Edit mode and Suggestion original/suggested diff views.",
+      "Cleaned up the release workflow to only push to the public GitHub repository."
+    ]
+  },
+  {
+    "version": "1.11.1",
+    "date": "2026-07-11",
+    "title_ru": "Сохранение выделения и комментирование во всех режимах",
+    "title_en": "Preserve Selection and All-Views Commenting",
+    "keynotes_ru": [
+      "Сохранение нативного браузерного выделения текста при вызове кнопки 'Комментировать' благодаря мемоизации превью-контейнера.",
+      "Добавлена возможность комментирования по выделению в режиме редактирования (CodeMirror) и в режиме предложений (Suggest Mode)."
+    ],
+    "keynotes_en": [
+      "Preserved native browser text selection highlighting when the 'Comment' tooltip is shown by memoizing the HTML preview container.",
+      "Added text selection commenting support to Edit mode (CodeMirror) and Suggestion original/suggested view modes."
+    ]
+  },
+  {
+    "version": "1.11.0",
+    "date": "2026-07-11",
+    "title_ru": "v1.11.0 - Совместные комментарии и модерация",
+    "title_en": "v1.11.0 - Collaborative Comments & Moderation",
+    "keynotes_ru": [
+      "Внедрена система двухсторонних комментариев к документам",
+      "Реализован процесс модерации комментариев для авторов заметок и администраторов",
+      "Добавлен трекинг прочтения и скрытия уведомлений о комментариях",
+      "Реализовано автоматическое переоткрытие решенных веток обсуждений при добавлении новых ответов",
+      "Добавлено автоматическое каскадное закрытие ответов при разрешении родительского комментария",
+      "Обеспечено каскадное удаление ответов в базе данных с помощью внешних ключей в SQLite",
+      "Внедрен динамический счетчик тем на панели",
+      "Исправлено расхождение часовых поясов между базой данных SQLite (UTC) и браузером пользователя",
+      "Устранено обрезание верхушек круглых бейджей"
+    ],
+    "keynotes_en": [
+      "Implement document commenting system with root comments and nested replies",
+      "Implement comment moderation workflow with Admin and Owner approval",
+      "Add real-time notifications read and dismiss tracking",
+      "Implement automatic reopening of resolved comment threads when a new reply is posted",
+      "Add automatic cascade resolution of nested replies when resolving parent comment",
+      "Cascade deletion of comment replies in database using SQLite foreign keys",
+      "Dynamic counter badge on toolbar (purple for active unresolved comments, grey for resolved archive comments)",
+      "Fix timestamp timezone offsets between SQLite (UTC) and browser timezone",
+      "Fix toolbar button layout to prevent badge clipping due to horizontal scrolling"
+    ]
+  },
+  {
+    "version": "1.10.0",
+    "date": "2026-07-11",
+    "title_ru": "Динамическая синхронизация и полировка медиафайлов",
+    "title_en": "Dynamic Sync & Media Management Polish",
+    "keynotes_ru": [
+      "Динамическое переключение режима и стратегии синхронизации из админки",
+      "Постоянный кэш хешей файлов для ускорения повторного сканирования до 100 мс",
+      "Массовое удаление медиа, удаление вложений прямо из превью и фильтр непривязанных файлов",
+      "Эффект интерактивной лупы (увеличение при наведении) на картинках",
+      "Ограничение на редактирование админских/внешних заметок для редакторов",
+      "Надежное распознавание бинарных файлов для защиты от повреждения при слияниях",
+      "Информативные логи авторизации с отложенным закрытием сокета"
+    ],
+    "keynotes_en": [
+      "Dynamic sync mode and conflict strategy switching from the Admin UI",
+      "Disk hash caching to accelerate initial repository scanning to under 100ms",
+      "Bulk media deletion, inline preview deletion, and orphaned file filters",
+      "Interactive magnifier zoom effect on image preview hover",
+      "Access control restrictions on external/admin documents for editor roles",
+      "Robust binary validation preventing file corruption in conflict resolution",
+      "Informative socket registration logs with delayed disconnection"
+    ]
+  },
+  {
+    "version": "1.9.0",
+    "date": "2026-07-09",
+    "title_ru": "Поблочная загрузка медиа, диалог коллизий и локальная история",
+    "title_en": "Media chunked uploads, collision prompt and localized history UI",
+    "keynotes_ru": [
+      "Поблочная загрузка медиафайлов: Добавлена поддержка загрузки файлов чанками по 5 МБ для обхода ограничений размера тела запроса (для файлов >300 МБ).",
+      "Интерактивное разрешение конфликтов: Внедрена проверка существования файлов на сервере и премиальный диалог выбора (перезаписать, создать копию с безопасным суффиксом _1 для ссылок Markdown или отменить).",
+      "Оптимизация превью: Автоматический ресайз и кэширование локальных картинок до 800px на сервере через Sharp для ускорения загрузки превью.",
+      "Корзина удаленных заметок: Удаленные файлы переносятся в БД SQLite trash с сохранением содержимого и всей истории правок для возможности восстановления.",
+      "Синхронизация истории и авторов правок: Синхронизация владельцев заметок и полной истории версий между сервером и локальным агентом.",
+      "Улучшение истории версий: Локальная нумерация версий (Версия #1, #2...) индивидуально для каждого файла, визуальный маркер «Текущая версия» и скрытие нелогичной кнопки восстановления для неё."
+    ],
+    "keynotes_en": [
+      "Chunked Media Upload: Implemented chunked binary uploads (5MB blocks) to bypass payload limits for files larger than 300MB.",
+      "Conflict-Aware Media Uploads: Added file existence check and confirmation dialog to overwrite, rename (with safe _1 suffixes to prevent markdown links breakage), or cancel.",
+      "Dynamic Image Previews: Automatically request resized 800px image thumbnails in preview mode to optimize network loading.",
+      "Note Trash Bin: Deleted notes are archived in the SQLite trash database, preserving content and full revision history for recovery.",
+      "Owner and Revision Synchronization: Sync owner metadata and full revision history between local sync agent and server.",
+      "Version History UI: Enabled local version numbering (Version #1, #2, etc.) per note, highlighted the current version, and hid the redundant restore button for the active version."
+    ]
+  },
+  {
+    "version": "1.8.0",
+    "date": "2026-07-09",
+    "title_ru": "Синхронизация метаданных и истории версий",
+    "title_en": "Metadata and Version History Sync",
+    "keynotes_ru": [
+      "Двусторонняя синхронизация метаданных заметок (created_by, last_edited_by и всей истории версий из SQLite).",
+      "Исправление ошибки race condition с watcher-ом из-за отсутствующего basename в эндпоинте /api/sync/push.",
+      "Автоматическая доустановка пакета sqlite3 при запуске локального синхронизационного агента."
+    ],
+    "keynotes_en": [
+      "Two-way note owner (created_by, last_edited_by) and SQLite version history synchronization.",
+      "Fixed race condition with watcher due to missing basename import in the /api/sync/push endpoint.",
+      "Auto-installation of sqlite3 dependency when starting the local sync agent."
+    ]
+  },
+  {
+    "version": "1.7.0",
+    "date": "2026-07-09",
+    "title_ru": "Полная локализация, оптимизация медиапанели и горячие клавиши",
+    "title_en": "Full localization, media optimization, and hotkeys",
+    "keynotes_ru": [
+      "Добавлена полная русская и английская локализация всех разделов панели настроек и всплывающего окна уведомлений",
+      "Реализовано автоматическое сжатие и кэширование миниатюр изображений на сервере через библиотеку sharp",
+      "Добавлена ленивая генерация превью для видео на клиенте с помощью IntersectionObserver и HTML5 Canvas",
+      "Реализовано автоматическое бесшумное превью-воспроизведение видео при наведении курсора",
+      "Добавлено сочетание клавиш Ctrl+S/Cmd+S для мгновенного сохранения заметок независимо от раскладки",
+      "Улучшено визуальное отображение вложенных списков и добавлены иконки документов для WikiLinks"
+    ],
+    "keynotes_en": [
+      "Added full English and Russian localization for all settings panel tabs and notifications popover",
+      "Implemented on-the-fly image thumbnail generation and caching using the sharp library",
+      "Added lazy client-side video frame capture using IntersectionObserver and HTML5 Canvas",
+      "Implemented responsive layout, visual hover auto-playback, and play button badge overlays for videos",
+      "Added Ctrl+S (Cmd+S) keyboard shortcut to save document edits immediately in any layout",
+      "Added document icon styling and nesting depth support for markdown list items"
+    ]
+  },
+  {
+    "version": "1.6.0",
+    "date": "2026-07-06",
+    "title_ru": "Мультиязычная поддержка (RU/EN) и централизованная система локализации",
+    "title_en": "Bilingual Support (RU/EN) and Centralized Localization System",
+    "keynotes_ru": [
+      "Добавлена полная поддержка перевода интерфейса на русский и английский языки.",
+      "Внедрен централизованный типобезопасный словарь переводов (translations.ts) для простого добавления новых языков в будущем.",
+      "Обновлено руководство репозитория: добавлен полноценный англоязычный файл README.md со схемами архитектуры Mermaid.",
+      "В панель настроек добавлен переключатель языков интерфейса.",
+      "Реализована динамическая локализация системных меток авторов версий и сообщений об ошибках файловых операций."
+    ],
+    "keynotes_en": [
+      "Added full interface translation support for Russian and English languages.",
+      "Introduced a centralized type-safe translations dictionary (translations.ts) for easy integration of future languages.",
+      "Updated repository documentation with a comprehensive English README.md including Mermaid architecture diagrams.",
+      "Added a language selector dropdown inside the settings panel.",
+      "Handled dynamic translation of external system authors and localized CRUD operation warnings."
+    ]
+  },
+  {
+    "version": "1.5.0",
+    "date": "2026-07-06",
+    "title_ru": "Генератор API токенов и WebSocket-безопасность",
+    "title_en": "API Token Generator and WebSocket Security Updates",
+    "keynotes_ru": [
+      "Добавлена генерация API токенов с выбором срока действия (от 1 дня до бессрочного) в настройках синхронизации.",
+      "Срок жизни стандартной сессии пользователя увеличен с 24 часов до 7 дней.",
+      "Внедрена строгая JWT-проверка токена из handshake при WebSocket-регистрации локального агента.",
+      "Реализовано мгновенное реалтайм-обновление статусов устройств в списке подключений.",
+      "Исправлена ошибка, при которой статус устройства не переходил в оффлайн при отключении сокета."
+    ],
+    "keynotes_en": [
+      "Added custom API token generator with selectable lifespan (from 1 day to 10 years) in sync settings.",
+      "Extended default user session lifetime from 24 hours to 7 days.",
+      "Implemented strict JWT verification for local sync agent connections via WebSockets.",
+      "Added instant real-time device status updates using Socket.io broadcasting.",
+      "Fixed a bug where device status was not updated to 'offline' when socket disconnected."
+    ]
+  },
+  {
+    "version": "1.4.1",
+    "date": "2026-07-04",
+    "title_ru": "Исправление пути к репозиторию в скрипте автопубликации",
+    "title_en": "Fix repository path in auto-publish script",
+    "keynotes_ru": [
+      "Исправлен парсинг URL-адресов с завершающим слэшем в скрипте публикации релизов на GitHub."
+    ],
+    "keynotes_en": [
+      "Fixed GitHub API release publication URL parsing by stripping trailing slashes."
+    ]
+  },
+  {
+    "version": "1.4.0",
+    "date": "2026-07-04",
+    "title_ru": "MCP-интеграция, локальный граф связей, режим рецензирования и безопасная синхронизация",
+    "title_en": "MCP Integration, Local Graph, Review Mode, and Secure Sync",
+    "keynotes_ru": [
+      "Полноценный Model Context Protocol (MCP) сервер в папке _sync_mcp для интеграции c локальными файлами и двусторонней онлайн-синхронизации.",
+      "Интерактивный прогресс-бар в реальном времени и отображение логов ручной синхронизации в админке.",
+      "Нормализация путей файлов на Windows для 100% совместимости с Linux-сервером.",
+      "Жесткое исключение и очистка системных папок (_sync_mcp, node_modules, .agents) из синхронизации и ZIP-экспорта.",
+      "Режим рецензирования (Suggest Mode) с ролями доступа и реалтайм-уведомлениями.",
+      "Адаптивный мобильный интерфейс и плавная регулировка боковой панели (Ghost Line).",
+      "Оптимизация семантических связей графа по алгоритму KNN Top-3 и порогу схожести 85%.",
+      "Исправление гонки потоков при локальном редактировании для сохранения авторства вошедшего пользователя.",
+      "Авто-индексация векторных эмбеддингов при запуске на пустой базе данных."
+    ],
+    "keynotes_en": [
+      "Full Model Context Protocol (MCP) server in _sync_mcp folder for local file integration and two-way sync.",
+      "Interactive real-time progress bar and manual sync execution logs in administration panel.",
+      "Windows file path normalization for 100% compatibility with Linux server.",
+      "Strict directory exclusions (_sync_mcp, node_modules, .agents) for synchronization and ZIP export.",
+      "Review Mode (Suggest Mode) with roles authorization and real-time notifications.",
+      "Responsive mobile UI layout and smooth sidebar resizing (Ghost Line).",
+      "Graph semantic connections optimization with KNN Top-3 filter and default 85% similarity threshold.",
+      "Fixed race condition in local file edits to preserve correct user authorship.",
+      "Auto-indexing vector embeddings on startup if database is empty."
+    ]
+  },
+  {
+    "version": "1.3.0",
+    "date": "2026-07-01",
+    "title_ru": "Локальные семантические связи, интерактивные Mermaid-диаграммы и улучшения UX",
+    "title_en": "Local Semantic Connections, Interactive Mermaid Diagrams, and UX Improvements",
+    "keynotes_ru": [
+      "Локальный расчёт логического (семантического) сходства заметок с помощью векторных эмбеддингов (Transformers.js) без внешних API",
+      "Интерактивный граф с логарифмическим масштабированием узлов, стабильной фокусировкой камеры, счётчиками и древовидным фильтром каталогов",
+      "Интерактивное модальное окно просмотра Mermaid-диаграмм с поддержкой pan & zoom",
+      "Пакетная автоматическая синхронизация прокрутки (Scroll Sync) в редакторе",
+      "Кнопка быстрого скачивания текущей заметки в формате Markdown",
+      "Экспорт архива заметок в ZIP с московским временем файлов (UTC+3)",
+      "Исправления рендеринга цитат (blockquote), sequence-диаграмм Mermaid и экранирования ID подграфов"
+    ],
+    "keynotes_en": [
+      "Local semantic similarity calculation using vector embeddings (Transformers.js) without external APIs.",
+      "Interactive graph with logarithmic node scaling, camera focus stability, counter badges, and folder tree filter.",
+      "Interactive Mermaid diagram viewer modal with full pan & zoom support.",
+      "Automatic editorial scroll synchronization in editor mode.",
+      "Quick action button to download current note as Markdown.",
+      "ZIP archive export with Moscow time zone (UTC+3) file metadata timestamps.",
+      "Fixed blockquote rendering, Mermaid sequence diagrams, and subgraph ID escaping."
+    ]
+  },
+  {
+    "version": "1.2.1",
+    "date": "2026-06-29",
+    "title_ru": "Ребрендинг StrataNote и автоматизация релизов на GitHub",
+    "title_en": "StrataNote Rebranding and GitHub Release Automation",
+    "keynotes_ru": [
+      "Выполнен полный ребрендинг проекта в StrataNote на уровне кода, настроек и интерфейса.",
+      "Добавлен новый фиолетовый логотип и высококачественная прозрачная иконка.",
+      "Настроена автоматическая отправка релизов на GitHub API с защитой ключей доступа."
+    ],
+    "keynotes_en": [
+      "Completed full project rebranding to StrataNote across codebase, configs, and UI.",
+      "Added new purple logo and high-quality transparent icon.",
+      "Configured automated release publishing on GitHub API with secure token loading."
+    ]
+  },
+  {
+    "version": "1.2.0",
+    "date": "2026-06-28",
+    "title_ru": "Фильтрация медиафайлов и новые правила сборки",
+    "title_en": "Media File Filtering and New Build Rules",
+    "keynotes_ru": [
+      "Добавлена удобная панель быстрых фильтров («Все», «Изображения», «Видео», «Другие») в раздел мультимедиа панели администратора.",
+      "Реализован автоматический расчет и отображение количества файлов для каждой категории медиафайлов.",
+      "Внедрено новое обязательное правило автоматической сборки фронтенда силами ИИ-помощника для поддержания актуальности рабочей копии на диске.",
+      "Очищен белый список файлов .gitignore от лишних проектных документов для повышения конфиденциальности репозитория."
+    ],
+    "keynotes_en": [
+      "Added quick category filters (All, Images, Videos, Others) in administrative media manager.",
+      "Implemented automatic item count calculation for each media category.",
+      "Introduced mandatory AI auto-build guidelines to keep local dev builds up-to-date.",
+      "Cleaned up .gitignore rules to prevent committing personal config files."
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-06-28",
+    "title_ru": "Оптимизация репозитория и динамическое окружение",
+    "title_en": "Repository Optimization and Dynamic Environment",
+    "keynotes_ru": [
+      "Оптимизация структуры репозитория: очистка корня от конфигурационных файлов Node.js и перенос служебных скриптов в _app/scripts/",
+      "Автоматизация развёртывания: внедрение хука postinstall в package.json для автоматической сборки подпапок на серверах CI/CD",
+      "Исправление сборки в production: принудительная установка dev-зависимостей клиента для корректной компиляции TypeScript (tsc) и Vite",
+      "Динамическое определение среды выполнения (Production / Development) в панели настроек на основе переменной NODE_ENV бэкенда",
+      "Добавление подробного руководства по облачному деплою и настройки переменной DATABASE_PATH для постоянного хранения данных в README.md",
+      "Настройка правил автоматического чтения текущего статуса проекта для ИИ-помощников в AGENTS.md"
+    ],
+    "keynotes_en": [
+      "Repository structure optimization: moved scripts to _app/scripts/ and cleaned up root.",
+      "Deployment automation: postinstall hook in package.json to build subfolders on CI/CD platforms.",
+      "Fixed production build by ensuring client devDependencies are installed for TypeScript compiler (tsc).",
+      "Dynamic server runtime environment determination (Production / Development) based on server NODE_ENV.",
+      "Added deployment guidelines and DATABASE_PATH configure instructions in README.md.",
+      "Configured project-scoped status reading guidelines for AI agents in AGENTS.md."
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-06-28",
+    "title_ru": "Первый стабильный выпуск",
+    "title_en": "First Stable Release",
+    "keynotes_ru": [
+      "Markdown-редактор на базе CodeMirror 6 с подсветкой вики-ссылок",
+      "Интерактивный 2D-граф связей заметок на Canvas с использованием D3.js",
+      "Синхронизация присутствия пользователей в реальном времени и блокировка конфликтов через WebSockets",
+      "Поблочная загрузка ZIP-архивов до 300 МБ+ и гибкие настройки экспорта хранилища",
+      "Панель администрирования пользователей (активация, роли) и физическое управление мультимедиа-файлами",
+      "Рендеринг Obsidian Callouts (note, tip, warning, important, caution) и диаграмм Mermaid"
+    ],
+    "keynotes_en": [
+      "CodeMirror 6 based Markdown editor with wikilinks syntax highlighting.",
+      "Canvas-based interactive 2D graph of note connections using D3.js.",
+      "Real-time user presence sync and document lock conflict prevention via WebSockets.",
+      "Chunked ZIP archive exports supporting 300MB+ vault downloads with flexible configurations.",
+      "User administration panel (approvals, role management) and physical media assets deletion.",
+      "Obsidian Callouts rendering (note, tip, warning, important, caution) and Mermaid diagrams."
+    ]
+  }
+]

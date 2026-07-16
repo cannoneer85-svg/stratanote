@@ -1,0 +1,54 @@
+name: Auto-generate Documentation
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - '_app/client/src/**'
+      - '_app/server/**'
+      - '.github/workflows/generate-docs.yml' # Запуск при обновлении самого экшена
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: '_app/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          cd _app
+          npm ci
+
+      - name: Generate API MDX Files
+        run: |
+          cd _app
+          npm run build:docs
+
+      - name: Commit & Push updated docs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/api-reference
+          
+          # Проверяем, есть ли изменения в сгенерированной документации
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: auto-generate technical api reference [skip ci]"
+            git push origin HEAD:${{ github.ref }}
+          else
+            echo "No changes detected in API documentation."
+          fi

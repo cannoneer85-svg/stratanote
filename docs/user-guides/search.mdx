@@ -1,0 +1,70 @@
+---
+title: "Searching the Knowledge Base"
+description: "How to use full-text, semantic (AI), and title search in StrataNote"
+---
+
+StrataNote features an intelligent search system that allows you to instantly find documents and connections between them. The search is optimized for both English and Russian query processing.
+
+## Opening the Search Panel
+
+The search panel is styled as a Glassmorphism modal window. You can open it in two ways:
+1. Click the **Search (Magnifying Glass)** icon in the left sidebar.
+2. Press **`Ctrl + P`** or **`Ctrl + K`** (on macOS: **`Cmd + P`** or **`Cmd + K`**).
+
+<Card title="Screenshot: Search Modal Interface" icon="search" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** A blurred modal window overlaying the main app. At the top is the search input field, followed by mode selectors ("Full-Text", "Semantic", "By Title") and a scrollable results list.
+  **Key elements:** Query input and hotkeys for quickly toggling search modes.
+</Card>
+
+---
+
+## Search Modes
+
+You can switch between three search modes depending on your task:
+
+### 1. Full-Text Search (FTS5)
+A blazing-fast search across all note contents using SQLite's FTS5 engine.
+* **How it works:** Scans the text of notes and outputs direct matches.
+* **Features:** Generates text snippets (context around the found word) with neon highlights using the HTML `<mark>` tag.
+* **When to use:** When looking for a specific word, phrase, command, or exact term in the vault.
+
+<Card title="Screenshot: Match Highlights in FTS5 Search" icon="highlighter" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Full-text search results showing text snippets where matching keywords are highlighted with yellow neon backgrounds.
+</Card>
+
+### 2. Semantic Search (AI Search)
+A semantic search that understands the meaning and intent behind your query.
+* **How it works:** The system converts your query into a vector representation using a local neural model (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`) and compares it with stored embeddings in the database.
+* **Features:** Displays a semantic similarity score (e.g., `92% Match`). It finds relevant notes even if they do not contain the exact words you typed (e.g., searching for "login" will return notes about "authentication", "JWT", or "registration").
+* **When to use:** When you remember a concept or topic but forgot the exact words used in the note.
+
+<Card title="Screenshot: Semantic AI Search Results" icon="brain" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Notes sorted by relevance with purple badges showing the similarity score (e.g., `94% Match`).
+</Card>
+
+### 3. Title Search
+A classic, instantaneous search filtered strictly by file names.
+* **When to use:** When you know the exact name of a note and want to open it immediately, bypassing content searches.
+
+---
+
+## Keyboard Navigation
+
+You can fully navigate the search modal without touching the mouse:
+* **`Arrow Up` / `Arrow Down`** — Move selection through the results list.
+* **`Enter`** — Open the selected note (restoring tab history and scroll position).
+* **`Esc`** — Close the search window.
+
+---
+
+## Rebuilding the AI Search Index (For Admins)
+
+While vector embeddings update automatically as you edit documents, bulk imports or external modifications might require rebuilding the index manually:
+
+1. Navigate to **Settings** -> **Sync** tab.
+2. Under the AI Vector Search section, click the **"Reindex AI Search"** button.
+3. The process runs asynchronously, showing a progress bar (e.g., `Indexing files: 45/120... 37%`) updated in real-time via WebSockets.
+
+<Card title="Screenshot: AI Search Indexing Panel" icon="rotate" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Synchronization tab in Settings showing an active indexing procedure with a progress bar and loading animations.
+</Card>

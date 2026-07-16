@@ -1,0 +1,64 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "StrataNote",
+  "theme": "mint",
+  "logo": {
+    "light": "https://raw.githubusercontent.com/cannoneer85-svg/stratanote/master/_app/client/public/logo_horizontal.png",
+    "dark": "https://raw.githubusercontent.com/cannoneer85-svg/stratanote/master/_app/client/public/logo_horizontal.png"
+  },
+  "favicon": "https://raw.githubusercontent.com/cannoneer85-svg/stratanote/master/_app/client/public/favicon.ico",
+  "colors": {
+    "primary": "#8b5cf6",
+    "light": "#a78bfa",
+    "dark": "#6d28d9"
+  },
+  "navigation": {
+    "pages": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "introduction"
+        ]
+      },
+      {
+        "group": "User Guides",
+        "pages": [
+          "user-guides/search",
+          "user-guides/collaboration",
+          "user-guides/settings"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/index",
+          {
+            "group": "React Components",
+            "pages": [
+              "api-reference/components/Editor/variables/Editor",
+              "api-reference/components/Sidebar/variables/Sidebar",
+              "api-reference/components/GraphView/variables/GraphView",
+              "api-reference/components/DiffViewer/variables/DiffViewer",
+              "api-reference/components/SearchModal/variables/SearchModal",
+              "api-reference/components/CommentsPanel/variables/default",
+              "api-reference/components/SettingsPanel/variables/SettingsPanel",
+              "api-reference/components/AboutModal/variables/AboutModal",
+              "api-reference/components/Auth/variables/Auth",
+              "api-reference/components/ExportModal/variables/ExportModal"
+            ]
+          },
+          {
+            "group": "Utilities & Core",
+            "pages": [
+              "api-reference/App/functions/default",
+              "api-reference/utils/date/functions/formatToMoscowTime",
+              "api-reference/utils/translations/functions/t",
+              "api-reference/utils/translations/variables/translations",
+              "api-reference/utils/translations/type-aliases/Lang"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
