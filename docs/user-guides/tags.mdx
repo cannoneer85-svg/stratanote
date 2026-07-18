@@ -1,0 +1,58 @@
+---
+title: "Tags Explorer & Sidebar"
+description: "Organize notes with inline tag chips, browse a dedicated Tags sidebar tab, and map tag relationships on the interactive graph."
+---
+
+StrataNote treats tags as a first-class way to organize notes across folders. In addition to writing tags inside your notes, you can browse them from a dedicated sidebar tab, preview them on document cards, and see tag-based relationships on the interactive graph.
+
+## Adding Tags to a Note
+
+Add tags anywhere inside a note using the standard `#tag` syntax:
+
+```markdown
+# Weekly Review
+
+Notes from this week's planning session.
+
+#project/alpha #status/in-progress #team
+```
+
+Tags support nested hierarchies with the `/` separator (for example, `#project/alpha`), so you can group related tags without flattening them into a single namespace.
+
+---
+
+## Tags Sidebar Tab
+
+Open the **Tags** tab in the left sidebar to browse every tag detected across your vault.
+
+* **Tag list:** All tags are listed alphabetically with a badge showing how many notes reference each tag.
+* **Nested groups:** Tags with `/` in their name are grouped into a collapsible tree so you can drill down from a parent tag (e.g. `project`) into its children (`project/alpha`, `project/beta`).
+* **Click to filter:** Selecting a tag filters the current view to notes that reference it.
+
+<Card title="Screenshot: Tags Sidebar Tab" icon="tags" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** The left sidebar with the **Tags** tab active, showing a collapsible list of tags with note counts. Selecting `project/alpha` filters the note list to matching entries.
+</Card>
+
+---
+
+## Inline Tag Chips
+
+When you open a note in preview mode, tags parsed from the note body are rendered as inline chips at the top of the document. Chips are clickable — selecting one jumps you back to the Tags sidebar with that tag pre-selected, making it easy to pivot between related notes.
+
+---
+
+## Searching by Tag
+
+The search panel supports a strict tag filter in addition to full-text and semantic modes. Prefix your query with `#` to match only tags:
+
+```text
+#project/alpha
+```
+
+Results are limited to notes that actually contain the tag, without matching similar words in the note body. See [Searching the Knowledge Base](/user-guides/search) for the other search modes.
+
+---
+
+## Tags on the Graph
+
+The interactive graph maps tag relationships alongside Wikilinks and semantic similarity. Notes that share a tag are connected by a lightweight tag edge, so clusters of tagged content emerge naturally next to the existing link and similarity clusters. See [Interactive Connections Graph](/user-guides/graph) for filtering and layout controls.

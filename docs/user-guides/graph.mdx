@@ -46,6 +46,9 @@ You can adjust how strictly the AI links documents using the **Similarity Thresh
 * **High Threshold (e.g., 90%):** Only extremely similar notes (e.g., duplicates or close revisions) are connected.
 * **Low Threshold (e.g., 75%):** Broad conceptual matches are linked, surfacing unexpected insights across different topics.
 
+### Tag Relationships
+Notes that share a tag are also connected on the graph, alongside Wikilinks and semantic edges. This surfaces clusters of tagged content — for example, everything under `#project/alpha` — even when those notes never link to each other directly. See [Tags Explorer & Sidebar](/user-guides/tags) for how tags are authored and browsed.
+
 ### KNN Top-3 Filter
 To prevent the graph from turning into an unreadable "spaghetti" of links, the system applies a **K-Nearest Neighbors (KNN) filter**. Even with a low similarity threshold, each note is limited to its **Top 3** most similar semantic partners.
 
