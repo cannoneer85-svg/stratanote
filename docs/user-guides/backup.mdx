@@ -1,0 +1,45 @@
+---
+title: "Export & Backup"
+description: "Download individual notes as Markdown, export your entire workspace to ZIP archives, and manage backups."
+---
+
+StrataNote keeps your data open and portable. You can export your notes, attachments, and configurations at any time, ensuring you are never locked into a single platform.
+
+## Downloading Individual Notes
+
+If you need a single note outside of StrataNote (e.g., to share via email or open in another text editor):
+1. Open the note in the editor.
+2. In the top toolbar, click the **"Download Markdown"** button.
+3. The browser will download the raw Markdown file containing your text, frontmatter metadata, and links.
+
+---
+
+## Workspace ZIP Export
+
+To back up your entire knowledge base or move it to another application like Obsidian, you can generate a complete ZIP archive.
+
+### Starting the Export
+1. Click the **Settings (Gear)** icon in the sidebar and navigate to the **Backup / Export** tab (or click the export button directly from the vault toolbar).
+2. Choose your export settings:
+   * **Full Export:** Backup everything (all folders, notes, and media).
+   * **Custom Export:** Select specific root directories to include or exclude.
+3. Click the **"Export Vault"** button.
+
+### Automatic Exclusions
+To keep your backups clean and fast, the export engine automatically filters out system folders that are not part of your personal data:
+* `node_modules/` (dependency directories)
+* `.agents/` (local AI model files and agent workspace caches)
+* `_sync_mcp/` (local Model Context Protocol server configuration)
+* Temporary system files and caches.
+
+<Card title="Screenshot: Backup and Export Panel" icon="download" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** An export dashboard showing a file list with folders checked for inclusion, size estimates, and a progress indicator for the ZIP archiving process.
+</Card>
+
+---
+
+## Timestamps & Timezones
+
+To ensure that your revision history remains accurate when files are extracted on another computer:
+* **Moscow Time Zone (UTC+3):** File metadata modified timestamps inside the ZIP archive are written with Moscow timezone offsets.
+* This prevents system clocks or extraction utilities from distorting edit history, ensuring that the creation and modification timestamps match what is stored in the StrataNote database.

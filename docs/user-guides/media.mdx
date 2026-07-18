@@ -1,0 +1,62 @@
+---
+title: "Media Asset Management"
+description: "Upload, preview, organize, and delete images, videos, and binary attachments in your knowledge base."
+---
+
+StrataNote features a central Media Manager that helps you upload, preview, and clean up media assets associated with your documents.
+
+## Media Explorer
+
+Open the Media Manager by clicking the **Media (Folder/Image)** icon in the main sidebar.
+
+### Asset Categories
+To make navigation easy, files are automatically sorted into categories with interactive counters:
+* **All:** Displays every attachment in the database.
+* **Images:** Filters strictly by image formats (PNG, JPG, JPEG, GIF, SVG, WebP).
+* **Videos:** Filters strictly by video formats (MP4, WebM, OGG).
+* **Others:** Filters other binary files (PDFs, ZIPs, text documents).
+
+<Card title="Screenshot: Media Manager Grid View" icon="images" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** A grid layout showing image thumbnails and video preview blocks. Above the grid are filter buttons with count badges (e.g., `Images (45)`, `Videos (12)`).
+</Card>
+
+---
+
+## Chunked Uploads for Large Files
+
+Uploading large video files or attachments can exceed default server payload limits. StrataNote handles this by splitting large files (over 5MB) into chunks:
+* **Chunking:** Files are sliced in the browser and uploaded sequentially block by block.
+* **Progress Tracking:** An interactive progress bar displays the status of the upload (e.g., `Uploading: 45%`).
+* **Reliability:** If a chunk fails, the system automatically retries, ensuring stable uploads for files up to **300MB+**.
+
+---
+
+## Filename Collision Protection
+
+To prevent accidentally overwriting files with identical names (e.g., uploading two different files named `screenshot.png`):
+1. **Detection:** The system checks if the filename already exists in your vault.
+2. **Action Prompts:** A dialog box appears offering three options:
+   * **Overwrite:** Replace the existing file with the new one.
+   * **Rename:** Automatically append a suffix (e.g., `screenshot_1.png`) to keep both files safe and preserve existing Markdown links.
+   * **Cancel:** Abort the upload.
+
+<Card title="Screenshot: Name Collision Warning Dialog" icon="triangle-exclamation" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** A confirmation modal warning about duplicate filenames, displaying thumbnail previews of both the existing and incoming files.
+</Card>
+
+---
+
+## Video Preview & Thumbnail Optimization
+
+To keep the application fast when loading hundreds of media files, StrataNote applies custom optimizations:
+* **Image Resizing:** The server automatically generates optimized 800px thumbnails on-the-fly, reducing network load.
+* **Video Frame Capture:** Instead of loading full videos, the browser captures the first frame using an HTML5 Canvas and displays it as a static thumbnail.
+* **Lazy Playback:** Full video playback only starts when you hover your cursor over the card, saving bandwidth and system memory.
+
+---
+
+## Cleaning Orphaned Files
+
+Over time, you might delete note references to images or videos, leaving unused files in your storage. 
+* **Orphan Filter:** Toggle the "Show Orphaned Files" checkbox in the media manager to list files that are not referenced in any Markdown note.
+* **Bulk Deletion:** Select unused files and click **"Delete Selected"** to free up disk space safely.
