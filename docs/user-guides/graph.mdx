@@ -1,0 +1,54 @@
+---
+title: "Interactive Connections Graph"
+description: "Visualize and explore connections between your documents using an interactive 2D graph with semantic AI filtering."
+---
+
+StrataNote includes a dynamic, interactive 2D graph viewer that maps all connections (Wikilinks) and semantic similarities between your notes, transforming a flat folder structure into a visual web of knowledge.
+
+## Navigating the Graph
+
+The graph is rendered on an HTML5 Canvas using a high-performance D3.js force-directed layout:
+* **Zoom & Pan:** Scroll the mouse wheel to zoom in and out. Click and drag the background to pan around.
+* **Node Physics:** Nodes repel each other, and connections pull them together, forming organic clusters based on note topics.
+* **Camera Focus:** Clicking on any node centers the camera on it and highlights its immediate connections. Double-clicking a node opens that note in a new tab.
+
+<Card title="Screenshot: Interactive Graph Canvas" icon="circle-nodes" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** A full-screen canvas populated with floating spheres (notes) connected by thin paths. The active note is highlighted in bright purple with a glowing outline.
+</Card>
+
+---
+
+## Node Scaling & Legend
+
+To help you identify key notes in your database, node sizes are scaled dynamically:
+* **Logarithmic Scaling:** The node radius grows logarithmically depending on the number of incoming and outgoing links. "Hub" notes containing many links appear visibly larger.
+* **Active Note (Purple):** The note currently open in your editor is highlighted in bright purple.
+* **Standard Note (Grey/Blue):** Connected notes are rendered in standard styling.
+* **Semantic Connections (Dashed Lines):** Connections suggested by the local AI engine are drawn as dashed purple lines, while direct Wikilinks are drawn as solid lines.
+
+---
+
+## Folder Tree Filter
+
+If your graph becomes cluttered, you can filter nodes by directory:
+1. Click the **Folder Icon** in the top-right corner of the graph pane.
+2. Select or deselect folders in the sidebar tree.
+3. Deselecting a folder hides its notes and their associated links from the graph, allowing you to focus on specific project categories.
+
+---
+
+## AI Semantic Similarity (Similarity Threshold)
+
+Beyond direct Wikilinks, StrataNote's local AI engine analyzes note contents and links semantically similar documents, even if they don't reference each other directly.
+
+### Similarity Slider
+You can adjust how strictly the AI links documents using the **Similarity Threshold Slider** in the graph toolbar:
+* **High Threshold (e.g., 90%):** Only extremely similar notes (e.g., duplicates or close revisions) are connected.
+* **Low Threshold (e.g., 75%):** Broad conceptual matches are linked, surfacing unexpected insights across different topics.
+
+### KNN Top-3 Filter
+To prevent the graph from turning into an unreadable "spaghetti" of links, the system applies a **K-Nearest Neighbors (KNN) filter**. Even with a low similarity threshold, each note is limited to its **Top 3** most similar semantic partners.
+
+<Card title="Screenshot: Graph Toolbar and AI Filters" icon="sliders" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Top bar of the graph view showing the similarity percentage slider (e.g., set to `85%`) alongside folder selector buttons and graph reset controls.
+</Card>

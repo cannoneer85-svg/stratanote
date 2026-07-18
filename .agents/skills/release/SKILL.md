@@ -1,0 +1,83 @@
+---
+name: release
+description: Prepare a new release of StrataNote. Activate when the user types /release or asks to "оформить релиз" or "подготовить релиз".
+---
+
+# Release Preparation Workflows
+
+This skill automates the release process for StrataNote.
+
+## Workflow
+
+1.  **Analyze changes**:
+    - Find the last Git tag: `git describe --tags --abbrev=0` (handle fallback if no tags exist).
+    - Get commits since the last tag: `git log <last_tag>..HEAD --oneline` (or all commits if no tags exist).
+    - Read `package.json` to get the current version.
+    - **Check for remote changes in the open repository**:
+      - Run `git fetch open` to check if `open/master` contains commits that are not present in local `master`.
+      - If there are remote commits in `open/master` (e.g., from Mintlify bot), warn the user that these changes will be overwritten by the release.
+      - Offer to automatically merge them before proceeding by running `git pull open master --allow-unrelated-histories`, resolving conflicts in favor of the incoming changes (`git checkout --theirs docs/` for documentation conflicts), and committing the merge.
+2.  **Determine SemVer increment**:
+    - Parse commit messages to recommend:
+      - `MAJOR` if there are breaking changes (e.g. `feat!:`, `tweak!:`, or `BREAKING CHANGE:`).
+      - `MINOR` if there are major feature commits (e.g. `feat:`).
+      - `PATCH` if there are only tweaks, bugfixes, chores, docs, or other non-feat commits (e.g. `tweak:`, `fix:`, `docs:`, `chore:`, `ref:`, `style:`, `perf:`).
+3.  **Collect Bilingual Keynotes & Titles**:
+    - Summarize the commits since the last release into bullet points in both English and Russian.
+    - **Crucial Title Formatting Rule**: Propose only the short feature name as the title (e.g., `Preserve Selection and All-Views Commenting` / `Сохранение выделения и комментирование во всех режимах`). Do **NOT** prefix the titles with "Version", "Version X.Y.Z", "Версия", "vX.Y.Z" or similar, since the release script automatically prepends the version prefix `v<version>: ` to the title.
+4.  **Review and Update Documentation**:
+    - Analyze if the release commits contain changes affecting the repository structure, project stack, local sync configuration, APIs, or installation flow.
+    - If so, the agent **MUST** proactively update both `README.md` (English) and `README.ru.md` (Russian) to match the new architecture before proceeding.
+5.  **Propose release package**:
+    - Show the recommended new version (e.g. `1.5.0`), titles, keynotes for both languages, and any proposed README modifications.
+    - Ask the user to confirm.
+6.  **Run release script**:
+    - If approved, run the release script to update `package.json` files, `releases.json`, and `CHANGELOG.md` with bilingual details:
+      ```bash
+      node _app/scripts/prepare-release.js <new_version> <date> --title_en "<title_en>" --title_ru "<title_ru>" --keynotes_en "EN Keynote 1" "EN Keynote 2" --keynotes_ru "RU Keynote 1" "RU Keynote 2"
+      ```
+7.  **Create release commit, tag, and push**:
+    - Present the file modifications.
+    - Ask confirmation to commit, tag, and push to the public (open) remote.
+    - **Crucial Security & Remote Push Rules:**
+      - **Команда /release осуществляет пуш ТОЛЬКО в публичный открытый репозиторий `open` (stratanote.git).**
+      - **НИКОГДА не отправляйте изменения и теги в приватный репозиторий (`origin`) во время работы команды `/release`.**
+      - Все пуши в приватный репозиторий `origin` (Obsidian Collab) должны происходить отдельно через соответствующий навык `/push` (или вручную), чтобы разделять процессы релиза и внутренней разработки.
+      - Чтобы скрыть историю разработки при публикации в открытый репозиторий `open`, пуш в него выполняется как плоский (squashed) коммит с временной ветки-сироты (orphan).
+    - Run the following commands:
+      ```bash
+      # 1. Сделать коммит локальных изменений версий в ветке master
+      git add -A
+      git commit -m "chore(release): v<new_version>"
+      
+      # 2. Создать тег локально
+      git tag v<new_version>
+      
+      # 3. Отправить чистый «плоский» коммит релиза и тег в публичный репозиторий (open):
+      git checkout --orphan temp-open-release
+      
+      # Исключаем файл приватного автодеплоя из Open Source коммита
+      git rm --cached -r .github/workflows/deploy.yml || true
+      rm -rf .github/workflows/deploy.yml
+      
+      # Исключаем приватный файл дорожной карты из Open Source коммита
+      git rm --cached _app/stratanote_roadmap_features.md || true
+      rm -f _app/stratanote_roadmap_features.md
+      
+      # Заменяем ссылки на приватный репозиторий на ссылки открытого репозитория во всей документации API
+      node -e "const fs = require('fs'); const path = require('path'); function replaceInDir(dir) { fs.readdirSync(dir).forEach(f => { const p = path.join(dir, f); if (fs.statSync(p).isDirectory()) { replaceInDir(p); } else if (f.endsWith('.md')) { let content = fs.readFileSync(p, 'utf8'); if (content.includes('obsidian-collab')) { fs.writeFileSync(p, content.replace(/obsidian-collab/g, 'stratanote'), 'utf8'); } } }); } replaceInDir('docs/api-reference');"
+      
+      git add -A
+      git commit -m "release: v<new_version>"
+      git tag -f v<new_version>
+      git push open temp-open-release:master --force --tags
+      
+      # 4. Вернуться обратно в master и удалить временную ветку (пуш в origin здесь НЕ выполняется):
+      git checkout master
+      git branch -D temp-open-release
+      ```
+8.  **Publish to GitHub Releases**:
+    - Run the API release publication script:
+      ```bash
+      node _app/scripts/prepare-release.js --publish <new_version>
+      ```

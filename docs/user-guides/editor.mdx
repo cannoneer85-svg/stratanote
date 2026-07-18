@@ -1,0 +1,77 @@
+---
+title: "Markdown Editor & Wikilinks"
+description: "Create and edit notes in StrataNote using Markdown, wiki-style connections, callout blocks, and real-time scroll sync."
+---
+
+StrataNote features a powerful Markdown editor built on top of CodeMirror 6. It combines code editing speed with visual rendering capabilities, making it easy to build a structured personal knowledge base.
+
+## Editing Modes
+
+The editor supports three flexible layouts to match your working style:
+1. **Edit Mode (Code Only):** Focus entirely on writing raw Markdown text.
+2. **Split View (Edit & Preview):** Live dual-pane view. Editing on the left automatically updates the formatted HTML preview on the right.
+3. **Preview Mode (Formatted Only):** Read notes in a clean, publish-ready layout with fully rendered styles and components.
+
+---
+
+## Wikilinks & Auto-Completion
+
+StrataNote uses wiki-style links (Wikilinks) to build network connections between notes, mimicking the workflow of modern tools like Obsidian.
+
+### Creating a Connection
+To link the current note to another note, simply type double square brackets:
+`[[Name of Target Note]]`
+
+### Alias Links (Custom Labels)
+If you want the link to show a different text than the note's filename, use the pipe `|` character:
+`[[Name of Target Note|Custom Label Text]]`
+
+### Autocomplete Dropdown
+When you type `[[` inside the editor, an autocomplete suggestion box will instantly appear under your cursor, listing all existing notes.
+* Use **`Arrow Up` / `Arrow Down`** to navigate the list.
+* Press **`Enter`** or click to insert the selected note link.
+
+<Card title="Screenshot: Wikilinks Autocomplete Dropdown" icon="link" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Markdown editor text with cursor positioned after double brackets `[[`. A dropdown panel floats below, showing a list of notes with search highlighting.
+</Card>
+
+---
+
+## Callout Blocks (Obsidian Style)
+
+Highlight important warnings, tips, or notes using Obsidian-style callouts. Syntactically, they are blockquotes with a special tag:
+
+```markdown
+> [!NOTE]
+> This is a default informative callout block.
+```
+
+### Supported Callout Types
+
+| Type | Tag | Accent Color | Usage |
+| :--- | :--- | :--- | :--- |
+| **Note** | `> [!NOTE]` | Blue | General informational boxes |
+| **Tip** | `> [!TIP]` | Emerald | Tips, tricks, and optimization ideas |
+| **Warning** | `> [!WARNING]` | Amber | Important alerts or actions requiring caution |
+| **Important** | `> [!IMPORTANT]` | Indigo | Essential instructions or core requirements |
+| **Caution** | `> [!CAUTION]` | Red | High-risk actions, warnings about data loss |
+
+<Card title="Screenshot: Rendered Callouts in Preview Mode" icon="circle-info" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Rendered preview pane showing multiple callout blocks with left accent borders, colorful icons (info, lightbulb, triangle alert), and bold titles.
+</Card>
+
+---
+
+## Editorial Scroll Synchronization
+
+To keep your place when working in Split View, StrataNote implements **automatic scroll synchronization**:
+* As you scroll the editor pane, the preview pane automatically slides to the corresponding section of the rendered document.
+* The matching algorithm maps source code lines to rendered HTML nodes, ensuring precise tracking even on long documents with complex tables, images, or code blocks.
+
+---
+
+## Keyboard Shortcuts
+
+* **`Ctrl + S`** (or **`Cmd + S`** on macOS) — Instantly save changes to the local filesystem and sync to the server.
+* **`Tab`** — Indent list items, code blocks, or text.
+* **`Shift + Tab`** — Unindent lists or code blocks.

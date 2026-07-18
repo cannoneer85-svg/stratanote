@@ -1,0 +1,83 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "StrataNote",
+  "theme": "mint",
+  "logo": {
+    "light": "/logo.png",
+    "dark": "/logo.png"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#8b5cf6",
+    "light": "#a78bfa",
+    "dark": "#6d28d9"
+  },
+  "navigation": {
+    "pages": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "introduction",
+          "changelog",
+          "user-guides/installation"
+        ]
+      },
+      {
+        "group": "User Guides",
+        "pages": [
+          "user-guides/editor",
+          "user-guides/search",
+          "user-guides/graph",
+          "user-guides/collaboration",
+          "user-guides/media",
+          "user-guides/settings",
+          "user-guides/backup"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/index",
+          {
+            "group": "Core Modules",
+            "pages": [
+              "api-reference/App/index",
+              "api-reference/main/index"
+            ]
+          },
+          {
+            "group": "React Components",
+            "pages": [
+              "api-reference/components/Editor/index",
+              "api-reference/components/Sidebar/index",
+              "api-reference/components/GraphView/index",
+              "api-reference/components/DiffViewer/index",
+              "api-reference/components/SearchModal/index",
+              "api-reference/components/CommentsPanel/index",
+              "api-reference/components/SettingsPanel/index",
+              "api-reference/components/AboutModal/index",
+              "api-reference/components/Auth/index",
+              "api-reference/components/ExportModal/index"
+            ]
+          },
+          {
+            "group": "Date & Time Utilities",
+            "pages": [
+              "api-reference/utils/date/index",
+              "api-reference/utils/date/functions/formatToMoscowTime"
+            ]
+          },
+          {
+            "group": "Localization & i18n",
+            "pages": [
+              "api-reference/utils/translations/index",
+              "api-reference/utils/translations/functions/t",
+              "api-reference/utils/translations/variables/translations",
+              "api-reference/utils/translations/type-aliases/Lang"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

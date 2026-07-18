@@ -1,0 +1,70 @@
+---
+title: "Welcome to StrataNote"
+description: "StrataNote is a Markdown-based collaborative knowledge base with real-time editing, interactive connection graph, semantic AI search, and web admin tools."
+---
+
+<p align="center">
+  <img src="/logo_welcome.jpg" alt="StrataNote Logo" width="480"/>
+</p>
+
+**StrataNote** combines the best features of classic note-taking applications (like Obsidian) with powerful real-time collaboration, local file sync, and web administration capabilities. 
+
+All database notes are stored in the open Markdown format, preventing vendor lock-in and guaranteeing 100% ownership and privacy of your personal data.
+
+---
+
+## Core Features
+
+<CardGroup cols={2}>
+  <Card title="Real-time Collaboration" icon="users" color="#8b5cf6">
+    Intelligent file locking prevents editing conflicts. Review Mode (Suggest Mode) allows suggesting and merging changes without locking the document.
+  </Card>
+  <Card title="Interactive 2D Connection Graph" icon="network-wired" color="#8b5cf6">
+    High-performance D3.js force-directed graph visualizes folder hierarchies, Wikilink networks, and semantic notes connections in a single view.
+  </Card>
+  <Card title="Hybrid AI Search & Connections" icon="brain" color="#8b5cf6">
+    Combine SQLite FTS5 full-text queries with local vector similarity search using the `paraphrase-multilingual` model.
+  </Card>
+  <Card title="Granular Version History" icon="clock-rotate-left" color="#8b5cf6">
+    Second-by-second history of changes for every file with visual comparison diffs and instant rollback to any historical revision.
+  </Card>
+  <Card title="Markdown Editor & Wikilinks" icon="code" color="#8b5cf6">
+    Rich Markdown editor powered by CodeMirror 6 featuring autocomplete wikilinks (`[[Note]]`), scroll sync, and Obsidian callouts.
+  </Card>
+  <Card title="Local Sync (Model Context Protocol)" icon="arrows-rotate" color="#8b5cf6">
+    Two-way local sync engine using an MCP server allows editing vault files on your computer using Obsidian or VS Code.
+  </Card>
+</CardGroup>
+
+---
+
+## User Guides & Documentation
+
+Explore the features and set up your workspace:
+
+<CardGroup cols={2}>
+  <Card title="1. Installation & Setup" icon="download" href="/user-guides/installation">
+    Install dependencies, configure environment variables, and run production or dev environments.
+  </Card>
+  <Card title="2. Markdown Editor & Wikilinks" icon="pen-to-square" href="/user-guides/editor">
+    Write notes, insert double-bracket Wikilinks with autocomplete, and style text using callouts.
+  </Card>
+  <Card title="3. Full-Text & AI Search" icon="magnifying-glass" href="/user-guides/search">
+    Quickly find notes using exact keywords, semantic conceptual searches, or title-only filtering.
+  </Card>
+  <Card title="4. Interactive Graph" icon="circle-nodes" href="/user-guides/graph">
+    Explore vault structures, filter notes by folders, and adjust AI similarity thresholds.
+  </Card>
+  <Card title="5. Collaboration & Review" icon="user-lock" href="/user-guides/collaboration">
+    Learn how file locks work, approve comments, and propose changes in Suggest Mode.
+  </Card>
+  <Card title="6. Media Asset Management" icon="images" href="/user-guides/media">
+    Upload large assets with chunked uploads, manage categories, and clean up orphaned files.
+  </Card>
+  <Card title="7. Settings & Administration" icon="sliders" href="/user-guides/settings">
+    Approve user registrations, configure interface languages, and manage configurations.
+  </Card>
+  <Card title="8. Export & Backup" icon="download" href="/user-guides/backup">
+    Download individual markdown files or package entire folders into timezone-aware ZIP backups.
+  </Card>
+</CardGroup>

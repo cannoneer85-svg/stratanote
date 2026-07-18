@@ -1,0 +1,104 @@
+---
+title: "Installation & Setup"
+description: "Step-by-step guide to installing dependencies, configuring environment variables, and running StrataNote."
+---
+
+StrataNote is a lightweight application designed to run locally on your machine or deploy to a private server. Follow this guide to set up and run the application.
+
+## Prerequisites
+
+Before installing, ensure you have the following tools installed on your system:
+* **Node.js** (v18.0.0 or higher recommended)
+* **Git** (for version control and synchronization features)
+
+---
+
+## Step 1: Install Dependencies
+
+StrataNote consists of three sub-packages (Client, Server, and Sync Agent). You can install dependencies for all components with a single command:
+
+1. Open your terminal in the repository root directory.
+2. Navigate to the `_app` folder:
+   ```bash
+   cd _app
+   ```
+3. Run the installation script:
+   ```bash
+   npm run install:all
+   ```
+
+---
+
+## Step 2: Configure Environment Variables
+
+The server loads configuration parameters from a `.env` file in the `_app` folder.
+
+1. In the `_app` directory, copy the template configuration file:
+   * **Windows (PowerShell):** `Copy-Item .env.template .env`
+   * **Linux/macOS:** `cp .env.template .env`
+2. Open the newly created `.env` file in your text editor and customize the parameters:
+   ```env
+   PORT=3001
+   VAULT_PATH=../my-vault
+   GITHUB_TOKEN=ghp_your_optional_github_token_for_update_limits
+   ```
+   * **`PORT`** — The port where the backend server will run (default is `3001`).
+   * **`VAULT_PATH`** — The path to your personal notes directory (vault). Supports both relative paths (e.g., `../my-vault`, which resolves relative to the repository root directory) and absolute paths (e.g., `C:/Notes/MyVault` using forward slashes on Windows or `/home/user/vault` on Linux).
+   * **`GITHUB_TOKEN`** — Optional. A GitHub Personal Access Token to increase API limits when checking for application updates.
+
+---
+
+## Step 3: Run the Application
+
+You can start StrataNote in one of three ways depending on your environment:
+
+### Method A: Single-Click Start (Windows Users)
+If you are on Windows, you can start the entire application (including backend, frontend build checks, port scanning, and the sync agent) using a simple startup script:
+1. Double-click the **`start.bat`** file in the root of the repository.
+2. The script will automatically:
+   * Scan starting from port `3001` to find an available port.
+   * Verify and install any missing synchronization agent dependencies.
+   * Compile frontend files if not already built.
+   * Start the server and launch StrataNote in your default web browser.
+
+### Method B: Production Mode (Recommended for Server Deployment)
+This builds and compiles the frontend assets, serving them statically from the backend server on port `3001`:
+1. Compile the client:
+   ```bash
+   cd _app
+   npm run build
+   ```
+2. Start the production server:
+   ```bash
+   npm start
+   ```
+3. Open **`http://127.0.0.1:3001`** in your browser.
+
+### Method C: Development Mode (Hot-Reload Enabled)
+Best for making code changes. It runs the Vite development server on port `5173` with proxy redirection to the API server:
+1. Start the development servers:
+   ```bash
+   cd _app
+   npm run dev
+   ```
+2. Open **`http://localhost:5173`** in your browser.
+
+---
+
+## Step 4: Running Test Suites (Optional)
+
+Verify that your local deployment is working correctly by running automated integration tests:
+
+### 1. Media Integration Tests
+Runs tests targeting binary asset chunked uploads and collision handling:
+```bash
+cd _app
+npm run test:media
+```
+
+### 2. Mobile Responsive Layout Tests
+Runs Playwright E2E tests validating the responsive sidebar behavior, notification layouts, and navigation drawers on mobile viewport configurations (`375x812`):
+```bash
+cd _app
+npm run test:mobile
+```

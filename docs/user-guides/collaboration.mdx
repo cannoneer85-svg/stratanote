@@ -1,0 +1,72 @@
+---
+title: "Collaboration & Version Control"
+description: "Use document locking, moderated change suggestions, and version history in StrataNote to co-author notes safely and roll back edits when needed."
+---
+
+StrataNote features built-in collaborative mechanisms that prevent authors from overwriting each other's edits, coupled with comprehensive version tracking for each document.
+
+---
+
+## 1. Document Locking (Conflict Prevention)
+
+To prevent edit conflicts, the system uses real-time lock management powered by Socket.io:
+
+* **Acquiring a Lock:** Opening a note in **Edit** mode automatically requests an exclusive lock from the server. You become the active editor.
+* **Read-only Mode for Others:** Other users opening the same note will see a **"Locked by: [Username]"** indicator at the bottom of the screen, and their editor defaults to **ReadOnly** mode.
+* **Releasing a Lock:** Locks are released automatically when you switch to another tab/note, close the editor, or disconnect (e.g., closing your browser tab, tracked via heartbeat checks).
+
+<Card title="Screenshot: Locked Document in ReadOnly Mode" icon="lock" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Editor in viewing mode. The save button is disabled, and the status bar displays: `🔒 Locked by: John Doe (Read-only)`.
+  **Key elements:** Lock status indicator and disabled editing tools.
+</Card>
+
+---
+
+## 2. Suggest Mode
+
+If a document is locked by another co-author, but you need to submit edits immediately, you can use **Suggest Mode**:
+
+1. Click the **"Suggest Changes"** button (available on locked documents).
+2. Edit the text and click **"Save Suggestion"** (or use the hotkey **`Ctrl + S`** / **`Cmd + S`**).
+3. Your changes are saved on the server as a draft suggestion without altering the live document.
+
+### Suggestion Moderation
+Only the **document creator** and **system administrators** can moderate suggestions:
+* The moderator opens the "Suggestions" panel on the right sidebar.
+* Reviews the line-by-line Diff (visual changes) between the original document and the proposed version.
+* Clicks **"Accept"** or **"Reject"**.
+* Upon acceptance, the system applies a **Three-Way Merge** algorithm to merge the edits cleanly without breaking other concurrent changes.
+
+<Card title="Screenshot: Suggestion Moderation Panel" icon="code-pull-request" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** The "Suggestions" side panel is open. It lists active suggestions with authors' names. Selecting a suggestion displays color-coded diff lines (green additions, red deletions) with Accept and Reject actions.
+</Card>
+
+---
+
+## 3. Version History & Diff-Viewer
+
+Every save event is recorded in the SQLite database as an independent revision. You can roll back changes at any time:
+
+* **Viewing History:** Click the **"Version History"** clock icon in the editor toolbar.
+* **Comparing Changes (Diff):** Select a version from the list to open the comparison view (`DiffViewer.tsx`):
+  * **Red lines** represent deleted text.
+  * **Green lines** represent added text.
+  * The comparison compares version N against version N-1, showing exactly what changed in that specific revision.
+* **Restoring a Version:** Click the **"Restore"** button next to a revision. This overwrites the current file on the server's disk with the selected revision and adds a new restore entry to the history.
+
+<Card title="Screenshot: Interactive Diff-Viewer" icon="clock-rotate-left" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** A split-screen comparison window. The left sidebar list shows revision cards (Version #3, Version #2, Version #1), and the main workspace shows color-coded text diffs with a "Restore" button active in the header.
+</Card>
+
+---
+
+## 4. Exporting & Downloading Files (.md)
+
+Any user (even in read-only mode or when the document is locked by someone else) can download a copy of the note locally.
+
+* Click the **"Download MD"** icon in the editor toolbar.
+* The file is saved directly to your computer as a `.md` file named after the note's title.
+
+<Card title="Screenshot: Download Button in Editor Toolbar" icon="download" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** The toolbar at the top of the editor showing the arrow-down icon highlighted for downloading files.
+</Card>
