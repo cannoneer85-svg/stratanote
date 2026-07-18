@@ -1,0 +1,13 @@
+{
+  "entryPoints": ["client/src"],
+  "entryPointStrategy": "expand",
+  "tsconfig": "client/tsconfig.app.json",
+  "out": "../docs/api-reference",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "hidePageTitle": true,
+  "hideBreadcrumbs": true,
+  "cleanOutputDir": true,
+  "gitRevision": "master",
+  "entryFileName": "index.md"
+}

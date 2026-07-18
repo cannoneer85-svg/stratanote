@@ -1,0 +1,83 @@
+---
+title: "Settings & Administration"
+description: "Configure StrataNote imports and exports, media library, user roles, language, and local synchronization from the admin settings panel."
+---
+
+The **Settings Panel** is available to users with the **Admin** role for system-wide configuration, and to all users for basic repository export operations.
+
+---
+
+## 1. Settings Panel Overview
+
+The settings interface is organized into several tabs. All system texts, logs, and dialog warnings support localization (which can be changed on the "General" tab).
+
+<Card title="Screenshot: Settings Panel Interface" icon="sliders" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** The settings modal split into tabs: General, Import & Upload, Users, Media Library, Synchronization, and About. The active General tab displays a language selection dropdown.
+  **Key elements:** Sidebar tabs and the language toggle.
+</Card>
+
+---
+
+## 2. Data Import & Export
+
+StrataNote is optimized to handle large knowledge bases (Vaults) containing hundreds of megabytes of files.
+
+### Chunked Upload
+When uploading a large vault in a `.zip` archive (over 300 MB), the system automatically splits the file into 5 MB chunks.
+* **Benefit:** Prevents connection timeouts and `HTTP 413: Payload Too Large` errors.
+* **Import Modes:** 
+  1. *Merge* — Adds new files and directories, updates modified ones, and preserves other files on the server.
+  2. *Overwrite* — Completely deletes the active vault on the server before extracting the new ZIP archive.
+
+<Card title="Screenshot: Import Tab with Upload Progress" icon="cloud-arrow-up" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** ZIP archive upload screen showing a Progress Bar with percentage tracking and status phases (e.g., `Uploading: 84%... Extracting & Indexing...`).
+</Card>
+
+### Exporting Vault
+In the export dialog, you can choose exactly what to package into the zip archive:
+* Only markdown text files (`.md`).
+* Only media files and attachments (`assets/`).
+* Full backup (Text + Media).
+* **Archive Name:** Automatically generated with a data-type prefix and a Moscow time (MSK, UTC+3) timestamp — e.g., `obsidian-vault-export-2026-07-16_23-50.zip`.
+
+---
+
+## 3. Media & Attachment Management
+
+In the **"Media"** settings tab, administrators can clean up disk space by removing unused files:
+
+* **Orphaned Files Scanner:** An automated scanner reads all notes. Files in the `assets/` directory that are not referenced in any markdown documents are flagged as **"Not Used"** and can be filtered using the **"Orphaned"** filter toggle.
+* **Bulk Deletion:** Select multiple orphaned files using checkboxes and delete them permanently from the server disk with one click.
+* **Format Groups:** Images, videos, audios (.mp3), archives (.zip), and PDFs are grouped into categories, with unrecognized files placed in **"Other"**.
+
+<Card title="Screenshot: Media Library with Filters" icon="images" iconType="solid" color="#8b5cf6">
+  **Interface Preview:** Media assets grid. The "Orphaned" filter is selected. Unused images show a red "Not Used" badge, some cards are checked, and the "Delete Selected (3)" button is active.
+</Card>
+
+---
+
+## 4. Local Synchronization (MCP Sync Agent)
+
+To edit files locally using your favorite desktop editor (Obsidian, VS Code, Logseq, etc.), StrataNote provides a background synchronization utility called **_sync_mcp**.
+
+### Step 1: Generate API Access Token
+1. In the StrataNote Settings panel, select the **"Synchronization"** (Sync) tab.
+2. Click **"Generate API Token"** and copy the generated JWT string.
+
+### Step 2: Configure the Local Agent
+1. In your project workspace directory on your PC, find the `_sync_mcp/config.template.json` file.
+2. Duplicate it and rename the copy to `_sync_mcp/config.json` (this file is ignored in Git and will not leak public credentials).
+3. Open it in a editor and configure the fields:
+   ```json
+   {
+     "STRATANOTE_SERVER_URL": "http://localhost:3001",
+     "STRATANOTE_API_TOKEN": "YOUR_COPIED_JWT_TOKEN",
+     "LOCAL_VAULT_PATH": "D:/Obsidian/MyPersonalVault"
+   }
+   ```
+4. Set `LOCAL_VAULT_PATH` to the absolute path of your local notes folder.
+
+### Step 3: Run the Agent
+* When you launch the project locally using `npm run dev` in `_app/` (or via `start.bat` on Windows), the system automatically checks dependency states and starts the synchronization agent in the background.
+* The local directory watcher (Chokidar) monitors changes and waits 5 seconds (debouncing to prevent partial file writes) before syncing modified files to the server.
+* The agent manages synchronization states using `.sync_state.json` which tracks file hashes during successful synchronization operations.
