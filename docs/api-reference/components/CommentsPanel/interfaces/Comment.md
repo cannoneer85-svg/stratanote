@@ -2,7 +2,7 @@
 
 ***
 
-Defined in: [components/CommentsPanel.tsx:7](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L7)
+Defined in: [components/CommentsPanel.tsx:7](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L7)
 
 ## Properties
 
@@ -10,7 +10,7 @@ Defined in: [components/CommentsPanel.tsx:7](https://github.com/cannoneer85-svg/
 
 > **approved**: `number`
 
-Defined in: [components/CommentsPanel.tsx:17](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L17)
+Defined in: [components/CommentsPanel.tsx:17](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L17)
 
 ***
 
@@ -18,7 +18,7 @@ Defined in: [components/CommentsPanel.tsx:17](https://github.com/cannoneer85-svg
 
 > **author\_id**: `number`
 
-Defined in: [components/CommentsPanel.tsx:11](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L11)
+Defined in: [components/CommentsPanel.tsx:11](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L11)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [components/CommentsPanel.tsx:11](https://github.com/cannoneer85-svg
 
 > **author\_name**: `string`
 
-Defined in: [components/CommentsPanel.tsx:12](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L12)
+Defined in: [components/CommentsPanel.tsx:12](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L12)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [components/CommentsPanel.tsx:12](https://github.com/cannoneer85-svg
 
 > **content**: `string`
 
-Defined in: [components/CommentsPanel.tsx:13](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L13)
+Defined in: [components/CommentsPanel.tsx:13](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L13)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [components/CommentsPanel.tsx:13](https://github.com/cannoneer85-svg
 
 > **created\_at**: `string`
 
-Defined in: [components/CommentsPanel.tsx:18](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L18)
+Defined in: [components/CommentsPanel.tsx:18](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L18)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [components/CommentsPanel.tsx:18](https://github.com/cannoneer85-svg
 
 > **id**: `number`
 
-Defined in: [components/CommentsPanel.tsx:8](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L8)
+Defined in: [components/CommentsPanel.tsx:8](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L8)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [components/CommentsPanel.tsx:8](https://github.com/cannoneer85-svg/
 
 > **parent\_id**: `number` \| `null`
 
-Defined in: [components/CommentsPanel.tsx:10](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L10)
+Defined in: [components/CommentsPanel.tsx:10](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L10)
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [components/CommentsPanel.tsx:10](https://github.com/cannoneer85-svg
 
 > **quoted\_text**: `string` \| `null`
 
-Defined in: [components/CommentsPanel.tsx:14](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L14)
+Defined in: [components/CommentsPanel.tsx:14](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L14)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [components/CommentsPanel.tsx:14](https://github.com/cannoneer85-svg
 
 > **relative\_path**: `string`
 
-Defined in: [components/CommentsPanel.tsx:9](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L9)
+Defined in: [components/CommentsPanel.tsx:9](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L9)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [components/CommentsPanel.tsx:9](https://github.com/cannoneer85-svg/
 
 > **resolved\_by**: `string` \| `null`
 
-Defined in: [components/CommentsPanel.tsx:16](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L16)
+Defined in: [components/CommentsPanel.tsx:16](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L16)
 
 ***
 
@@ -90,7 +90,7 @@ Defined in: [components/CommentsPanel.tsx:16](https://github.com/cannoneer85-svg
 
 > **status**: `"open"` \| `"resolved"`
 
-Defined in: [components/CommentsPanel.tsx:15](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L15)
+Defined in: [components/CommentsPanel.tsx:15](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L15)
 
 ***
 
@@ -98,4 +98,4 @@ Defined in: [components/CommentsPanel.tsx:15](https://github.com/cannoneer85-svg
 
 > **updated\_at**: `string` \| `null`
 
-Defined in: [components/CommentsPanel.tsx:19](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/components/CommentsPanel.tsx#L19)
+Defined in: [components/CommentsPanel.tsx:19](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/components/CommentsPanel.tsx#L19)

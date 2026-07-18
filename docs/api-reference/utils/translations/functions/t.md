@@ -4,7 +4,7 @@
 
 > **t**(`key`, `lang`, `replacements?`): `string`
 
-Defined in: [utils/translations.ts:704](https://github.com/cannoneer85-svg/obsidian-collab/blob/master/_app/client/src/utils/translations.ts#L704)
+Defined in: [utils/translations.ts:704](https://github.com/cannoneer85-svg/stratanote/blob/master/_app/client/src/utils/translations.ts#L704)
 
 ## Parameters
 
