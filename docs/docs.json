@@ -27,6 +27,7 @@
         "pages": [
           "user-guides/editor",
           "user-guides/search",
+          "user-guides/tags",
           "user-guides/graph",
           "user-guides/collaboration",
           "user-guides/media",
