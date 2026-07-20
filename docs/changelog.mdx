@@ -9,7 +9,7 @@ description: "StrataNote project changelog and updates history"
 ### Tags Sidebar, Templates Security and I18n Auto-Generation
 
 - Tags Explorer & Sidebar: Added a new Tags tab to sidebar, inline preview chips for tags in document viewer, strict tag search API, and dynamic relationships mapping on the interactive graph.
-- Access Control & Security for Templates: Enforced strict templates access boundaries on backend endpoints (read, update, comments, versions). Non-admin users are restricted to their own subfolders (Templates/<username>/).
+- Access Control & Security for Templates: Enforced strict templates access boundaries on backend endpoints (read, update, comments, versions). Non-admin users are restricted to their own subfolders (`Templates/<username>/`).
 - Templates I18n Auto-Generation: Refactored templates initialization into a standalone module and added default language adaptivity (generating English or Russian defaults based on system settings).
 - SQLite Defaults Constraint Fix: Resolved FOREIGN KEY SQLite constraints on global defaults (user_id = 0) by seeding a dedicated system user record.
 - Superadmin Protection & Delete Lock: Restricted deletion of the primary superadministrator account (admin).
@@ -42,7 +42,7 @@ description: "StrataNote project changelog and updates history"
 - Integrate and merge SEO improvements for MDX documentation pages.
 - Expand page descriptions in user guides to optimize search relevance.
 
-## [1.13.4] - 17.07.2026
+## [1.13.4] - 2026-07-17
 ### Mintlify Auto-Documentation and CRLF Sync Normalization
 
 - Automated Mintlify documentation setup integration with dynamic API references.
@@ -101,10 +101,8 @@ description: "StrataNote project changelog and updates history"
 
 - Integrated an automatic and manual update checker querying the GitHub API for new releases of StrataNote.
 - Implemented background checking, local caching (1-hour TTL), and an API endpoint /api/version/check to check for updates.
-- Added UI indicators: a pulsing update warning badge in the sidebar footer, a download alert banner in the About dialog, and a manual update checker box in the Settings panel (under the \
-- System\ tab).
-- Preserved native browser text selection when clicking \
-- Comment\ by memoizing the preview container.
+- Added UI indicators: a pulsing update warning badge in the sidebar footer, a download alert banner in the About dialog, and a manual update checker box in the Settings panel (under the "System" tab).
+- Preserved native browser text selection when clicking "Comment" by memoizing the preview container.
 - Added commenting support to CodeMirror Edit mode and Suggestion original/suggested diff views.
 - Cleaned up the release workflow to only push to the public GitHub repository.
 
