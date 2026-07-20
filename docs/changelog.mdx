@@ -9,7 +9,7 @@ description: "StrataNote project changelog and updates history"
 ### Tags Sidebar, Templates Security and I18n Auto-Generation
 
 - Tags Explorer & Sidebar: Added a new Tags tab to sidebar, inline preview chips for tags in document viewer, strict tag search API, and dynamic relationships mapping on the interactive graph.
-- Access Control & Security for Templates: Enforced strict templates access boundaries on backend endpoints (read, update, comments, versions). Non-admin users are restricted to their own subfolders (Templates/<username>/).
+- Access Control & Security for Templates: Enforced strict templates access boundaries on backend endpoints (read, update, comments, versions). Non-admin users are restricted to their own subfolders (`Templates/<username>/`).
 - Templates I18n Auto-Generation: Refactored templates initialization into a standalone module and added default language adaptivity (generating English or Russian defaults based on system settings).
 - SQLite Defaults Constraint Fix: Resolved FOREIGN KEY SQLite constraints on global defaults (user_id = 0) by seeding a dedicated system user record.
 - Superadmin Protection & Delete Lock: Restricted deletion of the primary superadministrator account (admin).
