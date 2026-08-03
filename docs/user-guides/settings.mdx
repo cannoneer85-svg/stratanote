@@ -25,7 +25,7 @@ StrataNote is optimized to handle large knowledge bases (Vaults) containing hund
 ### Chunked Upload
 When uploading a large vault in a `.zip` archive (over 300 MB), the system automatically splits the file into 5 MB chunks.
 * **Benefit:** Prevents connection timeouts and `HTTP 413: Payload Too Large` errors.
-* **Import Modes:** 
+* **Import Modes:**
   1. *Merge* — Adds new files and directories, updates modified ones, and preserves other files on the server.
   2. *Overwrite* — Completely deletes the active vault on the server before extracting the new ZIP archive.
 
@@ -48,7 +48,7 @@ In the **"Media"** settings tab, administrators can clean up disk space by remov
 
 * **Orphaned Files Scanner:** An automated scanner reads all notes. Files in the `assets/` directory that are not referenced in any markdown documents are flagged as **"Not Used"** and can be filtered using the **"Orphaned"** filter toggle.
 * **Bulk Deletion:** Select multiple orphaned files using checkboxes and delete them permanently from the server disk with one click.
-* **Format Groups:** Images, videos, audios (.mp3), archives (.zip), and PDFs are grouped into categories, with unrecognized files placed in **"Other"**.
+* **Format Groups:** Images, videos, audio files (.mp3), archives (.zip), and PDFs are grouped into categories, with unrecognized files placed in **"Other"**.
 
 <Card title="Screenshot: Media Library with Filters" icon="images" iconType="solid" color="#8b5cf6">
   **Interface Preview:** Media assets grid. The "Orphaned" filter is selected. Unused images show a red "Not Used" badge, some cards are checked, and the "Delete Selected (3)" button is active.
