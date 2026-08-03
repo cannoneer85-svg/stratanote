@@ -1,0 +1,22 @@
+{
+  "STRATANOTE_SERVER_URL": "PLACE_YOUR_STRATANOTE_SERVER_URL_HERE",
+  "STRATANOTE_API_TOKEN": "PLACE_YOUR_API_TOKEN_HERE",
+  "LOCAL_VAULT_PATH": "PLACE_YOUR_LOCAL_PATH_TO_DOCS_FOLDER_HERE",
+  "_SYNC_MODE_INFO": "Possible values: 'auto' (synchronize automatically) or 'manual' (synchronize only on demand)",
+  "SYNC_MODE": "manual",
+  "_CONFLICT_RESOLUTION_INFO": "Possible values: 'suggest' (show prompt), 'local-wins' (overwrite server), 'server-wins' (overwrite local), 'interactive' (manual merge UI)",
+  "CONFLICT_RESOLUTION": "suggest",
+  "POLL_INTERVAL_MS": 10000,
+  "EXCLUDE_PATTERNS": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.obsidian/**",
+    "**/_app/**",
+    "**/_sync_mcp/**",
+    "**/database.sqlite",
+    "**/.sync_state.json",
+    "**/.agents/**",
+    "**/.sync_backup/**",
+    "**/.DS_Store"
+  ]
+}
